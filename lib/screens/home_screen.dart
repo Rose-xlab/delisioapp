@@ -1,8 +1,12 @@
-// screens/home_screen.dart
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
+import '../providers/chat_provider.dart'; // Import ChatProvider to potentially start new chat
+
+// Ensure Recipe model is imported if used directly (it's used by RecipeProvider)
+// import '../models/recipe.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -13,12 +17,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = false;
+  bool _isLoading = false; // For the generate recipe button state
 
   @override
   void initState() {
     super.initState();
-    _loadUserRecipes();
+    // Use post-frame callback to avoid calling provider during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Only load if mounted and context is available
+      if(mounted) {
+        _loadUserRecipes();
+      }
+    });
   }
 
   @override
@@ -29,61 +39,100 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserRecipes() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.token == null) return;
-
+    if (authProvider.token == null) {
+      print("User not logged in, skipping recipe load.");
+      return;
+    }
+    print("Attempting to load user recipes...");
     try {
       await Provider.of<RecipeProvider>(context, listen: false)
           .getUserRecipes(authProvider.token!);
+      print("User recipes loaded or updated.");
     } catch (e) {
-      // Handle error if needed
+      print('Error loading recipes: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load your recipes: ${e.toString()}')),
+        );
+      }
     }
   }
 
   Future<void> _generateRecipe() async {
-    if (_searchController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a recipe to search for'),
-        ),
-      );
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a recipe name or ingredients')),
+        );
+      }
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-    });
-
+    if (_isLoading) return;
+    if (mounted) setState(() => _isLoading = true);
+    print("Attempting to generate recipe for query: $query");
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await Provider.of<RecipeProvider>(context, listen: false).generateRecipe(
-        _searchController.text.trim(),
-        save: authProvider.token != null, // Save if logged in
+      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+      await recipeProvider.generateRecipe(
+        query,
+        save: authProvider.token != null,
         token: authProvider.token,
       );
-
-      // Navigate to recipe detail screen
-      Navigator.of(context).pushNamed('/recipe');
+      print("Recipe generation successful (likely), navigating...");
+      if (mounted) Navigator.of(context).pushNamed('/recipe');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating recipe: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('Error generating recipe: ${e.toString()}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _openChat() {
-    Navigator.of(context).pushNamed('/chat');
+  // --- MODIFIED: Navigate to Chat List Screen ---
+  void _openChatList() {
+    print("Navigating to /chatList");
+    Navigator.of(context).pushNamed('/chatList');
   }
 
+  // --- Optional: Start New Chat Directly ---
+  // void _startNewChatDirectly() async {
+  //    print("Starting new chat directly...");
+  //    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+  //    // Show loading indicator maybe?
+  //    final newConversationId = await chatProvider.createNewConversation();
+  //    if (newConversationId != null && mounted) {
+  //       Navigator.of(context).pushNamed('/chat', arguments: newConversationId);
+  //    } else if (mounted) {
+  //        ScaffoldMessenger.of(context).showSnackBar(
+  //          const SnackBar(content: Text('Could not start new chat.'), backgroundColor: Colors.red)
+  //        );
+  //    }
+  // }
+
   void _signOut() async {
-    await Provider.of<AuthProvider>(context, listen: false).signOut();
-    Navigator.of(context).pushReplacementNamed('/login');
+    // ... (sign out logic remains the same) ...
+    print("Signing out...");
+    if(!mounted) return;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    try {
+      await authProvider.signOut();
+      print("Sign out successful, navigating to login.");
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      print("Error signing out: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error signing out: ${e.toString()}'))
+        );
+      }
+    }
   }
 
   @override
@@ -92,14 +141,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final userRecipes = recipeProvider.userRecipes;
 
+    print("Building HomeScreen. Logged in: ${authProvider.token != null}");
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cooking Assistant'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.exit_to_app),
-            onPressed: _signOut,
-          ),
+          if (authProvider.token != null)
+            IconButton(
+              icon: const Icon(Icons.exit_to_app),
+              tooltip: 'Sign Out',
+              onPressed: _signOut,
+            ),
         ],
       ),
       body: Column(
@@ -110,127 +163,114 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ... (Welcome Text, Instruction Text remain the same) ...
                 Text(
-                  'Welcome${authProvider.user != null ? ', ${authProvider.user!.name}' : ''}!',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'Welcome${authProvider.user?.name != null ? ', ${authProvider.user!.name}' : ''}!',
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'What would you like to cook today?',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
                 Row(
+                  // ... (TextField and Search Icon Button remain the same) ...
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: TextField(
                         controller: _searchController,
                         decoration: const InputDecoration(
-                          hintText: 'Search for a recipe...',
+                          hintText: 'Search for ingredients or dish...',
                           prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
                         ),
                         onSubmitted: (_) => _generateRecipe(),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _generateRecipe,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.all(16),
-                        shape: const CircleBorder(),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 56, height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _generateRecipe,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.all(16),
+                          shape: const CircleBorder(),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          minimumSize: Size.zero,
+                          disabledForegroundColor: Colors.white54,
+                          disabledBackgroundColor: Colors.grey,
                         ),
-                      )
-                          : const Icon(Icons.search),
+                        child: _isLoading
+                            ? const SizedBox(width: 24, height: 24, child: Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))
+                            : const Icon(Icons.search, size: 24),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
+                // --- MODIFIED: Chat Button Navigates to List ---
                 ElevatedButton.icon(
-                  onPressed: _openChat,
-                  icon: const Icon(Icons.chat),
-                  label: const Text('Chat with Cooking Assistant'),
+                  onPressed: _openChatList, // Changed target function
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('View Chats / Ask Ideas'), // Updated text
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 16,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   ),
                 ),
+                // --- End of Modification ---
               ],
             ),
           ),
 
-          // Recent Recipes Section (if logged in)
+          // Recent Recipes Section (remains the same logic)
           if (authProvider.token != null)
             Expanded(
               child: Column(
+                // ... (Existing recipe list logic) ...
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      'Your Recent Recipes',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text('Your Saved Recipes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   ),
-                  if (recipeProvider.isLoading)
-                    const Center(child: CircularProgressIndicator())
+                  if (recipeProvider.isLoading && userRecipes.isEmpty)
+                    const Expanded(child: Center(child: CircularProgressIndicator()))
                   else if (userRecipes.isEmpty)
-                    const Expanded(
+                    Expanded(
                       child: Center(
-                        child: Text(
-                          'No recipes yet. Try searching for a recipe or chat with the assistant!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Text( 'No recipes saved yet...', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600], fontSize: 16)),
                         ),
                       ),
                     )
                   else
                     Expanded(
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                         itemCount: userRecipes.length,
                         itemBuilder: (context, index) {
                           final recipe = userRecipes[index];
                           return Card(
-                            margin: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 16,
-                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
                             child: ListTile(
-                              title: Text(
-                                recipe.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${recipe.ingredients.length} ingredients • ${recipe.steps.length} steps',
-                              ),
+                              title: Text( recipe.title, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Text('${recipe.ingredients.length} ingredients • ${recipe.steps.length} steps', maxLines: 1, overflow: TextOverflow.ellipsis),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () async {
-                                await Provider.of<RecipeProvider>(context,
-                                    listen: false)
-                                    .getRecipeById(
-                                    recipe.id!, authProvider.token!);
-                                Navigator.of(context).pushNamed('/recipe');
+                                // ... (Existing onTap logic) ...
+                                print("Tapped on recipe: ${recipe.title}");
+                                try {
+                                  if (!mounted) return;
+                                  await Provider.of<RecipeProvider>(context, listen: false).getRecipeById(recipe.id!, authProvider.token!);
+                                  print("Recipe details fetched, navigating...");
+                                  if(mounted) Navigator.of(context).pushNamed('/recipe');
+                                } catch(e) {
+                                  print("Error loading recipe details: $e");
+                                  if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load recipe details: ${e.toString()}')));
+                                }
                               },
                             ),
                           );
@@ -240,6 +280,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+          // Login/Signup Prompt (remains the same)
+          if (authProvider.token == null)
+            Expanded(
+              child: Padding(
+                // ... (Existing login prompt) ...
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.lock_outline, size: 50, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text("Sign in to save your recipes!", style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                        child: const Text("Sign In / Sign Up"),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            )
         ],
       ),
     );

@@ -17,7 +17,10 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadRecipes();
+    // Use post-frame callback to avoid setState during build error
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadRecipes();
+    });
   }
 
   Future<void> _loadRecipes() async {
