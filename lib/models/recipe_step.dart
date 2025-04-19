@@ -1,4 +1,4 @@
-// models/recipe_step.dart
+// lib/models/recipe_step.dart
 class RecipeStep {
   final String text;
   final String? imageUrl;
@@ -11,20 +11,12 @@ class RecipeStep {
   });
 
   factory RecipeStep.fromJson(Map<String, dynamic> json) {
-    // Print for debugging
-    // print('Parsing RecipeStep from JSON: $json');
-
     // Check for image_url in different formats and locations
     String? extractedImageUrl;
     if (json['image_url'] != null) {
       extractedImageUrl = json['image_url'].toString();
     } else if (json['imageUrl'] != null) {
       extractedImageUrl = json['imageUrl'].toString();
-    }
-
-    // If we found an image URL, print it for debugging
-    if (extractedImageUrl != null) {
-      print('Found image URL: $extractedImageUrl');
     }
 
     return RecipeStep(

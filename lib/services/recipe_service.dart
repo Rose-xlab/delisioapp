@@ -1,8 +1,10 @@
-// services/recipe_service.dart
+// lib/services/recipe_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/recipe.dart';
+import '../models/recipe_step.dart';
+import '../models/nutrition_info.dart';
 
 class RecipeService {
   final String baseUrl = ApiConfig.baseUrl;
@@ -39,7 +41,18 @@ class RecipeService {
       print('Recipe API response code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
+        final Map<String, dynamic> responseData = json.decode(response.body);
+
+        // ADD DETAILED LOGGING TO SEE RAW TIME FIELDS
+        print('Raw recipe response data: $responseData');
+        print('Time fields in response:');
+        print('- prepTime: ${responseData['prepTime']}');
+        print('- cookTime: ${responseData['cookTime']}');
+        print('- totalTime: ${responseData['totalTime']}');
+        print('- prep_time_minutes: ${responseData['prep_time_minutes']}');
+        print('- cook_time_minutes: ${responseData['cook_time_minutes']}');
+        print('- total_time_minutes: ${responseData['total_time_minutes']}');
+
         print('Recipe generation successful. Recipe title: ${responseData['title']}');
 
         // Log the structure of steps and images for debugging
@@ -80,9 +93,20 @@ class RecipeService {
       print('getUserRecipes response code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        return (responseData['recipes'] as List)
-            .map((recipeJson) => Recipe.fromJson(recipeJson))
+        final Map<String, dynamic> responseData = json.decode(response.body);
+
+        // Add logging for time fields in the first recipe (if available)
+        if (responseData['recipes'] is List && responseData['recipes'].isNotEmpty) {
+          final firstRecipe = responseData['recipes'][0];
+          print('Sample recipe time fields from list:');
+          print('- prep_time_minutes: ${firstRecipe['prep_time_minutes']}');
+          print('- cook_time_minutes: ${firstRecipe['cook_time_minutes']}');
+          print('- total_time_minutes: ${firstRecipe['total_time_minutes']}');
+        }
+
+        final List<dynamic> recipesList = responseData['recipes'];
+        return recipesList
+            .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
             .toList();
       } else {
         final errorData = json.decode(response.body);
@@ -108,8 +132,16 @@ class RecipeService {
       print('getRecipeById response code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        return Recipe.fromJson(responseData['recipe']);
+        final Map<String, dynamic> responseData = json.decode(response.body);
+
+        // Add logging for time fields
+        final Map<String, dynamic> recipeData = responseData['recipe'];
+        print('Recipe by ID time fields:');
+        print('- prep_time_minutes: ${recipeData['prep_time_minutes']}');
+        print('- cook_time_minutes: ${recipeData['cook_time_minutes']}');
+        print('- total_time_minutes: ${recipeData['total_time_minutes']}');
+
+        return Recipe.fromJson(recipeData);
       } else {
         final errorData = json.decode(response.body);
         throw Exception(errorData['error']?['message'] ?? 'Failed to get recipe');

@@ -1,8 +1,9 @@
 // lib/models/recipe.dart
 import 'package:flutter/foundation.dart'; // For kDebugMode print
 
+// Ensure these point to the correct, updated files
 import 'recipe_step.dart';
-import 'nutrition_info.dart';
+import 'nutrition_info.dart'; // Assumes this is the updated NutritionInfo model
 
 class Recipe {
   final String? id;
@@ -10,14 +11,12 @@ class Recipe {
   final int servings;
   final List<String> ingredients;
   final List<RecipeStep> steps;
-  final NutritionInfo nutrition;
+  final NutritionInfo nutrition; // Uses the potentially complex NutritionInfo model
   final String query;
   final DateTime createdAt;
-  // --- ADDED TIME FIELDS ---
   final int? prepTimeMinutes;
   final int? cookTimeMinutes;
   final int? totalTimeMinutes;
-  // --- END ADDED FIELDS ---
 
   Recipe({
     this.id,
@@ -28,122 +27,149 @@ class Recipe {
     required this.nutrition,
     required this.query,
     required this.createdAt,
-    // Add new fields to constructor
     this.prepTimeMinutes,
     this.cookTimeMinutes,
     this.totalTimeMinutes,
   });
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
-    // Print the raw JSON for debugging if needed
-    // print('Parsing Recipe from JSON. Keys: ${json.keys}');
+    // Debug prints are helpful during development
+    // if (kDebugMode) {
+    //   print('--- Parsing Recipe ---');
+    //   print('JSON Keys: ${json.keys.toList()}');
+    // }
 
-    // Helper functions remain the same
-    List<RecipeStep> parseSteps(dynamic stepsJson) {
-      if (stepsJson == null || stepsJson is! List || stepsJson.isEmpty) {
-        if (kDebugMode) print('No valid steps data found in recipe JSON');
-        return [];
-      }
-      try {
-        final List<RecipeStep> results = [];
-        for (var step in stepsJson) {
-          if (step is Map) {
-            final Map<String, dynamic> stepMap = Map<String, dynamic>.from(step);
-            // Ensure RecipeStep.fromJson exists and handles its fields safely
-            try {
-              results.add(RecipeStep.fromJson(stepMap));
-            } catch (e) {
-              if (kDebugMode) print('Error parsing individual step: $e - Step data: $stepMap');
-            }
-          } else {
-            if (kDebugMode) print('Skipping invalid step format: $step');
-          }
-        }
-        if (kDebugMode) print('Successfully parsed ${results.length} steps');
-        return results;
-      } catch (e, s) {
-        if (kDebugMode) print('Error parsing steps list: $e \nStack: $s');
-        if (kDebugMode) print('Steps JSON format received: $stepsJson');
-        return [];
-      }
-    }
-
-    List<String> extractIngredients(dynamic ingredients) {
-      if (ingredients == null || ingredients is! List || ingredients.isEmpty) return [];
-      try {
-        // Ensure all items are strings
-        return ingredients.map((item) => item.toString()).toList();
-      } catch (e) {
-        if (kDebugMode) print('Error extracting ingredients: $e');
-        return [];
-      }
-    }
-
-    DateTime parseCreatedAt(dynamic dateStr) {
-      if (dateStr == null || dateStr is! String) return DateTime.now();
-      try { return DateTime.parse(dateStr); }
-      catch (e) { if (kDebugMode) print('Error parsing date: $e'); return DateTime.now();}
-    }
-
-    // Safely parse nullable integer time fields
+    // --- Helper: Safely parse nullable integer fields ---
+    // Handles int, String, double (by truncation), or null input.
     int? parseIntSafe(dynamic value) {
       if (value == null) return null;
       if (value is int) return value;
+      // Allow parsing integers represented as strings
       if (value is String) return int.tryParse(value);
-      // Handle double if necessary, e.g., json['servings'] could be 4.0
+      // Handle potential doubles from JSON (e.g., 4.0)
       if (value is double) return value.toInt();
+      // If type is unexpected, return null
       return null;
     }
 
-    // Safely parse Nutrition Info
-    NutritionInfo parseNutrition(dynamic nutritionJson) {
-      if (nutritionJson is Map<String, dynamic>) {
-        // Assuming NutritionInfo.fromJson exists and handles nulls/types safely
-        try {
-          return NutritionInfo.fromJson(nutritionJson);
-        } catch (e) {
-          if (kDebugMode) print('Error parsing nutrition info: $e');
+    // --- Helper: Safely parse List<RecipeStep> ---
+    // Assumes RecipeStep.fromJson exists and handles its own fields safely.
+    List<RecipeStep> parseSteps(dynamic stepsJson) {
+      if (stepsJson == null || stepsJson is! List || stepsJson.isEmpty) {
+        return []; // Return empty list if no valid steps data
+      }
+      final List<RecipeStep> results = [];
+      for (var stepData in stepsJson) {
+        // Ensure each step is a map before passing to RecipeStep.fromJson
+        if (stepData is Map<String, dynamic>) {
+          try {
+            // *** IMPORTANT: Ensure RecipeStep.fromJson is robust ***
+            results.add(RecipeStep.fromJson(stepData));
+          } catch (e, s) {
+            if (kDebugMode) {
+              print('Error parsing individual step: $e\nStack: $s\nStep data: $stepData');
+            }
+            // Optionally skip problematic steps or handle error differently
+          }
+        } else {
+          if (kDebugMode) print('Skipping invalid step format: $stepData');
         }
       }
-      // Return default if null, not a map, or parsing fails
-      return NutritionInfo(calories: 0, protein: '0g', fat: '0g', carbs: '0g');
+      return results;
     }
 
+    // --- Helper: Safely parse List<String> for ingredients ---
+    List<String> extractIngredients(dynamic ingredientsJson) {
+      if (ingredientsJson == null || ingredientsJson is! List || ingredientsJson.isEmpty) {
+        return [];
+      }
+      try {
+        // Attempt to convert each item to String
+        return ingredientsJson.map((item) => item.toString()).toList();
+      } catch (e) {
+        if (kDebugMode) print('Error extracting ingredients: $e');
+        return []; // Return empty list on error
+      }
+    }
 
+    // --- Helper: Safely parse DateTime ---
+    DateTime parseCreatedAt(dynamic dateStr) {
+      if (dateStr == null || dateStr is! String) return DateTime.now(); // Default to now
+      try {
+        return DateTime.parse(dateStr);
+      } catch (e) {
+        if (kDebugMode) print('Error parsing date: $dateStr - $e');
+        return DateTime.now(); // Default to now on parsing error
+      }
+    }
+
+    // --- Helper: Safely parse NutritionInfo ---
+    // Uses the updated NutritionInfo.fromJson which expects numeric types.
+    NutritionInfo parseNutrition(dynamic nutritionJson) {
+      // Default NutritionInfo with numeric types (matching updated model)
+      final defaultNutrition = NutritionInfo(calories: 0, protein: 0.0, fat: 0.0, carbs: 0.0);
+
+      if (nutritionJson is Map<String, dynamic>) {
+        try {
+          // *** IMPORTANT: Ensure NutritionInfo.fromJson handles its fields robustly ***
+          // (Should handle nulls, potential string numbers, etc., as implemented before)
+          return NutritionInfo.fromJson(nutritionJson);
+        } catch (e, s) {
+          if (kDebugMode) {
+            print('Error parsing nutrition info: $e\nStack: $s\nNutrition JSON: $nutritionJson');
+          }
+          return defaultNutrition; // Return default on error
+        }
+      }
+      // Return default if nutritionJson is null or not a map
+      return defaultNutrition;
+    }
+
+    // --- Extract Time Fields ---
+    // Allows for flexibility if JSON keys are camelCase or snake_case
+    int? prepTime = parseIntSafe(json['prepTime']) ?? parseIntSafe(json['prep_time_minutes']);
+    int? cookTime = parseIntSafe(json['cookTime']) ?? parseIntSafe(json['cook_time_minutes']);
+    int? totalTime = parseIntSafe(json['totalTime']) ?? parseIntSafe(json['total_time_minutes']);
+
+    // --- Construct the Recipe Object ---
     return Recipe(
-      id: json['id'] as String?, // Cast as nullable String
-      title: json['title'] as String? ?? 'Untitled Recipe', // Handle null title
-      servings: parseIntSafe(json['servings']) ?? 4, // Use safe parse and default
+      // Use `as String?` for nullable fields, providing default if necessary
+      id: json['id'] as String?,
+      title: json['title'] as String? ?? 'Untitled Recipe', // Provide default title
+      servings: parseIntSafe(json['servings']) ?? 1, // Default to 1 serving if invalid/null
       ingredients: extractIngredients(json['ingredients']),
-      steps: parseSteps(json['steps']),
-      nutrition: parseNutrition(json['nutrition']), // Use safe parsing helper
-      query: json['query'] as String? ?? '', // Handle null query
-      // Handle both potential key names from DB/Backend
+      steps: parseSteps(json['steps']), // Ensure RecipeStep model is robust
+      nutrition: parseNutrition(json['nutrition']), // Uses the updated NutritionInfo
+      query: json['query'] as String? ?? '', // Provide default query
+      // Allow flexibility for createdAt key (camelCase or snake_case)
       createdAt: parseCreatedAt(json['createdAt'] ?? json['created_at']),
-      // --- PARSE NEW TIME FIELDS ---
-      // Keys match the database column names
-      prepTimeMinutes: parseIntSafe(json['prep_time_minutes']),
-      cookTimeMinutes: parseIntSafe(json['cook_time_minutes']),
-      totalTimeMinutes: parseIntSafe(json['total_time_minutes']),
+      // Assign parsed time fields
+      prepTimeMinutes: prepTime,
+      cookTimeMinutes: cookTime,
+      totalTimeMinutes: totalTime,
     );
   }
 
-  // Optional: Update toJson if you need to serialize this model
+  // --- Serialization to JSON ---
+  // Ensure child models (RecipeStep, NutritionInfo) also have toJson methods.
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      // Only include non-null fields if desired, or let DB handle nulls
+      if (id != null) 'id': id,
       'title': title,
       'servings': servings,
       'ingredients': ingredients,
-      // Ensure RecipeStep and NutritionInfo have toJson methods
+      // *** IMPORTANT: Ensure RecipeStep.toJson exists ***
       'steps': steps.map((step) => step.toJson()).toList(),
+      // *** Assumes NutritionInfo.toJson exists and is correct ***
       'nutrition': nutrition.toJson(),
       'query': query,
-      'createdAt': createdAt.toIso8601String(),
-      // Add time fields - keys match DB columns for consistency if sending back
-      'prep_time_minutes': prepTimeMinutes,
-      'cook_time_minutes': cookTimeMinutes,
-      'total_time_minutes': totalTimeMinutes,
+      'createdAt': createdAt.toIso8601String(), // Standard format
+      // Use consistent keys (e.g., snake_case) if sending back to a DB
+      // Only include if not null
+      if (prepTimeMinutes != null) 'prep_time_minutes': prepTimeMinutes,
+      if (cookTimeMinutes != null) 'cook_time_minutes': cookTimeMinutes,
+      if (totalTimeMinutes != null) 'total_time_minutes': totalTimeMinutes,
     };
   }
 }

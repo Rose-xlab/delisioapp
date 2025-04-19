@@ -1,6 +1,8 @@
-// providers/recipe_provider.dart
+// lib/providers/recipe_provider.dart
 import 'package:flutter/foundation.dart';
 import '../models/recipe.dart';
+import '../models/recipe_step.dart';
+import '../models/nutrition_info.dart';
 import '../services/recipe_service.dart';
 
 class RecipeProvider with ChangeNotifier {
