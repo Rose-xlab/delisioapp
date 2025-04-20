@@ -22,8 +22,6 @@ dependencies:
   # Network and API
   http: ^1.1.0
 
-
-
   # Supabase integration - UPGRADED
   supabase_flutter: ^2.8.4 # Upgraded to latest stable (v2)
 
@@ -38,6 +36,8 @@ dependencies:
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^9.0.0
   share_plus: ^10.1.4  # Added for recipe sharing functionality
+  url_launcher: ^6.1.14  # Added for launching URLs and emails
+  package_info_plus: ^8.3.0  # Updated to compatible version
 
   # UI enhancements
   shimmer: ^3.0.0
@@ -67,6 +67,11 @@ flutter:
     - assets/empty_recipes.png
     - assets/recipe_placeholder.png
     - assets/profile_placeholder.png
+    # Add these for the About screen
+    - assets/flutter_logo.png
+    - assets/nodejs_logo.png
+    - assets/supabase_logo.png
+    - assets/openai_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.

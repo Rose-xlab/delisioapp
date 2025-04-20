@@ -11,19 +11,30 @@ import 'screens/main_navigation_screen.dart';
 import 'screens/recipes/recipe_detail_screen.dart';
 import 'screens/recipes/nutrition_screen.dart';
 import 'screens/chat/chat_screen.dart';
-import 'providers/chat_provider.dart'; // Added for chat handling
+import 'screens/chat/chat_list_screen.dart';
+import 'screens/profile/notification_preferences_screen.dart';
+import 'screens/profile/faq_screen.dart';
+import 'screens/profile/about_screen.dart';
+import 'screens/profile/contact_support_screen.dart';
 
 // --- Other Imports ---
-import 'theme/app_theme.dart';
+import 'theme/app_theme_updated.dart';
+import 'providers/theme_provider.dart';
+import 'providers/chat_provider.dart';
 
-class CookingAssistantApp extends StatelessWidget {
-  const CookingAssistantApp({Key? key}) : super(key: key);
+class DelisioApp extends StatelessWidget {
+  const DelisioApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Use the ThemeProvider to get the current theme
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
-      title: 'Cooking Assistant',
+      title: 'Delisio',
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeProvider.themeMode,
       debugShowCheckedModeBanner: false,
       initialRoute: '/', // Start with splash screen
 
@@ -36,6 +47,11 @@ class CookingAssistantApp extends StatelessWidget {
         '/main': (context) => const MainNavigationScreen(),
         '/recipe': (context) => const RecipeDetailScreen(),
         '/nutrition': (context) => const NutritionScreen(),
+        '/chatList': (context) => const ChatListScreen(),
+        '/notifications': (context) => const NotificationPreferencesScreen(),
+        '/faq': (context) => const FAQScreen(),
+        '/about': (context) => const AboutScreen(),
+        '/contact': (context) => const ContactSupportScreen(),
       },
 
       // Use onGenerateRoute for routes that need arguments (like /chat)
@@ -122,20 +138,6 @@ class CookingAssistantApp extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-// Simple Error Screen placeholder
-class ErrorScreen extends StatelessWidget {
-  final String message;
-  const ErrorScreen({Key? key, required this.message}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Error')),
-      body: Center(child: Text('An error occurred: $message')),
     );
   }
 }

@@ -1,13 +1,14 @@
-// lib/main.dart
+// lib/main_updated.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'app.dart'; // Assuming CookingAssistantApp is defined here
+import 'app.dart'; // We'll update this next
 import 'providers/auth_provider.dart';
 import 'providers/recipe_provider.dart';
 import 'providers/chat_provider.dart';
-import 'providers/user_provider.dart'; // Assuming this is still needed independently
+import 'providers/user_provider.dart';
+import 'providers/theme_provider.dart'; // New theme provider
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,9 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        // Theme provider for dark/light mode
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+
         // 1. AuthProvider provided first
         ChangeNotifierProvider(create: (_) => AuthProvider()),
 
@@ -50,15 +54,10 @@ void main() async {
         // 3. ChatProvider DEPENDS ON AuthProvider
         ChangeNotifierProxyProvider<AuthProvider, ChatProvider>(
           // Create function initializes ChatProvider once.
-          // Pass the *initial* auth state from AuthProvider if needed,
-          // but ChatProvider will get updated immediately via `update`.
-          // Let's create it without initial auth state here.
           create: (context) => ChatProvider(),
 
           // Update function is called immediately after create and whenever AuthProvider notifies listeners.
           update: (context, auth, previousChatProvider) {
-            // Reuse the previous ChatProvider instance if it exists, otherwise use the newly created one.
-            // Call an 'updateAuth' method on ChatProvider to pass the latest AuthProvider instance.
             print("ChangeNotifierProxyProvider: Updating ChatProvider. Auth authenticated: ${auth.isAuthenticated}");
             // Ensure previousChatProvider is not null before updating
             final chatProvider = previousChatProvider ?? ChatProvider();
@@ -67,7 +66,7 @@ void main() async {
           },
         ),
       ],
-      child: const CookingAssistantApp(), // Your main App Widget
+      child: const DelisioApp(), // Updated app name
     ),
   );
 }

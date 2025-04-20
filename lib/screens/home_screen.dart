@@ -1,12 +1,9 @@
-// lib/screens/home_screen.dart
+// lib/screens/home_screen_updated.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
 import '../providers/chat_provider.dart'; // Import ChatProvider to potentially start new chat
-
-// Ensure Recipe model is imported if used directly (it's used by RecipeProvider)
-// import '../models/recipe.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -161,42 +158,6 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(context).pushNamed('/chatList');
   }
 
-  // --- Optional: Start New Chat Directly ---
-  // void _startNewChatDirectly() async {
-  //    print("Starting new chat directly...");
-  //    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-  //    // Show loading indicator maybe?
-  //    final newConversationId = await chatProvider.createNewConversation();
-  //    if (newConversationId != null && mounted) {
-  //       Navigator.of(context).pushNamed('/chat', arguments: newConversationId);
-  //    } else if (mounted) {
-  //        ScaffoldMessenger.of(context).showSnackBar(
-  //          const SnackBar(content: Text('Could not start new chat.'), backgroundColor: Colors.red)
-  //        );
-  //    }
-  // }
-
-  void _signOut() async {
-    // ... (sign out logic remains the same) ...
-    print("Signing out...");
-    if(!mounted) return;
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    try {
-      await authProvider.signOut();
-      print("Sign out successful, navigating to login.");
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
-    } catch (e) {
-      print("Error signing out: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error signing out: ${e.toString()}'))
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
@@ -210,14 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cooking Assistant'),
-        actions: [
-          if (authProvider.token != null)
-            IconButton(
-              icon: const Icon(Icons.exit_to_app),
-              tooltip: 'Sign Out',
-              onPressed: _signOut,
-            ),
-        ],
+        // Removed sign out button - it's now in the profile tab
       ),
       body: Column(
         children: [
@@ -268,8 +222,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.all(16),
                               shape: const CircleBorder(),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              minimumSize: Size.zero,
                               backgroundColor: Colors.red[400],
                               disabledBackgroundColor: Colors.grey,
                             ),
@@ -301,8 +253,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.all(16),
                           shape: const CircleBorder(),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          minimumSize: Size.zero,
                           disabledForegroundColor: Colors.white54,
                           disabledBackgroundColor: Colors.grey,
                         ),

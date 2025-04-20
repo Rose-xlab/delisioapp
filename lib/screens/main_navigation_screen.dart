@@ -1,12 +1,12 @@
-// lib/screens/main_navigation_screen.dart
+// lib/screens/main_navigation_screen_updated.dart
 import 'package:flutter/material.dart';
 import '../widgets/common/bottom_navigation.dart';
 import 'home_screen.dart';
-import 'chat/chat_screen.dart'; // We still need this for direct chat opening
+import 'chat/chat_screen.dart';
 import 'recipes/recipe_list_screen.dart';
-import 'profile/profile_screen.dart';
-import '../providers/chat_provider.dart'; // For starting a new chat
-import 'package:provider/provider.dart'; // For Provider.of
+import 'profile/profile_screen_enhanced.dart'; // Use enhanced profile screen
+import '../providers/chat_provider.dart';
+import 'package:provider/provider.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({Key? key}) : super(key: key);
@@ -37,7 +37,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         const HomeScreen(),
         _buildChatPlaceholder(), // Placeholder that will trigger chat creation
         const RecipeListScreen(),
-        const ProfileScreen(),
+        const ProfileScreenEnhanced(), // Use enhanced profile screen
       ];
       setState(() {}); // Refresh with initial screens
     } catch (e) {
