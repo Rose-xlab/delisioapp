@@ -114,9 +114,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Improved: Cancel recipe generation with better feedback
-  void _cancelRecipeGeneration() {
+  Future<void> _cancelRecipeGeneration() async {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-    if (recipeProvider.isLoading) {
+
+    if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
       // Show cancellation in progress
       setState(() => _isLoading = true);
 
@@ -129,8 +130,28 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-      // Call the cancellation method
-      recipeProvider.cancelRecipeGeneration();
+      // Call the cancellation method WITH await
+      try {
+        await recipeProvider.cancelRecipeGeneration();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Recipe generation cancelled'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } catch (e) {
+        print('Error during cancellation: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error during cancellation: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
