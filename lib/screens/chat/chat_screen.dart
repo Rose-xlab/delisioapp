@@ -47,6 +47,9 @@ class _ChatScreenState extends State<ChatScreen> {
   // Map to track which messages should show which action buttons
   final Map<String, ChatActionType> _messageActions = {};
 
+  // Map to store recipe names associated with messages for better context
+  final Map<String, String> _messageRecipeNames = {};
+
   @override
   void initState() {
     super.initState();
@@ -124,20 +127,26 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // --- UPDATED: Handler for suggestion selection with contextual awareness ---
-  void _onSuggestionSelected(String suggestion) {
-    print("Suggestion selected in ChatScreen: $suggestion");
+  // --- UPDATED: Handler for suggestion selection with description handling ---
+  void _onSuggestionSelected(String suggestion, bool generateRecipe) {
+    print("Suggestion selected in ChatScreen: $suggestion, generate: $generateRecipe");
 
     // Special handling for "Something else?" option
     if (suggestion.toLowerCase() == "something else?") {
       // Send this exact message to get more suggestions rather than generating a recipe
       _sendMessage("Something else?");
-    } else {
-      // For regular recipe suggestions, generate the recipe
+      return;
+    }
+
+    if (generateRecipe) {
+      // This is a request to generate after seeing the description
       _generateRecipeFromChat(suggestion);
+    } else {
+      // First click - request a description with ingredients, not full recipe
+      _sendMessage("Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it.");
     }
   }
-  // --- End of FIX ---
+  // --- End of updated handler ---
 
   // Navigate to view an existing recipe
   void _viewExistingRecipe() {
@@ -264,13 +273,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       }
                     }
 
+                    // Get recipe name for this message if available
+                    String? recipeName = _messageRecipeNames[message.id];
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: ChatBubble(
                         message: message,
-                        onSuggestionSelected: _onSuggestionSelected,
+                        onSuggestionSelected: _onSuggestionSelected, // Updated handler that now takes two parameters
                         onSeeRecipe: actionType == ChatActionType.seeRecipe ? _viewExistingRecipe : null,
                         actionType: actionType,
+                        recipeName: recipeName, // Pass recipe name context if available
                       ),
                     );
                   },

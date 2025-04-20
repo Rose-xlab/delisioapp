@@ -156,17 +156,23 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     });
   }
 
-  // New function to handle suggestion selection
-  void _onSuggestionSelected(String suggestion) {
-    print("Suggestion selected in Recipe Detail: $suggestion");
+  // Updated function to handle suggestion selection with the new signature
+  void _onSuggestionSelected(String suggestion, bool generateRecipe) {
+    print("Suggestion selected in Recipe Detail: $suggestion, generate: $generateRecipe");
 
     // Special handling for "Something else?" option
     if (suggestion.toLowerCase() == "something else?") {
       // Send this exact message to get more suggestions
       _sendMessage("Something else?");
+      return;
+    }
+
+    if (generateRecipe) {
+      // This is a request to generate after seeing the description
+      _sendMessage("Generate a recipe for $suggestion");
     } else {
-      // For regular suggestions, just ask about that suggestion
-      _sendMessage("Tell me more about $suggestion");
+      // First click - request a description with ingredients, not full recipe
+      _sendMessage("Tell me more about $suggestion and what ingredients I need for it");
     }
   }
 
