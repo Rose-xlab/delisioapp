@@ -6,7 +6,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/chat_message.dart'; // Uses updated model
-import '../../widgets/chat/chat_bubble.dart'; // Uses updated widget
+import '../../widgets/chat/chat_bubble.dart'; // Uses updated widget with action types
 import '../../widgets/chat/message_input.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
@@ -27,6 +27,25 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isGenerating = false;
+  String? _generatedRecipeId; // Track ID of currently generated recipe if any
+
+  // List of keywords that indicate user wants a recipe
+  final List<String> _recipeRequestKeywords = [
+    'recipe',
+    'how to make',
+    'how do i make',
+    'can you show me how',
+    'i want to cook',
+    'generate',
+    'create',
+    'make',
+    'cook',
+    'bake',
+    'prepare'
+  ];
+
+  // Map to track which messages should show which action buttons
+  final Map<String, ChatActionType> _messageActions = {};
 
   @override
   void initState() {
@@ -63,23 +82,73 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
     if (text.isEmpty || chatProvider.isSendingMessage) return;
     _messageController.clear();
+
+    // Determine if this message is asking for a recipe
+    bool isRequestingRecipe = _recipeRequestKeywords.any(
+            (keyword) => text.toLowerCase().contains(keyword)
+    );
+
     await chatProvider.sendMessage(text);
     _scrollToBottom();
+
+    // After sending message, determine action for the AI response (once it arrives)
+    if (chatProvider.activeMessages.isNotEmpty) {
+      // Get the latest message (it should be the AI response)
+      final latestMessage = chatProvider.activeMessages.last;
+      if (latestMessage.type == MessageType.ai) {
+        // If user was asking for a recipe, show generate button
+        if (isRequestingRecipe) {
+          setState(() {
+            _messageActions[latestMessage.id] = ChatActionType.generateRecipe;
+          });
+        }
+        // If we already have a generated recipe, show "See Recipe" button
+        else if (_generatedRecipeId != null) {
+          setState(() {
+            _messageActions[latestMessage.id] = ChatActionType.seeRecipe;
+          });
+        }
+        // Otherwise, determine based on content
+        else {
+          // Check if response looks like a recipe suggestion
+          final looksLikeRecipe = _recipeRequestKeywords.any(
+                  (keyword) => latestMessage.content.toLowerCase().contains(keyword)
+          );
+          setState(() {
+            _messageActions[latestMessage.id] = looksLikeRecipe
+                ? ChatActionType.generateRecipe
+                : ChatActionType.none;
+          });
+        }
+      }
+    }
   }
 
-  // --- FIX: Add handler for suggestion selection ---
+  // --- UPDATED: Handler for suggestion selection with contextual awareness ---
   void _onSuggestionSelected(String suggestion) {
     print("Suggestion selected in ChatScreen: $suggestion");
-    // Trigger recipe generation for the specific suggestion
-    _generateRecipeFromChat(suggestion);
+
+    // Special handling for "Something else?" option
+    if (suggestion.toLowerCase() == "something else?") {
+      // Send this exact message to get more suggestions rather than generating a recipe
+      _sendMessage("Something else?");
+    } else {
+      // For regular recipe suggestions, generate the recipe
+      _generateRecipeFromChat(suggestion);
+    }
   }
   // --- End of FIX ---
 
+  // Navigate to view an existing recipe
+  void _viewExistingRecipe() {
+    if (_generatedRecipeId == null) return;
 
-  // Generate Recipe logic remains largely the same, now triggered by _onSuggestionSelected
+    // Navigate to the recipe screen
+    Navigator.of(context).pushNamed('/recipe');
+  }
+
+  // Generate Recipe logic remains largely the same, with added tracking
   Future<void> _generateRecipeFromChat(String? suggestedQuery) async {
-    // ... (Keep the existing _generateRecipeFromChat logic from response #46) ...
-    // It should already work correctly as it takes the specific query string
     if (_isGenerating) return;
     print("Generate Recipe triggered from chat suggestion: $suggestedQuery");
     final String recipeQuery = suggestedQuery ?? "";
@@ -95,14 +164,25 @@ class _ChatScreenState extends State<ChatScreen> {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       await recipeProvider.generateRecipe( recipeQuery, save: authProvider.isAuthenticated, token: authProvider.token, ); // Use isAuthenticated
       print("Recipe generation initiated via RecipeProvider..."); // Log initiation
-      // IMPORTANT: We should check RecipeProvider's state *before* navigating
-      // This assumes RecipeProvider sets its state correctly upon success/failure
-      // We might need to listen to RecipeProvider or check its state after await
-      // For now, let's keep the navigation optimistic but add a check *if* provider throws
 
-      // Let RecipeProvider handle state, navigation might happen via listener elsewhere or checking state
-      // For simplicity, let's assume successful call means navigation is intended (could be improved)
-      if (mounted && recipeProvider.error == null) { // Check for error before navigating
+      // Store the ID of the generated recipe
+      if (mounted && recipeProvider.error == null && recipeProvider.currentRecipe?.id != null) {
+        setState(() {
+          _generatedRecipeId = recipeProvider.currentRecipe?.id;
+        });
+
+        // Update action types for all messages to show "See Recipe" button
+        if (_generatedRecipeId != null) {
+          final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+          for (final message in chatProvider.activeMessages) {
+            if (message.type == MessageType.ai) {
+              setState(() {
+                _messageActions[message.id] = ChatActionType.seeRecipe;
+              });
+            }
+          }
+        }
+
         print("RecipeProvider has no error, navigating to /recipe");
         Navigator.of(context).pushNamed('/recipe');
       } else if (mounted && recipeProvider.error != null) {
@@ -122,6 +202,15 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final chatProvider = Provider.of<ChatProvider>(context);
+    final recipeProvider = Provider.of<RecipeProvider>(context);
+
+    // Check if there's a recipe already available in the RecipeProvider
+    if (recipeProvider.currentRecipe?.id != null && _generatedRecipeId == null) {
+      setState(() {
+        _generatedRecipeId = recipeProvider.currentRecipe?.id;
+      });
+    }
+
     final bool isActiveConversation = chatProvider.activeConversationId == widget.conversationId;
     final messages = isActiveConversation ? chatProvider.activeMessages : <ChatMessage>[];
     final isLoadingMessages = isActiveConversation ? chatProvider.isLoadingMessages : false;
@@ -163,13 +252,25 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
-                    // Removed: canThisMessageGenerate logic
+
+                    // Determine which action type to show for this message
+                    ChatActionType actionType = ChatActionType.none;
+                    if (message.type == MessageType.ai) {
+                      if (_messageActions.containsKey(message.id)) {
+                        actionType = _messageActions[message.id]!;
+                      } else if (_generatedRecipeId != null) {
+                        // If we have a generated recipe, default to showing "See Recipe"
+                        actionType = ChatActionType.seeRecipe;
+                      }
+                    }
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: ChatBubble(
                         message: message,
-                        // FIX: Pass the new suggestion selection callback
                         onSuggestionSelected: _onSuggestionSelected,
+                        onSeeRecipe: actionType == ChatActionType.seeRecipe ? _viewExistingRecipe : null,
+                        actionType: actionType,
                       ),
                     );
                   },

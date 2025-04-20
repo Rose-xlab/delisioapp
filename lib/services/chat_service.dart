@@ -3,26 +3,49 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart'; // Import for kDebugMode
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-// Removed unused import: import '../models/chat_message.dart';
+import '../models/chat_message.dart'; // Now needed for the message history
 
 class ChatService {
   final String baseUrl = ApiConfig.baseUrl;
   final http.Client client = http.Client();
 
-  // Send a message to the AI chat assistant
-  Future<Map<String, dynamic>> sendMessage(String message) async {
+  // Updated to include conversation ID and message history
+  Future<Map<String, dynamic>> sendMessage(
+      String conversationId,
+      String message,
+      List<ChatMessage> previousMessages
+      ) async {
     try {
-      if (kDebugMode) print('ChatService: Sending message to API: $message');
+      if (kDebugMode) {
+        print('ChatService: Sending message to API with conversation history');
+        print('ChatService: ConversationID: $conversationId');
+        print('ChatService: Current message: $message');
+        print('ChatService: Including ${previousMessages.length} previous messages for context');
+      }
+
+      // Format previous messages for the API
+      final List<Map<String, String>> messageHistory = previousMessages.map((msg) => {
+        'role': msg.type == MessageType.user ? 'user' : 'assistant',
+        'content': msg.content
+      }).toList();
+
+      final payload = {
+        'conversation_id': conversationId,
+        'message': message,
+        'message_history': messageHistory,
+      };
+
+      if (kDebugMode) {
+        print('ChatService: Request payload: ${json.encode(payload)}');
+      }
 
       final response = await client.post(
         Uri.parse('$baseUrl${ApiConfig.chat}'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'message': message}),
+        body: json.encode(payload),
       );
 
       if (kDebugMode) print('ChatService: Response status code: ${response.statusCode}');
-      // If you want to see the raw response body always:
-      // if (kDebugMode) print('ChatService: Raw response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body) as Map<String, dynamic>; // Decode as Map
@@ -45,7 +68,7 @@ class ChatService {
           print('ChatService: Received suggestions: ${suggestionsList?.toString() ?? "None"}');
         }
 
-        // Return the NEW structure expected by ChatProvider
+        // Return the structure expected by ChatProvider
         return {
           'reply': reply ?? '', // Return empty string if reply is null
           'suggestions': suggestionsList, // This will be List<String>? (null if none)

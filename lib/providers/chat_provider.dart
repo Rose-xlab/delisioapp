@@ -6,7 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/chat_message.dart'; // Updated model
 import '../models/conversation.dart';
 import '../services/chat_service.dart';
-import './auth_provider.dart'; // Import AuthProvider
+import './auth_provider.dart';
+import 'dart:math' as math;
 
 class ChatProvider with ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -24,6 +25,9 @@ class ChatProvider with ChangeNotifier {
 
   bool _isSendingMessage = false;
   String? _sendMessageError;
+
+  // Maximum number of messages to include as context history
+  final int _maxContextMessages = 10;
 
   // --- Getters ---
   List<Conversation> get conversations => List.unmodifiable(_conversations);
@@ -179,9 +183,22 @@ class ChatProvider with ChangeNotifier {
       if(kDebugMode) print("ChatProvider: Saving user message to DB...");
       await _supabase.from('messages').insert({'conversation_id': _activeConversationId!, 'user_id': userId, 'role': 'user', 'content': content});
 
-      // Call Backend/AI Service
-      if(kDebugMode) print("ChatProvider: Calling backend chat service...");
-      final Map<String, dynamic> response = await _chatService.sendMessage(content);
+      // Get recent message history for context
+      List<ChatMessage> contextMessages = [];
+      if (_activeMessages.length > 1) {
+        // Get the last N messages (excluding the one we just added)
+        final startIndex = math.max(0, _activeMessages.length - 1 - _maxContextMessages);
+        contextMessages = _activeMessages.sublist(startIndex, _activeMessages.length - 1);
+        if(kDebugMode) print("ChatProvider: Including ${contextMessages.length} previous messages as context");
+      }
+
+      // Call Backend/AI Service with conversation history
+      if(kDebugMode) print("ChatProvider: Calling backend chat service with context history...");
+      final Map<String, dynamic> response = await _chatService.sendMessage(
+          _activeConversationId!,
+          content,
+          contextMessages
+      );
 
       // --- ADD LOGS HERE (Sending) ---
       print(">>> ChatProvider: Received from ChatService: ${response.toString()}");
@@ -268,3 +285,5 @@ class ChatProvider with ChangeNotifier {
     }
   }
 }
+
+// Add this import at the top

@@ -1,21 +1,37 @@
 // lib/screens/recipes/recipe_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode print
 
 import '../../providers/recipe_provider.dart';
+import '../../providers/chat_provider.dart'; // Added for chat functionality
+import '../../providers/auth_provider.dart'; // Added for authentication
 import '../../models/recipe.dart'; // Ensure updated model is imported
 import '../../models/recipe_step.dart';
 import '../../models/nutrition_info.dart'; // Ensure updated NutritionInfo model is imported
+import '../../models/chat_message.dart'; // Added for chat messages
 import '../../widgets/recipes/ingredient_list.dart';
 import '../../widgets/recipes/step_card.dart';
 import '../../widgets/recipes/nutrition_card.dart'; // Import for the styled NutritionCard
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
+import '../../widgets/chat/message_input.dart'; // Added for chat input
+import '../../widgets/chat/chat_bubble.dart'; // Added for chat bubbles
 
-class RecipeDetailScreen extends StatelessWidget {
+class RecipeDetailScreen extends StatefulWidget {
   const RecipeDetailScreen({Key? key}) : super(key: key);
+
+  @override
+  _RecipeDetailScreenState createState() => _RecipeDetailScreenState();
+}
+
+class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
+  // Added state variables for chat functionality
+  bool _showChat = false;
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  String? _conversationId;
+  bool _creatingConversation = false;
 
   // Helper widget to build the Icon + Text display for time info - Unchanged
   Widget _buildTimeInfo(BuildContext context, IconData icon, String text) {
@@ -59,6 +75,281 @@ class RecipeDetailScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  // New function to create a chat conversation about the current recipe
+  Future<void> _createChatConversation(Recipe recipe) async {
+    if (_creatingConversation) return;
+    setState(() {
+      _creatingConversation = true;
+    });
+
+    try {
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+
+      // Create a new conversation
+      final newConversationId = await chatProvider.createNewConversation();
+      if (newConversationId != null) {
+        setState(() {
+          _conversationId = newConversationId;
+          _showChat = true;
+          _creatingConversation = false;
+        });
+
+        // Send initial message about the recipe to create context
+        await chatProvider.sendMessage(
+            "I'd like to learn more about this ${recipe.title} recipe. Can you help me with any questions I might have?"
+        );
+
+        // Scroll to the bottom of the chat
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      } else {
+        // Handle error creating conversation
+        setState(() {
+          _creatingConversation = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not create chat conversation'), backgroundColor: Colors.red)
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _creatingConversation = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red)
+        );
+      }
+    }
+  }
+
+  // New function to send a chat message
+  Future<void> _sendMessage(String message) async {
+    if (_conversationId == null) return;
+
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    if (chatProvider.isSendingMessage) return;
+
+    _messageController.clear();
+    await chatProvider.sendMessage(message);
+
+    // Scroll to the bottom of the chat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  // New function to handle suggestion selection
+  void _onSuggestionSelected(String suggestion) {
+    print("Suggestion selected in Recipe Detail: $suggestion");
+
+    // Special handling for "Something else?" option
+    if (suggestion.toLowerCase() == "something else?") {
+      // Send this exact message to get more suggestions
+      _sendMessage("Something else?");
+    } else {
+      // For regular suggestions, just ask about that suggestion
+      _sendMessage("Tell me more about $suggestion");
+    }
+  }
+
+  // New function to toggle chat visibility and show as a bottom sheet
+  void _toggleChat(Recipe recipe) {
+    if (_showChat) {
+      // If chat is already showing, just hide it
+      setState(() {
+        _showChat = false;
+      });
+      return;
+    }
+
+    // Create conversation if needed
+    if (_conversationId == null) {
+      _createChatConversation(recipe);
+    }
+
+    // Show chat as a modal bottom sheet
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Full height possible
+      backgroundColor: Colors.transparent, // Transparent background for custom shape
+      builder: (context) {
+        return StatefulBuilder(
+            builder: (context, setSheetState) {
+              // Get the required data for chat
+              final chatProvider = Provider.of<ChatProvider>(context);
+              final bool isActiveConversation = chatProvider.activeConversationId == _conversationId;
+              final messages = isActiveConversation ? chatProvider.activeMessages : <ChatMessage>[];
+              final isLoadingMessages = isActiveConversation ? chatProvider.isLoadingMessages : false;
+              final isSendingMessage = chatProvider.isSendingMessage;
+              final error = isActiveConversation ? chatProvider.messagesError ?? chatProvider.sendMessageError : null;
+
+              // Calculate height - give enough space for typing and messages
+              // Use approximately 75% of screen height
+              return FractionallySizedBox(
+                heightFactor: 0.75, // Use 75% of screen height
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Chat header with recipe title
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            topRight: Radius.circular(16),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.chat_bubble_outline, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Chat about ${recipe.title}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.white),
+                              onPressed: () => Navigator.of(context).pop(),
+                              tooltip: 'Close chat',
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Messages area - Takes all available space
+                      Expanded(
+                        child: _creatingConversation || isLoadingMessages
+                            ? const Center(child: CircularProgressIndicator())
+                            : error != null && messages.isEmpty
+                            ? Center(child: Text("Error: $error", style: TextStyle(color: Colors.red)))
+                            : messages.isEmpty
+                            ? const Center(child: Text('Starting conversation...'))
+                            : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: ChatBubble(
+                                message: message,
+                                onSuggestionSelected: _onSuggestionSelected,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      // Sending indicator
+                      if (isSendingMessage)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Assistant is thinking...',
+                                      style: TextStyle(color: Colors.black54),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Message input - Add padding to avoid keyboard overlap
+                      Padding(
+                        padding: EdgeInsets.only(
+                            left: 8, right: 8, top: 8,
+                            // Add bottom padding to handle keyboard
+                            bottom: MediaQuery.of(context).viewInsets.bottom + 8
+                        ),
+                        child: MessageInput(
+                          controller: _messageController,
+                          onSend: (message) {
+                            _sendMessage(message);
+                            // Update bottom sheet state after sending
+                            setSheetState(() {});
+                          },
+                          isLoading: isSendingMessage,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+        );
+      },
+    ).then((_) {
+      // Update state after bottom sheet is closed
+      setState(() {
+        _showChat = false;
+      });
+    });
+
+    // Update state
+    setState(() {
+      _showChat = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -238,9 +529,9 @@ class RecipeDetailScreen extends StatelessWidget {
 
             const Divider(height: 1, indent: 16, endIndent: 16),
 
-            // --- Chat Button --- Unchanged
+            // --- Chat Button ---
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
               child: Center(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.chat_bubble_outline),
@@ -249,14 +540,10 @@ class RecipeDetailScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     textStyle: const TextStyle(fontSize: 16),
                   ),
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/chatList');
-                  },
+                  onPressed: () => _toggleChat(recipe),
                 ),
               ),
             ),
-
-            const SizedBox(height: 24), // Bottom padding - Unchanged
           ],
         ),
       ),

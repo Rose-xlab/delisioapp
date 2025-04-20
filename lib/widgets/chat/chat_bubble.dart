@@ -2,14 +2,25 @@
 import 'package:flutter/material.dart';
 import '../../models/chat_message.dart'; // Ensure this uses the updated model with 'suggestions'
 
+// Define action types for the chat bubble
+enum ChatActionType {
+  generateRecipe,  // Show "Generate recipe" button
+  seeRecipe,       // Show "See recipe" button - used for recipes that are already generated
+  none             // Don't show any action button
+}
+
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
-  final Function(String suggestion)? onSuggestionSelected; // Callback for when a suggestion OR the fallback button is tapped
+  final Function(String suggestion)? onSuggestionSelected; // Callback for when a suggestion is tapped
+  final Function()? onSeeRecipe; // Callback for when "See recipe" button is tapped
+  final ChatActionType actionType; // Type of action button to show
 
   const ChatBubble({
     Key? key,
     required this.message,
     this.onSuggestionSelected,
+    this.onSeeRecipe,
+    this.actionType = ChatActionType.none, // Default to no action button
   }) : super(key: key);
 
   // Helper to check if AI text suggests a recipe contextually
@@ -50,6 +61,7 @@ class ChatBubble extends StatelessWidget {
       final match = pattern.firstMatch(text);
       if (match != null && match.groupCount >= 1) {
         // Return the first captured group, cleaned up
+        // *** FIX APPLIED HERE ***
         return match.group(1)?.trim().replaceAll(RegExp(r'[\.\?]$'), '').trim(); // Remove trailing punctuation
       }
     }
@@ -59,6 +71,8 @@ class ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Assume MessageType enum exists in chat_message.dart
+    // e.g., enum MessageType { user, ai }
     final isUser = message.type == MessageType.user;
     final bool hasSuggestions = message.suggestions != null && message.suggestions!.isNotEmpty;
 
@@ -70,9 +84,16 @@ class ChatBubble extends StatelessWidget {
         children: [
           // AI avatar
           if (!isUser)
-            Padding( /* ... AI Avatar ... */
+            Padding(
               padding: const EdgeInsets.only(right: 8.0),
-              child: CircleAvatar( backgroundColor: Theme.of(context).primaryColorLight, child: Icon( Icons.psychology_alt, color: Theme.of(context).primaryColorDark, size: 20,),),
+              child: CircleAvatar(
+                backgroundColor: Theme.of(context).primaryColorLight,
+                child: Icon(
+                  Icons.psychology_alt,
+                  color: Theme.of(context).primaryColorDark,
+                  size: 20,
+                ),
+              ),
             ),
 
           // Message content container
@@ -88,16 +109,41 @@ class ChatBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Message Text
-                  Text( message.content, style: TextStyle( color: isUser ? Colors.white : Colors.black87, fontSize: 16,),),
+                  Text(
+                    message.content,
+                    style: TextStyle(
+                      color: isUser ? Colors.white : Colors.black87,
+                      fontSize: 16,
+                    ),
+                  ),
 
-                  // --- UPDATED: Suggestions or Fallback Button ---
+                  // --- UPDATED: Action Buttons ---
 
-                  // 1. Display ActionChips if suggestions list exists and is not empty
-                  if (!isUser && hasSuggestions && onSuggestionSelected != null)
+                  // 1. Show "See Recipe" button if that's the action type
+                  if (!isUser && actionType == ChatActionType.seeRecipe && onSeeRecipe != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.restaurant_menu, size: 18),
+                        label: const Text('See Recipe'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          textStyle: const TextStyle(fontSize: 14),
+                          // Consider adding foreground/background colors if needed
+                          // foregroundColor: isUser ? Colors.white : Theme.of(context).primaryColor,
+                          // backgroundColor: isUser ? Theme.of(context).colorScheme.secondary : Colors.white,
+                        ),
+                        onPressed: onSeeRecipe,
+                      ),
+                    )
+
+                  // 2. Display suggestion chips if they exist
+                  else if (!isUser && hasSuggestions && onSuggestionSelected != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 10.0),
                       child: Wrap(
-                        spacing: 8.0, runSpacing: 4.0,
+                        spacing: 8.0, // Horizontal space between chips
+                        runSpacing: 4.0, // Vertical space between lines of chips
                         children: message.suggestions!.map((suggestion) {
                           return ActionChip(
                             label: Text(suggestion),
@@ -109,39 +155,38 @@ class ChatBubble extends StatelessWidget {
                             labelStyle: TextStyle(color: Theme.of(context).primaryColor, fontSize: 14),
                             shape: StadiumBorder(side: BorderSide(color: Theme.of(context).dividerColor)),
                             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            tooltip: 'Generate recipe for $suggestion',
+                            tooltip: suggestion.toLowerCase() == "something else?"
+                                ? 'Show more suggestions'
+                                : 'Generate recipe for $suggestion',
                           );
                         }).toList(),
                       ),
                     )
-                  // 2. ELSE IF: It's an AI message, callback exists, BUT no suggestions list was provided...
-                  //    Check if the text *looks* like it might be a recipe suggestion/offer
-                  else if (!isUser && !hasSuggestions && onSuggestionSelected != null && _aiMessageLooksLikeSuggestion(message.content))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: ElevatedButton.icon( // Show a single fallback button
-                        icon: const Icon(Icons.restaurant_menu, size: 18),
-                        label: const Text('Generate Recipe?'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          textStyle: const TextStyle(fontSize: 14),
-                          // Different style maybe?
-                          // backgroundColor: Theme.of(context).colorScheme.secondary,
-                          // foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                        ),
-                        onPressed: () {
-                          // Attempt to extract a name from the text, or use a default
-                          String fallbackQuery = _extractRecipeNameFromText(message.content) ?? "Suggested Recipe";
-                          print('Fallback Generate Recipe button tapped, determined query: "$fallbackQuery"');
-                          onSuggestionSelected!(fallbackQuery); // Call callback with extracted/default query
-                        },
-                      ),
-                    )
-                  // 3. ELSE: No button/chips needed
-                  else
-                    const SizedBox.shrink(), // Render nothing
 
-                  // --- End of Suggestions/Fallback ---
+                  // 3. Show "Generate Recipe" button for appropriate action type
+                  else if (!isUser && actionType == ChatActionType.generateRecipe && onSuggestionSelected != null && _aiMessageLooksLikeSuggestion(message.content))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.restaurant_menu, size: 18),
+                          label: const Text('Generate Recipe'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            textStyle: const TextStyle(fontSize: 14),
+                            // Consider adding foreground/background colors if needed
+                          ),
+                          onPressed: () {
+                            // Attempt to extract a name from the text, or use a default
+                            String fallbackQuery = _extractRecipeNameFromText(message.content) ?? "Suggested Recipe";
+                            print('Generate Recipe button tapped, determined query: "$fallbackQuery"');
+                            onSuggestionSelected!(fallbackQuery); // Call callback with extracted/default query
+                          },
+                        ),
+                      )
+
+                    // 4. No button/chips needed
+                    else
+                      const SizedBox.shrink(), // Render nothing
                 ],
               ),
             ),
@@ -149,12 +194,20 @@ class ChatBubble extends StatelessWidget {
 
           // User avatar
           if (isUser)
-            Padding( /* ... User Avatar ... */
+            Padding(
               padding: const EdgeInsets.only(left: 8.0),
-              child: CircleAvatar( backgroundColor: Colors.grey[300], child: const Icon(Icons.person, color: Colors.black54, size: 20,),),
+              child: CircleAvatar(
+                backgroundColor: Colors.grey[300],
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.black54,
+                  size: 20,
+                ),
+              ),
             ),
         ],
       ),
     );
   }
 }
+
