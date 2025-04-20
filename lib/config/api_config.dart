@@ -13,6 +13,13 @@ class ApiConfig {
   // Recipe endpoints
   static const String recipes = '$apiVersion/recipes';
   static const String userRecipes = '$apiVersion/users/recipes';
+  static const String cancelRecipe = '$apiVersion/recipes/cancel';
+  // New endpoints for recipe operations
+  static const String recipesFavorites = '$apiVersion/recipes/favorites';
+
+  // Helper method to construct recipe-specific endpoints
+  static String recipeById(String id) => '$recipes/$id';
+  static String favoriteRecipe(String id) => '$recipes/$id/favorite';
 
   // Chat endpoints
   static const String chat = '$apiVersion/chat';

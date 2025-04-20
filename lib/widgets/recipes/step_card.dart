@@ -92,50 +92,86 @@ class StepCard extends StatelessWidget {
               ),
             ),
 
-          // Step content
+          // Spacer between image and content - ADDED for better separation
+          const SizedBox(height: 16),
+
+          // Step content - UPDATED padding for better spacing
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), // Increased horizontal padding
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    // Step number indicator
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor,
-                        shape: BoxShape.circle,
+                // Step number indicator with improved styling
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[100],
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  margin: const EdgeInsets.only(bottom: 16), // Added margin for separation
+                  child: Row(
+                    children: [
+                      // Step number indicator
+                      Container(
+                        width: 36, // Slightly increased
+                        height: 36, // Slightly increased
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          shape: BoxShape.circle,
+                          // Added shadow for depth
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            stepNumber.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16, // Increased font size
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Center(
+                      const SizedBox(width: 12),
+                      // Step title or just 'Step X'
+                      Expanded(
                         child: Text(
-                          stepNumber.toString(),
+                          'Step $stepNumber',
                           style: const TextStyle(
-                            color: Colors.white,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Step title or just 'Step X'
-                    Text(
-                      'Step $stepNumber',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                // Step instructions
-                Text(
-                  step.text,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    height: 1.5,
+
+                // Step instructions with improved line height and spacing
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    // Light border for subtle definition
+                    border: Border.all(
+                      color: Colors.grey[200]!,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    step.text,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.6, // Increased line height for readability
+                    ),
                   ),
                 ),
               ],

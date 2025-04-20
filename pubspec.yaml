@@ -35,6 +35,7 @@ dependencies:
   intl: ^0.18.1
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^9.0.0
+  share_plus: ^10.1.4  # Added for recipe sharing functionality
 
   # UI enhancements
   shimmer: ^3.0.0

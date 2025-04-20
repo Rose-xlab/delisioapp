@@ -33,6 +33,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   String? _conversationId;
   bool _creatingConversation = false;
 
+  // Add state for action buttons
+  bool _isPerformingAction = false;
+
   // Helper widget to build the Icon + Text display for time info - Unchanged
   Widget _buildTimeInfo(BuildContext context, IconData icon, String text) {
     if (text.trim().isEmpty) {
@@ -75,6 +78,139 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         );
       },
     );
+  }
+
+  // Handle deleting a recipe
+  Future<void> _deleteRecipe(Recipe recipe) async {
+    // Confirm deletion first
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Recipe?'),
+        content: Text('Are you sure you want to delete "${recipe.title}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    setState(() {
+      _isPerformingAction = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+
+      if (!authProvider.isAuthenticated || recipe.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot delete: You must be logged in and the recipe must have an ID')),
+        );
+        return;
+      }
+
+      final success = await recipeProvider.deleteRecipe(recipe.id!, authProvider.token!);
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe deleted successfully')),
+        );
+        Navigator.of(context).pop(); // Go back after deletion
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete recipe: ${recipeProvider.error ?? "Unknown error"}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting recipe: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPerformingAction = false;
+        });
+      }
+    }
+  }
+
+  // Handle toggling favorite status
+  Future<void> _toggleFavorite(Recipe recipe) async {
+    if (recipe.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot favorite: Recipe must have an ID')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isPerformingAction = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+
+      if (!authProvider.isAuthenticated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must be logged in to favorite recipes')),
+        );
+        return;
+      }
+
+      final success = await recipeProvider.toggleFavorite(recipe.id!, authProvider.token!);
+
+      if (success && mounted) {
+        final message = recipe.isFavorite
+            ? 'Recipe removed from favorites'
+            : 'Recipe added to favorites';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update favorites: ${recipeProvider.error ?? "Unknown error"}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating favorites: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPerformingAction = false;
+        });
+      }
+    }
+  }
+
+  // Handle sharing a recipe
+  Future<void> _shareRecipe(Recipe recipe) async {
+    try {
+      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+      await recipeProvider.shareRecipe();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error sharing recipe: $e')),
+        );
+      }
+    }
   }
 
   // New function to create a chat conversation about the current recipe
@@ -361,9 +497,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final recipe = recipeProvider.currentRecipe;
     final isLoading = recipeProvider.isLoading;
     final error = recipeProvider.error;
+
+    // Whether user is logged in
+    final bool isAuthenticated = authProvider.isAuthenticated;
 
     // Debug logs - Unchanged
     if (kDebugMode && recipe != null) {
@@ -398,6 +538,37 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         title: Text(recipe.title),
         // Keep the AppBar action button for Nutrition Info
         actions: [
+          // Add favorite action
+          if (isAuthenticated && recipe.id != null)
+            IconButton(
+              icon: Icon(
+                recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: recipe.isFavorite ? Colors.red : null,
+              ),
+              tooltip: recipe.isFavorite ? 'Remove from favorites' : 'Add to favorites',
+              onPressed: _isPerformingAction
+                  ? null
+                  : () => _toggleFavorite(recipe),
+            ),
+
+          // Add share action
+          IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: 'Share recipe',
+            onPressed: () => _shareRecipe(recipe),
+          ),
+
+          // Add delete action if user is authenticated
+          if (isAuthenticated && recipe.id != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete recipe',
+              onPressed: _isPerformingAction
+                  ? null
+                  : () => _deleteRecipe(recipe),
+            ),
+
+          // Nutrition info button
           IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: 'Nutrition Info',
@@ -535,9 +706,42 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
             const Divider(height: 1, indent: 16, endIndent: 16),
 
+            // --- Action Buttons Row ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Like button
+                  if (isAuthenticated && recipe.id != null)
+                    ActionButton(
+                      icon: recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      label: recipe.isFavorite ? 'Favorited' : 'Favorite',
+                      color: recipe.isFavorite ? Colors.red : null,
+                      onPressed: _isPerformingAction ? null : () => _toggleFavorite(recipe),
+                    ),
+
+                  // Share button
+                  ActionButton(
+                    icon: Icons.share,
+                    label: 'Share',
+                    onPressed: () => _shareRecipe(recipe),
+                  ),
+
+                  // Delete button
+                  if (isAuthenticated && recipe.id != null)
+                    ActionButton(
+                      icon: Icons.delete_outline,
+                      label: 'Delete',
+                      onPressed: _isPerformingAction ? null : () => _deleteRecipe(recipe),
+                    ),
+                ],
+              ),
+            ),
+
             // --- Chat Button ---
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Center(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.chat_bubble_outline),
@@ -552,6 +756,34 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Helper widget for action buttons
+class ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final Color? color;
+
+  const ActionButton({
+    Key? key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, color: color),
+      label: Text(label, style: TextStyle(color: color)),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       ),
     );
   }

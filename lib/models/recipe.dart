@@ -17,6 +17,10 @@ class Recipe {
   final int? prepTimeMinutes;
   final int? cookTimeMinutes;
   final int? totalTimeMinutes;
+  // Add requestId for cancellation support
+  final String? requestId;
+  // Add isFavorite flag
+  final bool isFavorite;
 
   Recipe({
     this.id,
@@ -30,7 +34,42 @@ class Recipe {
     this.prepTimeMinutes,
     this.cookTimeMinutes,
     this.totalTimeMinutes,
+    this.requestId, // Added for cancellation support
+    this.isFavorite = false, // Default to not favorite
   });
+
+  // Create a copy of the recipe with updated fields
+  Recipe copyWith({
+    String? id,
+    String? title,
+    int? servings,
+    List<String>? ingredients,
+    List<RecipeStep>? steps,
+    NutritionInfo? nutrition,
+    String? query,
+    DateTime? createdAt,
+    int? prepTimeMinutes,
+    int? cookTimeMinutes,
+    int? totalTimeMinutes,
+    String? requestId,
+    bool? isFavorite,
+  }) {
+    return Recipe(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      servings: servings ?? this.servings,
+      ingredients: ingredients ?? this.ingredients,
+      steps: steps ?? this.steps,
+      nutrition: nutrition ?? this.nutrition,
+      query: query ?? this.query,
+      createdAt: createdAt ?? this.createdAt,
+      prepTimeMinutes: prepTimeMinutes ?? this.prepTimeMinutes,
+      cookTimeMinutes: cookTimeMinutes ?? this.cookTimeMinutes,
+      totalTimeMinutes: totalTimeMinutes ?? this.totalTimeMinutes,
+      requestId: requestId ?? this.requestId,
+      isFavorite: isFavorite ?? this.isFavorite,
+    );
+  }
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
     // Debug prints are helpful during development
@@ -131,6 +170,15 @@ class Recipe {
     int? cookTime = parseIntSafe(json['cookTime']) ?? parseIntSafe(json['cook_time_minutes']);
     int? totalTime = parseIntSafe(json['totalTime']) ?? parseIntSafe(json['total_time_minutes']);
 
+    // --- Extract requestId for cancellation support ---
+    String? requestId = json['requestId'] as String?;
+    if (requestId != null && kDebugMode) {
+      print('Extracted requestId from recipe JSON: $requestId');
+    }
+
+    // --- Extract isFavorite status ---
+    bool isFavorite = json['isFavorite'] as bool? ?? false;
+
     // --- Construct the Recipe Object ---
     return Recipe(
       // Use `as String?` for nullable fields, providing default if necessary
@@ -147,6 +195,10 @@ class Recipe {
       prepTimeMinutes: prepTime,
       cookTimeMinutes: cookTime,
       totalTimeMinutes: totalTime,
+      // Add requestId field
+      requestId: requestId,
+      // Add isFavorite status
+      isFavorite: isFavorite,
     );
   }
 
@@ -170,6 +222,9 @@ class Recipe {
       if (prepTimeMinutes != null) 'prep_time_minutes': prepTimeMinutes,
       if (cookTimeMinutes != null) 'cook_time_minutes': cookTimeMinutes,
       if (totalTimeMinutes != null) 'total_time_minutes': totalTimeMinutes,
+      // Include requestId if available
+      if (requestId != null) 'requestId': requestId,
+      'isFavorite': isFavorite,
     };
   }
 }

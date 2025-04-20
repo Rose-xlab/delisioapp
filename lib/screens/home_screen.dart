@@ -38,16 +38,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserRecipes() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.token == null) {
-      print("User not logged in, skipping recipe load.");
-      return;
-    }
-    print("Attempting to load user recipes...");
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      await Provider.of<RecipeProvider>(context, listen: false)
-          .getUserRecipes(authProvider.token!);
-      print("User recipes loaded or updated.");
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.token != null) {
+        await Provider.of<RecipeProvider>(context, listen: false)
+            .getUserRecipes(authProvider.token!);
+        print("User recipes loaded or updated.");
+      }
     } catch (e) {
       print('Error loading recipes: $e');
       if (mounted) {
@@ -55,6 +56,10 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(content: Text('Could not load your recipes: ${e.toString()}')),
         );
       }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -68,19 +73,34 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       return;
     }
-    if (_isLoading) return;
+
+    final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+
+    // If we're already loading, don't start another generation
+    if (recipeProvider.isLoading) return;
+
     if (mounted) setState(() => _isLoading = true);
     print("Attempting to generate recipe for query: $query");
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       await recipeProvider.generateRecipe(
         query,
         save: authProvider.token != null,
         token: authProvider.token,
       );
-      print("Recipe generation successful (likely), navigating...");
-      if (mounted) Navigator.of(context).pushNamed('/recipe');
+
+      // Only navigate if generation was successful and not cancelled
+      if (!recipeProvider.wasCancelled && recipeProvider.error == null && mounted) {
+        print("Recipe generation successful (likely), navigating...");
+        Navigator.of(context).pushNamed('/recipe');
+      } else if (recipeProvider.wasCancelled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recipe generation cancelled'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     } catch (e) {
       print('Error generating recipe: ${e.toString()}');
       if (mounted) {
@@ -90,6 +110,16 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Added: Cancel recipe generation
+  void _cancelRecipeGeneration() {
+    final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+    if (recipeProvider.isLoading) {
+      recipeProvider.cancelRecipeGeneration();
+      // Show cancelling state in UI, the provider will update when cancellation is complete
+      setState(() => _isLoading = true);
     }
   }
 
@@ -140,6 +170,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
     final userRecipes = recipeProvider.userRecipes;
+    final bool isGenerating = recipeProvider.isLoading;
+    final bool isCancelling = recipeProvider.isCancelling;
 
     print("Building HomeScreen. Logged in: ${authProvider.token != null}");
 
@@ -186,11 +218,51 @@ class _HomeScreenState extends State<HomeScreen> {
                           prefixIcon: Icon(Icons.search),
                           border: OutlineInputBorder(),
                         ),
-                        onSubmitted: (_) => _generateRecipe(),
+                        onSubmitted: (_) => isGenerating ? null : _generateRecipe(),
+                        enabled: !isGenerating, // Disable text field while generating
                       ),
                     ),
                     const SizedBox(width: 8),
-                    SizedBox(
+                    // MODIFIED: Add conditional rendering for generate/cancel buttons
+                    isGenerating
+                        ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Cancel button shown during generation
+                        SizedBox(
+                          width: 56, height: 56,
+                          child: ElevatedButton(
+                            onPressed: isCancelling ? null : _cancelRecipeGeneration,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.all(16),
+                              shape: const CircleBorder(),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              minimumSize: Size.zero,
+                              backgroundColor: Colors.red[400],
+                              disabledBackgroundColor: Colors.grey,
+                            ),
+                            child: isCancelling
+                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.close, size: 24),
+                          ),
+                        ),
+                        // Generation indicator adjacent to cancel button
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 56, height: 56,
+                          child: Center(
+                            child: SizedBox(
+                              width: 24, height: 24,
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                        : SizedBox(
                       width: 56, height: 56,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _generateRecipe,
