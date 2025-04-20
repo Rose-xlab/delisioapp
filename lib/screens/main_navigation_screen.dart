@@ -1,7 +1,7 @@
-// lib/screens/main_navigation_screen_updated.dart
+// lib/screens/main_navigation_screen.dart
 import 'package:flutter/material.dart';
 import '../widgets/common/bottom_navigation.dart';
-import 'home_screen.dart';
+import 'home_screen_enhanced.dart'; // Use new enhanced home screen
 import 'chat/chat_screen.dart';
 import 'recipes/recipe_list_screen.dart';
 import 'profile/profile_screen_enhanced.dart'; // Use enhanced profile screen
@@ -19,6 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   late final List<Widget> _screens;
   String? _chatId; // Store active chat ID
+  bool _creatingConversation = false;
 
   @override
   void initState() {
@@ -32,9 +33,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // This will be called when the Chat tab is selected the first time
       _chatId = null;
 
-      // Initialize the screens list
+      // Initialize the screens list with the new HomeScreenEnhanced
       _screens = [
-        const HomeScreen(),
+        const HomeScreenEnhanced(), // Use the enhanced home screen
         _buildChatPlaceholder(), // Placeholder that will trigger chat creation
         const RecipeListScreen(),
         const ProfileScreenEnhanced(), // Use enhanced profile screen

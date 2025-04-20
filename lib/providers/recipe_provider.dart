@@ -3,13 +3,20 @@ import 'package:flutter/foundation.dart';
 import '../models/recipe.dart';
 import '../models/recipe_step.dart';
 import '../models/nutrition_info.dart';
+import '../models/recipe_category.dart';
 import '../services/recipe_service.dart';
 
 class RecipeProvider with ChangeNotifier {
   Recipe? _currentRecipe;
   List<Recipe> _userRecipes = [];
   List<Recipe> _favoriteRecipes = [];
+  List<Recipe> _trendingRecipes = [];
+  List<Recipe> _discoverRecipes = [];
+  List<RecipeCategory> _categories = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  bool _hasMoreRecipes = true;
+  int _currentPage = 0;
   String? _error;
 
   // Added to support cancellation
@@ -26,7 +33,12 @@ class RecipeProvider with ChangeNotifier {
   Recipe? get currentRecipe => _currentRecipe;
   List<Recipe> get userRecipes => _userRecipes;
   List<Recipe> get favoriteRecipes => _favoriteRecipes;
+  List<Recipe> get trendingRecipes => _trendingRecipes;
+  List<Recipe> get discoverRecipes => _discoverRecipes;
+  List<RecipeCategory> get categories => _categories;
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get hasMoreRecipes => _hasMoreRecipes;
   String? get error => _error;
 
   // Method to directly set the current recipe
@@ -328,6 +340,218 @@ class RecipeProvider with ChangeNotifier {
       _error = e.toString();
       print('RecipeProvider: Error sharing recipe: $_error');
       // Don't update loading state for share operation
+    }
+  }
+
+  // NEW: Get trending recipes
+  Future<void> getTrendingRecipes({String? token}) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      print('RecipeProvider: Fetching trending recipes');
+      final recipes = await _recipeService.getPopularRecipes(token: token);
+      _trendingRecipes = recipes;
+      print('RecipeProvider: Got ${recipes.length} trending recipes');
+    } catch (e) {
+      _error = e.toString();
+      print('RecipeProvider: Error fetching trending recipes: $_error');
+      _trendingRecipes = []; // Reset list on error
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // NEW: Get all recipe categories
+  Future<void> getAllCategories() async {
+    try {
+      print('RecipeProvider: Fetching all recipe categories');
+      final categoriesData = await _recipeService.getAllCategories();
+      _categories = categoriesData.map((categoryData) {
+        return RecipeCategory(
+          id: categoryData['id'] as String,
+          name: categoryData['name'] as String,
+          description: categoryData['description'] as String? ?? 'Delicious recipes',
+          icon: RecipeCategory.getCategoryIcon(categoryData['id'] as String),
+          color: RecipeCategory.getCategoryColor(categoryData['id'] as String),
+          count: categoryData['count'] as int? ?? 0,
+        );
+      }).toList();
+      print('RecipeProvider: Got ${_categories.length} categories');
+    } catch (e) {
+      _error = e.toString();
+      print('RecipeProvider: Error fetching categories: $_error');
+      _categories = []; // Reset list on error
+    }
+    notifyListeners();
+  }
+
+  // NEW: Get recipes for discovery
+  Future<void> getDiscoverRecipes({
+    String? category,
+    String? query, // Keep query here for tag parsing
+    String sort = 'recent',
+    String? token,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    _currentPage = 0; // Reset pagination
+    _hasMoreRecipes = true;
+    notifyListeners();
+
+    try {
+      print('RecipeProvider: Fetching discover recipes');
+      print('RecipeProvider: Category: $category, Query: $query, Sort: $sort');
+
+      List<String>? tags;
+      String? processedQuery = query; // Use a local variable for query processing
+
+      // Parse query into tags if it contains specific tags
+      if (processedQuery != null && processedQuery.contains('#')) {
+        tags = processedQuery.split(' ')
+            .where((word) => word.startsWith('#') && word.length > 1)
+            .map((tag) => tag.substring(1).toLowerCase())
+            .toList();
+
+        // Remove tags from query string for potential future use (though not passed to service)
+        processedQuery = processedQuery.split(' ')
+            .where((word) => !word.startsWith('#'))
+            .join(' ').trim();
+
+        if (processedQuery.isEmpty) processedQuery = null;
+      }
+
+      // *** FIX APPLIED HERE ***
+      final recipes = await _recipeService.getDiscoverRecipes(
+        category: category,
+        tags: tags, // Pass the parsed tags
+        sort: sort,
+        limit: 20,
+        offset: 0,
+        token: token,
+        // query: processedQuery, // DO NOT PASS query here
+      );
+
+      _discoverRecipes = recipes;
+      _hasMoreRecipes = recipes.length == 20; // If we got a full page, there might be more
+      print('RecipeProvider: Got ${recipes.length} discover recipes');
+    } catch (e) {
+      _error = e.toString();
+      print('RecipeProvider: Error fetching discover recipes: $_error');
+      _discoverRecipes = []; // Reset list on error
+      _hasMoreRecipes = false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // NEW: Load more discover recipes (pagination)
+  Future<void> loadMoreDiscoverRecipes({
+    String? category,
+    String? query, // Keep query here for tag parsing
+    String sort = 'recent',
+    String? token,
+  }) async {
+    if (_isLoadingMore || !_hasMoreRecipes) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      _currentPage++;
+      print('RecipeProvider: Loading more discover recipes (page: $_currentPage)');
+
+      List<String>? tags;
+      String? processedQuery = query; // Use a local variable for query processing
+
+      // Parse query into tags if it contains specific tags
+      if (processedQuery != null && processedQuery.contains('#')) {
+        tags = processedQuery.split(' ')
+            .where((word) => word.startsWith('#') && word.length > 1)
+            .map((tag) => tag.substring(1).toLowerCase())
+            .toList();
+
+        // Remove tags from query string for potential future use (though not passed to service)
+        processedQuery = processedQuery.split(' ')
+            .where((word) => !word.startsWith('#'))
+            .join(' ').trim();
+
+        if (processedQuery.isEmpty) processedQuery = null;
+      }
+
+      // *** FIX APPLIED HERE ***
+      final recipes = await _recipeService.getDiscoverRecipes(
+        category: category,
+        tags: tags, // Pass the parsed tags
+        sort: sort,
+        limit: 20,
+        offset: _currentPage * 20,
+        token: token,
+        // query: processedQuery, // DO NOT PASS query here
+      );
+
+      if (recipes.isEmpty) {
+        _hasMoreRecipes = false;
+      } else {
+        _discoverRecipes = [..._discoverRecipes, ...recipes];
+        _hasMoreRecipes = recipes.length == 20; // If we got less than requested, we're at the end
+      }
+
+      print('RecipeProvider: Loaded ${recipes.length} more discover recipes');
+    } catch (e) {
+      _error = e.toString();
+      print('RecipeProvider: Error loading more discover recipes: $_error');
+      // Don't reset the list on error during pagination
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  // NEW: Reset and reload discover recipes (for pull-to-refresh)
+  Future<void> resetAndReloadDiscoverRecipes({
+    String? category,
+    String? query,
+    String sort = 'recent',
+    String? token,
+  }) async {
+    _currentPage = 0;
+    _hasMoreRecipes = true;
+    // Call the corrected getDiscoverRecipes method
+    return getDiscoverRecipes(
+      category: category,
+      query: query, // Pass the original query for tag parsing
+      sort: sort,
+      token: token,
+    );
+  }
+
+  // NEW: Get recipes by category
+  Future<List<Recipe>> getCategoryRecipes(
+      String categoryId, {
+        String sort = 'recent',
+        int limit = 20,
+        int offset = 0,
+        String? token,
+      }) async {
+    try {
+      print('RecipeProvider: Fetching category recipes: $categoryId');
+      final recipes = await _recipeService.getCategoryRecipes(
+        categoryId,
+        sort: sort,
+        limit: limit,
+        offset: offset,
+        token: token,
+      );
+      print('RecipeProvider: Got ${recipes.length} category recipes');
+      return recipes;
+    } catch (e) {
+      _error = e.toString();
+      print('RecipeProvider: Error fetching category recipes: $_error');
+      return [];
     }
   }
 

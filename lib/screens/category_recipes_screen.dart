@@ -6,7 +6,8 @@ import '../constants/categories.dart';
 import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/recipes/recipe_grid.dart';
+// *** FIX 1: Corrected import path ***
+import '../widgets/home/recipe_grid.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/error_display.dart';
 
@@ -19,6 +20,7 @@ class CategoryRecipesScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
+  // No change needed for the private state type warning unless desired
   _CategoryRecipesScreenState createState() => _CategoryRecipesScreenState();
 }
 
@@ -91,29 +93,38 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
         token: token,
       );
 
-      setState(() {
-        if (refresh) {
-          _recipes = recipes;
-        } else {
-          _recipes = [..._recipes, ...recipes];
-        }
-        _hasMoreRecipes = recipes.length == _pageSize; // If we got a full page, there might be more
-        _isLoading = false;
-      });
+      // Check if the widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          if (refresh) {
+            _recipes = recipes;
+          } else {
+            _recipes = [..._recipes, ...recipes];
+          }
+          _hasMoreRecipes = recipes.length == _pageSize; // If we got a full page, there might be more
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      // Check if the widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadMoreRecipes() async {
     if (_isLoadingMore || !_hasMoreRecipes) return;
 
-    setState(() {
-      _isLoadingMore = true;
-    });
+    // Check if the widget is still mounted before calling setState
+    if (mounted) {
+      setState(() {
+        _isLoadingMore = true;
+      });
+    }
 
     try {
       _currentPage++;
@@ -131,19 +142,28 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
         token: token,
       );
 
-      setState(() {
-        _recipes = [..._recipes, ...recipes];
-        _hasMoreRecipes = recipes.length == _pageSize; // If we got a full page, there might be more
-        _isLoadingMore = false;
-      });
+      // Check if the widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _recipes = [..._recipes, ...recipes];
+          _hasMoreRecipes = recipes.length == _pageSize; // If we got a full page, there might be more
+          _isLoadingMore = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        // Don't change error state to avoid disrupting UI
-        _isLoadingMore = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading more recipes: ${e.toString()}')),
-      );
+      // Check if the widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          // Don't change error state to avoid disrupting UI
+          _isLoadingMore = false;
+        });
+        // Also check mounted before showing SnackBar
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading more recipes: ${e.toString()}')),
+          );
+        }
+      }
     }
   }
 
@@ -220,7 +240,8 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
           // Category header
           Container(
             padding: const EdgeInsets.all(16),
-            color: category.color.withOpacity(0.1),
+            // *** FIX 2: Use withAlpha instead of deprecated withOpacity ***
+            color: category.color.withAlpha((255 * 0.1).round()), // Calculate alpha from opacity
             child: Row(
               children: [
                 CircleAvatar(
@@ -306,6 +327,7 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
               child: Column(
                 children: [
                   Expanded(
+                    // RecipeGrid usage should now work due to corrected import
                     child: RecipeGrid(
                       recipes: _recipes,
                       scrollController: _scrollController,
@@ -314,9 +336,9 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
                   ),
                   // Loading indicator at the bottom when loading more
                   if (_isLoadingMore)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: CircularProgressIndicator(),
+                    const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Center(child: CircularProgressIndicator()), // Centered indicator
                     ),
                 ],
               ),
@@ -329,37 +351,41 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.no_food,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No recipes found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+      child: SingleChildScrollView( // Added for smaller screens
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.no_food_outlined, // Changed icon slightly
+              size: 64,
+              color: Colors.grey[400],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'We couldn\'t find any recipes in this category',
-            style: TextStyle(
-              color: Colors.grey[600],
+            const SizedBox(height: 16),
+            Text(
+              'No recipes found',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => _loadCategoryRecipes(refresh: true),
-            child: const Text('Retry'),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'We couldn\'t find any recipes in the "${RecipeCategories.getCategoryById(widget.categoryId).name}" category matching the current sort.',
+              style: TextStyle(
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => _loadCategoryRecipes(refresh: true),
+              label: const Text('Try Again'),
+            ),
+          ],
+        ),
       ),
     );
   }

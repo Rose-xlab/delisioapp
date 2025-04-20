@@ -21,6 +21,12 @@ class Recipe {
   final String? requestId;
   // Add isFavorite flag
   final bool isFavorite;
+  // NEW: Add category and tags fields
+  final String? category;
+  final List<String>? tags;
+  // NEW: Add popularity metrics
+  final int? views;
+  final double? qualityScore;
 
   Recipe({
     this.id,
@@ -36,6 +42,10 @@ class Recipe {
     this.totalTimeMinutes,
     this.requestId, // Added for cancellation support
     this.isFavorite = false, // Default to not favorite
+    this.category, // NEW: Category field
+    this.tags, // NEW: Tags field
+    this.views, // NEW: View count
+    this.qualityScore, // NEW: Quality score
   });
 
   // Create a copy of the recipe with updated fields
@@ -53,6 +63,10 @@ class Recipe {
     int? totalTimeMinutes,
     String? requestId,
     bool? isFavorite,
+    String? category,
+    List<String>? tags,
+    int? views,
+    double? qualityScore,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -68,6 +82,10 @@ class Recipe {
       totalTimeMinutes: totalTimeMinutes ?? this.totalTimeMinutes,
       requestId: requestId ?? this.requestId,
       isFavorite: isFavorite ?? this.isFavorite,
+      category: category ?? this.category,
+      tags: tags ?? this.tags,
+      views: views ?? this.views,
+      qualityScore: qualityScore ?? this.qualityScore,
     );
   }
 
@@ -131,6 +149,20 @@ class Recipe {
       }
     }
 
+    // --- Helper: Safely parse List<String> for tags ---
+    List<String>? extractTags(dynamic tagsJson) {
+      if (tagsJson == null) return null;
+      if (tagsJson is! List || tagsJson.isEmpty) return [];
+
+      try {
+        // Attempt to convert each item to String
+        return tagsJson.map((item) => item.toString()).toList();
+      } catch (e) {
+        if (kDebugMode) print('Error extracting tags: $e');
+        return []; // Return empty list on error
+      }
+    }
+
     // --- Helper: Safely parse DateTime ---
     DateTime parseCreatedAt(dynamic dateStr) {
       if (dateStr == null || dateStr is! String) return DateTime.now(); // Default to now
@@ -164,6 +196,15 @@ class Recipe {
       return defaultNutrition;
     }
 
+    // --- Helper: Safely parse double ---
+    double? parseDoubleSafe(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
     // --- Extract Time Fields ---
     // Allows for flexibility if JSON keys are camelCase or snake_case
     int? prepTime = parseIntSafe(json['prepTime']) ?? parseIntSafe(json['prep_time_minutes']);
@@ -178,6 +219,14 @@ class Recipe {
 
     // --- Extract isFavorite status ---
     bool isFavorite = json['isFavorite'] as bool? ?? false;
+
+    // --- Extract category and tags ---
+    String? category = json['category'] as String?;
+    List<String>? tags = extractTags(json['tags']);
+
+    // --- Extract views and quality score ---
+    int? views = parseIntSafe(json['views']);
+    double? qualityScore = parseDoubleSafe(json['quality_score']);
 
     // --- Construct the Recipe Object ---
     return Recipe(
@@ -199,6 +248,12 @@ class Recipe {
       requestId: requestId,
       // Add isFavorite status
       isFavorite: isFavorite,
+      // Add category and tags
+      category: category,
+      tags: tags,
+      // Add popularity metrics
+      views: views,
+      qualityScore: qualityScore,
     );
   }
 
@@ -225,6 +280,12 @@ class Recipe {
       // Include requestId if available
       if (requestId != null) 'requestId': requestId,
       'isFavorite': isFavorite,
+      // Include category and tags if available
+      if (category != null) 'category': category,
+      if (tags != null) 'tags': tags,
+      // Include popularity metrics if available
+      if (views != null) 'views': views,
+      if (qualityScore != null) 'quality_score': qualityScore,
     };
   }
 }
