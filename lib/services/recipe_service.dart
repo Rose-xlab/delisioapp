@@ -201,8 +201,8 @@ class RecipeService {
         // Create the recipe object
         final recipe = Recipe.fromJson(recipeData);
 
-        // Return a new recipe with the favorite status (potentially adding this to Recipe model)
-        return recipe;
+        // Return the recipe with the favorite status
+        return recipe.copyWith(isFavorite: isFavorite);
       } else {
         final errorData = json.decode(response.body);
         throw Exception(errorData['error']?['message'] ?? 'Failed to get recipe');
@@ -381,6 +381,212 @@ class RecipeService {
 
     } catch (e) {
       print('Error in shareRecipe: $e');
+      rethrow;
+    }
+  }
+
+  // NEW: Get recipes for discovery
+  Future<List<Recipe>> getDiscoverRecipes({
+    String? category,
+    List<String>? tags,
+    String sort = 'recent',
+    int limit = 20,
+    int offset = 0,
+    String? token,
+  }) async {
+    try {
+      // Build query parameters
+      final Map<String, String> queryParams = {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+        'sort': sort,
+      };
+
+      if (category != null && category.toLowerCase() != 'all') {
+        queryParams['category'] = category;
+      }
+
+      if (tags != null && tags.isNotEmpty) {
+        queryParams['tags'] = tags.join(',');
+      }
+
+      final headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/discover').replace(
+        queryParameters: queryParams,
+      );
+
+      print('Fetching discover recipes: $uri');
+      print('Headers: $headers');
+
+      final response = await client.get(uri, headers: headers);
+
+      print('getDiscoverRecipes response code: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> recipesList = responseData['recipes'];
+
+        if (recipesList.isEmpty) {
+          print('No recipes found matching the criteria');
+          return [];
+        }
+
+        print('Found ${recipesList.length} recipes');
+
+        return recipesList
+            .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
+            .toList();
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error']?['message'] ?? 'Failed to get discover recipes');
+      }
+    } catch (e) {
+      print('Error in getDiscoverRecipes: $e');
+      rethrow;
+    }
+  }
+
+  // NEW: Get popular recipes
+  Future<List<Recipe>> getPopularRecipes({
+    int limit = 5,
+    String? token,
+  }) async {
+    try {
+      final headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/popular?limit=$limit');
+
+      print('Fetching popular recipes: $uri');
+
+      final response = await client.get(uri, headers: headers);
+
+      print('getPopularRecipes response code: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> recipesList = responseData['recipes'];
+
+        if (recipesList.isEmpty) {
+          print('No popular recipes found');
+          return [];
+        }
+
+        print('Found ${recipesList.length} popular recipes');
+
+        return recipesList
+            .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
+            .toList();
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error']?['message'] ?? 'Failed to get popular recipes');
+      }
+    } catch (e) {
+      print('Error in getPopularRecipes: $e');
+      rethrow;
+    }
+  }
+
+  // NEW: Get recipes by category
+  Future<List<Recipe>> getCategoryRecipes(
+      String categoryId, {
+        String sort = 'recent',
+        int limit = 20,
+        int offset = 0,
+        String? token,
+      }) async {
+    try {
+      // Build query parameters
+      final Map<String, String> queryParams = {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+        'sort': sort,
+      };
+
+      final headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/category/$categoryId').replace(
+        queryParameters: queryParams,
+      );
+
+      print('Fetching category recipes: $uri');
+
+      final response = await client.get(uri, headers: headers);
+
+      print('getCategoryRecipes response code: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> recipesList = responseData['recipes'];
+
+        if (recipesList.isEmpty) {
+          print('No recipes found in category $categoryId');
+          return [];
+        }
+
+        print('Found ${recipesList.length} recipes in category $categoryId');
+
+        return recipesList
+            .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
+            .toList();
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error']?['message'] ?? 'Failed to get category recipes');
+      }
+    } catch (e) {
+      print('Error in getCategoryRecipes: $e');
+      rethrow;
+    }
+  }
+
+  // NEW: Get all categories with recipe counts
+  Future<List<Map<String, dynamic>>> getAllCategories() async {
+    try {
+      final response = await client.get(
+        Uri.parse('$baseUrl${ApiConfig.recipes}/categories'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('getAllCategories response code: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> categoriesList = responseData['categories'];
+
+        if (categoriesList.isEmpty) {
+          print('No categories found');
+          return [];
+        }
+
+        print('Found ${categoriesList.length} categories');
+
+        return categoriesList.map((categoryJson) => Map<String, dynamic>.from(categoryJson)).toList();
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error']?['message'] ?? 'Failed to get categories');
+      }
+    } catch (e) {
+      print('Error in getAllCategories: $e');
       rethrow;
     }
   }
