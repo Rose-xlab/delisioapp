@@ -18,6 +18,8 @@ class RecipeProvider with ChangeNotifier {
   // Flag to track if generation was cancelled
   bool _wasCancelled = false;
   bool get wasCancelled => _wasCancelled;
+  // Store the request ID for cancellation
+  String? _currentRequestId;
 
   final RecipeService _recipeService = RecipeService();
 
@@ -33,7 +35,7 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Added method to cancel recipe generation
+  // Improved method to cancel recipe generation with proper requestId handling
   Future<void> cancelRecipeGeneration() async {
     if (!_isLoading) return; // Only cancel if loading
 
@@ -41,13 +43,25 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     print('RecipeProvider: Cancelling recipe generation...');
+    print('RecipeProvider: Current requestId: $_currentRequestId');
 
     try {
+      // Make sure we have a requestId to cancel
+      if (_currentRequestId == null) {
+        print('RecipeProvider: No requestId available for cancellation');
+        _wasCancelled = true;
+        _error = 'Recipe generation cancelled, but no request ID was available';
+        _isLoading = false;
+        _isCancelling = false;
+        notifyListeners();
+        return;
+      }
+
       // Call the service to send cancellation request to backend
-      final success = await _recipeService.cancelRecipeGeneration();
+      final success = await _recipeService.cancelRecipeGeneration(_currentRequestId!);
 
       if (success) {
-        print('RecipeProvider: Recipe generation cancelled successfully on the server');
+        print('RecipeProvider: Recipe generation cancelled successfully on the server for requestId: $_currentRequestId');
         _wasCancelled = true;
         _error = 'Recipe generation cancelled';
       } else {
@@ -62,6 +76,8 @@ class RecipeProvider with ChangeNotifier {
       _wasCancelled = true;
       _error = 'Recipe generation cancelled with errors';
     } finally {
+      // Clear current request ID after cancellation
+      _currentRequestId = null;
       _isLoading = false;
       _isCancelling = false;
       notifyListeners();
@@ -72,6 +88,7 @@ class RecipeProvider with ChangeNotifier {
   void _resetCancellationState() {
     _isCancelling = false;
     _wasCancelled = false;
+    _currentRequestId = null;
   }
 
   // Generate a new recipe
@@ -95,6 +112,10 @@ class RecipeProvider with ChangeNotifier {
       }
 
       final recipe = await _recipeService.generateRecipe(query, save: save, token: token);
+
+      // Save the requestId for potential cancellation
+      _currentRequestId = recipe.requestId;
+      print('RecipeProvider: Received recipe with requestId: $_currentRequestId');
 
       // Check for cancellation after API call - this can happen if
       // user initiated cancellation during API call

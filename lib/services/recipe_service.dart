@@ -97,23 +97,19 @@ class RecipeService {
     }
   }
 
-  // Cancel current recipe generation
-  Future<bool> cancelRecipeGeneration() async {
-    if (_currentRequestId == null) {
-      print('No active recipe generation to cancel');
-      return false;
-    }
-
+  // Updated cancel recipe generation method that takes requestId parameter
+  Future<bool> cancelRecipeGeneration(String requestId) async {
     try {
-      print('Sending cancellation request for requestId: $_currentRequestId');
+      print('Sending cancellation request for requestId: $requestId');
 
       final response = await client.post(
-        Uri.parse('$baseUrl${ApiConfig.recipes}/cancel'),
+        Uri.parse('$baseUrl${ApiConfig.cancelRecipe}'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'requestId': _currentRequestId}),
+        body: json.encode({'requestId': requestId}),
       );
 
       print('Cancel API response code: ${response.statusCode}');
+      print('Cancel API response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);

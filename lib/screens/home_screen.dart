@@ -113,13 +113,24 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Added: Cancel recipe generation
+  // Improved: Cancel recipe generation with better feedback
   void _cancelRecipeGeneration() {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     if (recipeProvider.isLoading) {
-      recipeProvider.cancelRecipeGeneration();
-      // Show cancelling state in UI, the provider will update when cancellation is complete
+      // Show cancellation in progress
       setState(() => _isLoading = true);
+
+      // Display cancellation feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cancelling recipe generation...'),
+          backgroundColor: Colors.blue,
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      // Call the cancellation method
+      recipeProvider.cancelRecipeGeneration();
     }
   }
 
@@ -223,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // MODIFIED: Add conditional rendering for generate/cancel buttons
+                    // IMPROVED: Better UI for cancellation button with clearer states
                     isGenerating
                         ? Row(
                       mainAxisSize: MainAxisSize.min,
