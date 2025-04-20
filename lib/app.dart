@@ -1,7 +1,6 @@
 // lib/app.dart
 import 'package:flutter/material.dart';
-// provider import might not be needed directly here if not used, but harmless
-// import 'package:provider/provider.dart';
+import 'package:provider/provider.dart';
 
 // --- Screen Imports ---
 import 'screens/splash_screen.dart';
@@ -12,23 +11,11 @@ import 'screens/main_navigation_screen.dart';
 import 'screens/recipes/recipe_detail_screen.dart';
 import 'screens/recipes/nutrition_screen.dart';
 import 'screens/chat/chat_screen.dart';
-import 'screens/chat/chat_list_screen.dart'; // <-- IMPORT NEW CHAT LIST SCREEN
+import 'providers/chat_provider.dart'; // Added for chat handling
 
 // --- Other Imports ---
 import 'theme/app_theme.dart';
 
-// --- Placeholder Widgets (Ensure you have real implementations) ---
-// class SplashScreen ...
-// class LoginScreen ...
-// class SignupScreen ...
-// class UserPreferencesScreen ...
-// class MainNavigationScreen ...
-// class RecipeDetailScreen ...
-// class NutritionScreen ...
-// class ChatScreen ... (Needs constructor: ChatScreen({required this.conversationId}))
-// class ChatListScreen ...
-
-// --- Main App Widget ---
 class CookingAssistantApp extends StatelessWidget {
   const CookingAssistantApp({Key? key}) : super(key: key);
 
@@ -49,35 +36,76 @@ class CookingAssistantApp extends StatelessWidget {
         '/main': (context) => const MainNavigationScreen(),
         '/recipe': (context) => const RecipeDetailScreen(),
         '/nutrition': (context) => const NutritionScreen(),
-        // --- ADD ROUTE FOR THE NEW CHAT LIST SCREEN ---
-        '/chatList': (context) => const ChatListScreen(),
-        // --- Removed '/chat' from here, handled by onGenerateRoute ---
       },
 
       // Use onGenerateRoute for routes that need arguments (like /chat)
       onGenerateRoute: (settings) {
         print("onGenerateRoute: Handling route '${settings.name}'");
         WidgetBuilder builder;
+
         switch (settings.name) {
           case '/chat':
             final conversationId = settings.arguments as String?;
             if (conversationId != null) {
+              // If we have a valid conversation ID, go to that chat
               builder = (_) => ChatScreen(conversationId: conversationId);
             } else {
-              // Handle error: Chat screen requires an ID
-              print("Error: '/chat' route requires a conversationId argument.");
-              builder = (_) => const ErrorScreen(message: 'Chat ID missing');
+              // If no ID provided, create a new chat
+              builder = (_) => FutureBuilder<String?>(
+                future: Provider.of<ChatProvider>(context, listen: false).createNewConversation(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Creating new chat...'),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else if (snapshot.hasError || snapshot.data == null) {
+                    return Scaffold(
+                      appBar: AppBar(title: const Text('Error')),
+                      body: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const SizedBox(height: 16),
+                            const Text('Failed to create new chat'),
+                            const SizedBox(height: 8),
+                            Text(
+                              snapshot.error?.toString() ?? 'Unknown error',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Go Back'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else {
+                    // Success - we have a new conversation ID
+                    return ChatScreen(conversationId: snapshot.data!);
+                  }
+                },
+              );
             }
             break;
+
         // Add cases for other routes requiring arguments if any
-        // case '/recipe':
-        //   final recipeId = settings.arguments as String?;
-        //   if (recipeId != null) { ... } else { ... }
-        //   break;
           default:
           // If route not handled by 'routes' or here, go to unknown route handler
-            return null; // Let onUnknownRoute handle it
+            return null;
         }
+
         // Use MaterialPageRoute for standard transitions
         return MaterialPageRoute(builder: builder, settings: settings);
       },

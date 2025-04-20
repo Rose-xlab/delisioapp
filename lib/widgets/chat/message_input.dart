@@ -1,22 +1,55 @@
-// widgets/chat/message_input.dart
+// lib/widgets/chat/message_input.dart
 import 'package:flutter/material.dart';
 
-class MessageInput extends StatelessWidget {
+class MessageInput extends StatefulWidget {
   final TextEditingController controller;
   final Function(String) onSend;
   final bool isLoading;
+  final String hintText;
 
   const MessageInput({
     Key? key,
     required this.controller,
     required this.onSend,
     this.isLoading = false,
+    this.hintText = 'Type a message...',
   }) : super(key: key);
 
   @override
+  State<MessageInput> createState() => _MessageInputState();
+}
+
+class _MessageInputState extends State<MessageInput> {
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_updateHasText);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_updateHasText);
+    super.dispose();
+  }
+
+  void _updateHasText() {
+    final hasText = widget.controller.text.isNotEmpty;
+    if (hasText != _hasText) {
+      setState(() {
+        _hasText = hasText;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -27,68 +60,86 @@ class MessageInput extends StatelessWidget {
             offset: const Offset(0, -1),
           ),
         ],
+        border: Border(
+          top: BorderSide(
+            color: Colors.grey.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Message input field
           Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.grey.shade300,
+                  width: 1,
                 ),
-                filled: true,
-                fillColor: Colors.grey[100],
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                suffixIcon: controller.text.isNotEmpty
-                    ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    controller.clear();
-                  },
-                )
-                    : null,
               ),
-              textCapitalization: TextCapitalization.sentences,
-              onChanged: (value) {
-                // Force rebuild to show/hide clear button
-                (context as Element).markNeedsBuild();
-              },
-              maxLines: null,
-              keyboardType: TextInputType.text,
-              textInputAction: TextInputAction.send,
-              onSubmitted: isLoading
-                  ? null
-                  : (value) {
-                if (value.trim().isNotEmpty) {
-                  onSend(value);
-                }
-              },
+              child: TextField(
+                controller: widget.controller,
+                decoration: InputDecoration(
+                  hintText: widget.hintText,
+                  hintStyle: TextStyle(color: Colors.grey.shade500),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  // Only show the clear button if there's text
+                  suffixIcon: _hasText
+                      ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      widget.controller.clear();
+                    },
+                  )
+                      : null,
+                ),
+                textCapitalization: TextCapitalization.sentences,
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.send,
+                minLines: 1,
+                maxLines: 5,
+                // Allow multi-line input
+                enabled: !widget.isLoading,
+                onSubmitted: (value) {
+                  if (value
+                      .trim()
+                      .isNotEmpty && !widget.isLoading) {
+                    widget.onSend(value);
+                  }
+                },
+              ),
             ),
           ),
+
           const SizedBox(width: 8),
+
           // Send button
           Material(
-            color: Theme.of(context).primaryColor,
+            color: _hasText ? colorScheme.primary : Colors.grey.shade300,
             borderRadius: BorderRadius.circular(50),
             child: InkWell(
               borderRadius: BorderRadius.circular(50),
-              onTap: isLoading
-                  ? null
-                  : () {
-                if (controller.text.trim().isNotEmpty) {
-                  onSend(controller.text);
+              onTap: (_hasText && !widget.isLoading)
+                  ? () {
+                if (widget.controller.text
+                    .trim()
+                    .isNotEmpty) {
+                  widget.onSend(widget.controller.text);
                 }
-              },
+              }
+                  : null,
               child: Container(
                 padding: const EdgeInsets.all(12),
-                child: isLoading
-                    ? const SizedBox(
+                child: widget.isLoading
+                    ? SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
@@ -96,9 +147,10 @@ class MessageInput extends StatelessWidget {
                     strokeWidth: 2,
                   ),
                 )
-                    : const Icon(
+                    : Icon(
                   Icons.send,
-                  color: Colors.white,
+                  color: _hasText ? Colors.white : Colors.grey.shade400,
+                  size: 24,
                 ),
               ),
             ),

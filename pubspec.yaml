@@ -22,6 +22,8 @@ dependencies:
   # Network and API
   http: ^1.1.0
 
+
+
   # Supabase integration - UPGRADED
   supabase_flutter: ^2.8.4 # Upgraded to latest stable (v2)
 
