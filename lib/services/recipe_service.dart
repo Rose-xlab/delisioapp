@@ -1,12 +1,10 @@
-// lib/services/recipe_service.dart
+// lib/services/recipe_service.dart (with queue support)
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:share_plus/share_plus.dart'; // Import for sharing functionality
+import 'package:share_plus/share_plus.dart';
 import '../config/api_config.dart';
 import '../models/recipe.dart';
-import '../models/recipe_step.dart';
-import '../models/nutrition_info.dart';
 
 class RecipeService {
   final String baseUrl = ApiConfig.baseUrl;
@@ -18,7 +16,27 @@ class RecipeService {
   // Getter for current request ID
   String? get currentRequestId => _currentRequestId;
 
-  // Generate a new recipe
+  // Check if backend is using queues
+  Future<bool> isUsingQueue() async {
+    try {
+      final response = await client.get(
+        Uri.parse('$baseUrl${ApiConfig.recipes}/queue-status'),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return responseData['isQueueActive'] == true;
+      } else {
+        // If endpoint doesn't exist, assume no queue
+        return false;
+      }
+    } catch (e) {
+      // If error, assume no queue
+      return false;
+    }
+  }
+
+  // Generate a new recipe with queue support
   Future<Recipe> generateRecipe(String query, {bool save = false, String? token}) async {
     final headers = {
       'Content-Type': 'application/json',
@@ -31,15 +49,13 @@ class RecipeService {
 
     try {
       print('Sending recipe generation request for: $query');
-      print('API endpoint: $baseUrl${ApiConfig.recipes}');
-      print('Request headers: $headers');
 
       final requestBody = {
         'query': query,
         'save': save,
       };
-      print('Request body: $requestBody');
 
+      // Start the recipe generation process
       final response = await client.post(
         Uri.parse('$baseUrl${ApiConfig.recipes}'),
         headers: headers,
@@ -48,47 +64,27 @@ class RecipeService {
 
       print('Recipe API response code: ${response.statusCode}');
 
-      // Handle cancellation response
-      if (response.statusCode == 499) {
-        print('Recipe generation was cancelled by the server');
-        throw Exception('Recipe generation was cancelled');
-      }
-
-      if (response.statusCode == 200) {
+      if (response.statusCode == 202) {
+        // Queue-based response (async)
         final Map<String, dynamic> responseData = json.decode(response.body);
-
-        // Store the requestId for potential cancellation
         _currentRequestId = responseData['requestId'] as String?;
-        print('Stored requestId for cancellation: $_currentRequestId');
+        print('Received requestId for polling: $_currentRequestId');
 
-        // ADD DETAILED LOGGING TO SEE RAW TIME FIELDS
-        print('Raw recipe response data: $responseData');
-        print('Time fields in response:');
-        print('- prepTime: ${responseData['prepTime']}');
-        print('- cookTime: ${responseData['cookTime']}');
-        print('- totalTime: ${responseData['totalTime']}');
-        print('- prep_time_minutes: ${responseData['prep_time_minutes']}');
-        print('- cook_time_minutes: ${responseData['cook_time_minutes']}');
-        print('- total_time_minutes: ${responseData['total_time_minutes']}');
-
-        print('Recipe generation successful. Recipe title: ${responseData['title']}');
-
-        // Log the structure of steps and images for debugging
-        if (responseData['steps'] != null) {
-          print('Recipe contains ${responseData['steps'].length} steps');
-          for (var i = 0; i < responseData['steps'].length; i++) {
-            final step = responseData['steps'][i];
-            print('Step ${i+1} image URL: ${step['image_url'] ?? 'none'}');
-          }
+        if (_currentRequestId == null) {
+          throw Exception('No requestId received for recipe generation');
         }
 
+        // Poll for completion
+        return await _pollForRecipeCompletion(_currentRequestId!, token);
+      } else if (response.statusCode == 200) {
+        // Direct response (legacy mode)
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        print('Recipe generation successful (direct mode)');
         return Recipe.fromJson(responseData);
       } else {
-        // Log detailed error information
-        print('Error response body: ${response.body}');
+        // Handle error
         final errorData = json.decode(response.body);
         final errorMessage = errorData['error']?['message'] ?? 'Failed to generate recipe';
-        print('Error message: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
@@ -97,7 +93,72 @@ class RecipeService {
     }
   }
 
-  // Updated cancel recipe generation method that takes requestId parameter
+  // Poll for recipe completion
+  Future<Recipe> _pollForRecipeCompletion(String requestId, String? token, {int maxAttempts = 60}) async {
+    final headers = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    print('Starting to poll for recipe completion, requestId: $requestId');
+
+    int attempts = 0;
+    while (attempts < maxAttempts) {
+      try {
+        final response = await client.get(
+          Uri.parse('$baseUrl${ApiConfig.recipes}/status/$requestId'),
+          headers: headers,
+        );
+
+        print('Poll response status: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+
+          // Check if we have a complete recipe or status update
+          if (responseData['status'] != null) {
+            // Still processing
+            print('Recipe still processing: ${responseData['status']}, progress: ${responseData['progress']}%');
+            // Wait before trying again
+            await Future.delayed(const Duration(milliseconds: 1000));
+            attempts++;
+          } else {
+            // We have a complete recipe
+            print('Recipe generation completed');
+            return Recipe.fromJson(responseData);
+          }
+        } else
+
+        if (response.statusCode == 499) {
+          // Cancelled
+          print('Recipe generation was cancelled');
+          throw Exception('Recipe generation was cancelled');
+        } else {
+          // Error
+          final errorData = json.decode(response.body);
+          final errorMessage = errorData['error']?['message'] ?? 'Failed to check recipe status';
+          throw Exception(errorMessage);
+        }
+      } catch (e) {
+        if (e.toString().contains('cancelled')) {
+          // Propagate cancellation exception
+          rethrow;
+        }
+
+        print('Error during polling: $e');
+        // Wait before retrying
+        await Future.delayed(const Duration(milliseconds: 1000));
+        attempts++;
+      }
+    }
+
+    throw Exception('Recipe generation timed out after ${maxAttempts} attempts');
+  }
+
+  // Updated cancel recipe generation method that uses requestId
   Future<bool> cancelRecipeGeneration(String requestId) async {
     try {
       print('Sending cancellation request for requestId: $requestId');
@@ -132,6 +193,8 @@ class RecipeService {
       return false;
     }
   }
+
+  // The following methods remain unchanged from the original implementation
 
   // Get all recipes for current user
   Future<List<Recipe>> getUserRecipes(String token) async {

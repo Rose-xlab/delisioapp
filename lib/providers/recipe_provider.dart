@@ -19,6 +19,10 @@ class RecipeProvider with ChangeNotifier {
   int _currentPage = 0;
   String? _error;
 
+  // Added for queue-based generation status
+  bool _isQueueActive = false;
+  double _generationProgress = 0.0;
+
   // Added to support cancellation
   bool _isCancelling = false;
   bool get isCancelling => _isCancelling;
@@ -41,10 +45,47 @@ class RecipeProvider with ChangeNotifier {
   bool get hasMoreRecipes => _hasMoreRecipes;
   String? get error => _error;
 
+  // Queue-related getters
+  bool get isQueueActive => _isQueueActive;
+  double get generationProgress => _generationProgress;
+
   // Method to directly set the current recipe
   void setCurrentRecipe(Recipe recipe) {
     _currentRecipe = recipe;
     notifyListeners();
+  }
+
+  // Check if the backend is using a queue
+  Future<void> checkQueueStatus() async {
+    try {
+      _isQueueActive = await _recipeService.isUsingQueue();
+      notifyListeners();
+    } catch (e) {
+      // Default to not using queue if check fails
+      _isQueueActive = false;
+      notifyListeners();
+    }
+  }
+
+  // Method to poll for recipe generation status
+  Future<void> _pollForGenerationStatus() async {
+    if (!_isQueueActive || _currentRequestId == null) return;
+
+    try {
+      // This would be replaced with a proper API call to check status
+      // For now, we just simulate progress updates
+      double progress = 0.0;
+      while (progress < 1.0 && !_wasCancelled && _isLoading) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        progress += 0.02; // Increment by 2%
+        if (progress > 1.0) progress = 1.0;
+
+        _generationProgress = progress;
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error polling for generation status: $e');
+    }
   }
 
   // Improved method to cancel recipe generation with proper requestId handling
@@ -101,6 +142,7 @@ class RecipeProvider with ChangeNotifier {
     _isCancelling = false;
     _wasCancelled = false;
     _currentRequestId = null;
+    _generationProgress = 0.0;
   }
 
   // Generate a new recipe
@@ -123,6 +165,12 @@ class RecipeProvider with ChangeNotifier {
         return;
       }
 
+      // Check if we should use queue-based generation
+      if (_isQueueActive) {
+        // If using queue, start polling for status
+        _pollForGenerationStatus();
+      }
+
       final recipe = await _recipeService.generateRecipe(query, save: save, token: token);
 
       // Save the requestId for potential cancellation
@@ -140,6 +188,7 @@ class RecipeProvider with ChangeNotifier {
       }
 
       _currentRecipe = recipe;
+      _generationProgress = 1.0; // Set to 100% complete
 
       // Add to user recipes if saved
       if (save && token != null && recipe.id != null) {
@@ -175,6 +224,8 @@ class RecipeProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // The remaining methods stay the same as in the original file
 
   // Get all recipes for current user
   Future<void> getUserRecipes(String token) async {
@@ -273,7 +324,7 @@ class RecipeProvider with ChangeNotifier {
           _currentRecipe = _currentRecipe!.copyWith(isFavorite: false);
           // Remove from favorites list if present
           _favoriteRecipes.removeWhere((recipe) => recipe.id == recipeId);
-          print('RecipeProvider: Recipe removed from favorites');
+          print('RecipeProvider: Reciperemoved from favorites');
         }
       } else {
         // Not favorite, add it

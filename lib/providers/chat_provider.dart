@@ -26,6 +26,10 @@ class ChatProvider with ChangeNotifier {
   bool _isSendingMessage = false;
   String? _sendMessageError;
 
+  // Added properties for queue support
+  bool _isQueueActive = false;
+  bool _isPolling = false;
+
   // Maximum number of messages to include as context history
   final int _maxContextMessages = 10;
 
@@ -39,6 +43,7 @@ class ChatProvider with ChangeNotifier {
   String? get messagesError => _messagesError;
   bool get isSendingMessage => _isSendingMessage;
   String? get sendMessageError => _sendMessageError;
+  bool get isQueueActive => _isQueueActive;
 
   // --- Update Method ---
   void updateAuth(AuthProvider? auth) {
@@ -53,6 +58,20 @@ class ChatProvider with ChangeNotifier {
         if (kDebugMode) print("ChatProvider: Auth state changed to logged in, reloading conversations.");
         loadConversations();
       }
+    }
+
+    // Check queue status when auth provider is updated
+    _checkQueueStatus();
+  }
+
+  // --- Check if queue system is being used ---
+  Future<void> _checkQueueStatus() async {
+    try {
+      _isQueueActive = await _chatService.isChatQueueActive();
+      if (kDebugMode) print("ChatProvider: Queue system is ${_isQueueActive ? 'active' : 'not active'}");
+    } catch (e) {
+      if (kDebugMode) print("ChatProvider: Error checking queue status: $e");
+      _isQueueActive = false; // Default to no queue if check fails
     }
   }
 
@@ -79,7 +98,12 @@ class ChatProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error loading conversations: $e\n$stackTrace");
       _conversationsError = "Failed to load conversations."; _conversations = [];
-    } finally { _isLoadingConversations = false; notifyListeners(); }
+    } finally {
+      _isLoadingConversations = false;
+      // Check queue status after loading conversations
+      await _checkQueueStatus();
+      notifyListeners();
+    }
   }
 
   Future<void> selectConversation(String conversationId) async {
@@ -181,7 +205,12 @@ class ChatProvider with ChangeNotifier {
     try {
       // Save User Message
       if(kDebugMode) print("ChatProvider: Saving user message to DB...");
-      await _supabase.from('messages').insert({'conversation_id': _activeConversationId!, 'user_id': userId, 'role': 'user', 'content': content});
+      await _supabase.from('messages').insert({
+        'conversation_id': _activeConversationId!,
+        'user_id': userId,
+        'role': 'user',
+        'content': content
+      });
 
       // Get recent message history for context
       List<ChatMessage> contextMessages = [];
@@ -222,7 +251,10 @@ class ChatProvider with ChangeNotifier {
 
       // Create local AI message
       localAiMessage = ChatMessage(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch + 1}', content: aiReplyContent, type: MessageType.ai, timestamp: DateTime.now(),
+        id: 'local_${DateTime.now().millisecondsSinceEpoch + 1}',
+        content: aiReplyContent,
+        type: MessageType.ai,
+        timestamp: DateTime.now(),
         suggestions: suggestionsList, // Use parsed list
       );
       _activeMessages.add(localAiMessage);
@@ -231,7 +263,10 @@ class ChatProvider with ChangeNotifier {
       // Prepare data for saving
       final metadataToSave = {'suggestions': suggestionsList ?? []}; // Save empty list if null
       final assistantMessageDataToSave = {
-        'conversation_id': _activeConversationId!, 'user_id': null, 'role': 'assistant', 'content': aiReplyContent,
+        'conversation_id': _activeConversationId!,
+        'user_id': null,
+        'role': 'assistant',
+        'content': aiReplyContent,
         'metadata': metadataToSave, // Save parsed list (or empty)
       };
 
@@ -278,12 +313,49 @@ class ChatProvider with ChangeNotifier {
       if (_activeConversationId == conversationId) resetActiveChat();
       notifyListeners();
       if(kDebugMode) print("ChatProvider: Conversation $conversationId deleted locally and from DB.");
-    } catch(e, stackTrace) {
+    } catch(e,stackTrace) {
       if(kDebugMode) print("ChatProvider: Error deleting conversation: $e\n$stackTrace");
       _conversationsError = "Failed to delete conversation.";
       notifyListeners();
     }
   }
-}
 
-// Add this import at the top
+  // Poll for AI response if using queue system
+  Future<void> _startPollingForResponse(String messageId) async {
+    if (!_isQueueActive) return;
+
+    _isPolling = true;
+    int attempts = 0;
+    const maxAttempts = 30;  // 15 seconds (500ms * 30)
+
+    while (_isPolling && attempts < maxAttempts) {
+      attempts++;
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Check if we already have a response
+      final hasResponse = _activeMessages.any((m) =>
+      m.type == MessageType.ai &&
+          m.id != 'local_' // Not a local optimistic message
+      );
+
+      if (hasResponse) {
+        if (kDebugMode) print("ChatProvider: Response received while polling, stopping polls");
+        _isPolling = false;
+        break;
+      }
+
+      // Check if we're still sending
+      if (!_isSendingMessage) {
+        if (kDebugMode) print("ChatProvider: Message sending completed/failed, stopping polls");
+        _isPolling = false;
+        break;
+      }
+
+      if (kDebugMode && attempts % 5 == 0) {
+        print("ChatProvider: Still waiting for response, attempt $attempts");
+      }
+    }
+
+    _isPolling = false;
+  }
+}

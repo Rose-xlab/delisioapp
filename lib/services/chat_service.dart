@@ -9,6 +9,25 @@ class ChatService {
   final String baseUrl = ApiConfig.baseUrl;
   final http.Client client = http.Client();
 
+  // Check if chat system is using queues
+  Future<bool> isChatQueueActive() async {
+    try {
+      final response = await client.get(
+        Uri.parse('$baseUrl${ApiConfig.chat}/queue-status'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return responseData['isQueueActive'] == true;
+      }
+      return false; // Default to no queue if endpoint not found
+    } catch (e) {
+      if (kDebugMode) print('Error checking chat queue status: $e');
+      return false; // Default to no queue if error
+    }
+  }
+
   // Updated to include conversation ID and message history
   Future<Map<String, dynamic>> sendMessage(
       String conversationId,
