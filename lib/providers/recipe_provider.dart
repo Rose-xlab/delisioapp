@@ -423,7 +423,7 @@ class RecipeProvider with ChangeNotifier {
         if (processedQuery.isEmpty) processedQuery = null;
       }
 
-      // *** FIX APPLIED HERE ***
+      // FIXED: Now properly passing the query parameter
       final recipes = await _recipeService.getDiscoverRecipes(
         category: category,
         tags: tags, // Pass the parsed tags
@@ -431,7 +431,7 @@ class RecipeProvider with ChangeNotifier {
         limit: 20,
         offset: 0,
         token: token,
-        // query: processedQuery, // DO NOT PASS query here
+        query: processedQuery, // Now correctly passing the query parameter
       );
 
       _discoverRecipes = recipes;
@@ -482,7 +482,7 @@ class RecipeProvider with ChangeNotifier {
         if (processedQuery.isEmpty) processedQuery = null;
       }
 
-      // *** FIX APPLIED HERE ***
+      // FIXED: Now properly passing the query parameter
       final recipes = await _recipeService.getDiscoverRecipes(
         category: category,
         tags: tags, // Pass the parsed tags
@@ -490,7 +490,7 @@ class RecipeProvider with ChangeNotifier {
         limit: 20,
         offset: _currentPage * 20,
         token: token,
-        // query: processedQuery, // DO NOT PASS query here
+        query: processedQuery, // Now correctly passing the query parameter
       );
 
       if (recipes.isEmpty) {

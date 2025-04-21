@@ -393,6 +393,7 @@ class RecipeService {
     int limit = 20,
     int offset = 0,
     String? token,
+    String? query, // Added the query parameter
   }) async {
     try {
       // Build query parameters
@@ -408,6 +409,11 @@ class RecipeService {
 
       if (tags != null && tags.isNotEmpty) {
         queryParams['tags'] = tags.join(',');
+      }
+
+      // Add query parameter if provided
+      if (query != null && query.isNotEmpty) {
+        queryParams['query'] = query;
       }
 
       final headers = {
