@@ -289,7 +289,7 @@ class ChatBubble extends StatelessWidget {
                   _buildFormattedContent(message.content, isUser, context),
 
                   // Generate Recipe Button for Recipe Descriptions
-                  if (isRecipeDescription)
+                  if (isRecipeDescription && onSuggestionSelected != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12.0),
                       child: ElevatedButton.icon(
@@ -301,9 +301,11 @@ class ChatBubble extends StatelessWidget {
                           backgroundColor: Theme.of(context).colorScheme.secondary,
                         ),
                         onPressed: () {
-                          String recipeName = _getRecipeNameFromDescription(message.content);
-                          print('Generate Full Recipe pressed for: $recipeName');
-                          onSuggestionSelected?.call(recipeName, true);
+                          if (onSuggestionSelected != null) {
+                            String recipeName = _getRecipeNameFromDescription(message.content);
+                            print('Generate Full Recipe pressed for: $recipeName');
+                            onSuggestionSelected!(recipeName, true);
+                          }
                         },
                       ),
                     ),

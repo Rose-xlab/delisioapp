@@ -1,4 +1,5 @@
-// lib/screens/chat/chat_screen.dart
+// lib/screens/chat/chat_screen.dart - Updated to improve UX
+
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -94,7 +95,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _generateRecipeFromChat(String? suggestedQuery) async {
     if (_isGenerating) return;
-    print("Generate Recipe triggered from chat suggestion: $suggestedQuery");
+
     final String recipeQuery = suggestedQuery ?? "";
     if (recipeQuery.isEmpty) {
       print("Error: Cannot generate recipe. No valid query context found from suggestion.");
@@ -109,13 +110,23 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    // Set generating state to prevent multiple clicks
     if (mounted) setState(() => _isGenerating = true);
+
     print("Attempting to generate recipe for: $recipeQuery from chat context.");
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
 
+      // Clear any previous recipe to ensure we start fresh
+      recipeProvider.clearCurrentRecipe();
+
+      // Instead of showing a loading indicator, immediately navigate to recipe screen
+      // The recipe screen will handle showing the loading/generation progress
+      Navigator.of(context).pushNamed('/recipe');
+
+      // Start the recipe generation after navigation
       await recipeProvider.generateRecipe(
         recipeQuery,
         save: authProvider.isAuthenticated,
@@ -124,15 +135,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
       print("Recipe generation initiated via RecipeProvider...");
 
-      if (mounted && recipeProvider.error == null && recipeProvider.currentRecipe?.id != null) {
-        setState(() {
-          _generatedRecipeId = recipeProvider.currentRecipe?.id;
-        });
-
-        print("RecipeProvider has no error, navigating to /recipe");
-        Navigator.of(context).pushNamed('/recipe');
-      } else if (mounted && recipeProvider.error != null) {
-        print("RecipeProvider has error, showing Snackbar instead of navigating.");
+      // We don't need to navigate again, as we already did it before generation started
+      if (mounted && recipeProvider.error != null) {
+        print("RecipeProvider has error: ${recipeProvider.error}");
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text('Error generating recipe: ${recipeProvider.error}'),
@@ -151,7 +156,9 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     } finally {
-      if (mounted) { setState(() => _isGenerating = false); }
+      if (mounted) {
+        setState(() => _isGenerating = false);
+      }
     }
   }
 
@@ -298,23 +305,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-
-          if (_isGenerating)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: theme.primaryColorLight.withOpacity(0.2),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2)
-                  ),
-                  SizedBox(width: 12),
-                  Text('Generating your recipe...', style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
