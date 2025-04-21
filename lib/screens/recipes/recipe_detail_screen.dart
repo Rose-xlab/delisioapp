@@ -294,6 +294,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   // Updated function to handle suggestion selection with the new signature
+  // Update the _onSuggestionSelected method in lib/screens/recipes/recipe_detail_screen.dart
+// Replace the existing method with this implementation:
+
   void _onSuggestionSelected(String suggestion, bool generateRecipe) {
     print("Suggestion selected in Recipe Detail: $suggestion, generate: $generateRecipe");
 
@@ -305,11 +308,26 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
 
     if (generateRecipe) {
-      // This is a request to generate after seeing the description
+      // Close the chat modal first
+      Navigator.of(context).pop();
+
+      // Generate the recipe
       _sendMessage("Generate a recipe for $suggestion");
+
+      // Show a loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Generating recipe... Please wait'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      // Navigate to home screen where recipe generation will be visible
+      Future.delayed(const Duration(milliseconds: 300), () {
+        Navigator.of(context).pushReplacementNamed('/home');
+      });
     } else {
-      // First click - request a description with ingredients, not full recipe
-      _sendMessage("Tell me more about $suggestion and what ingredients I need for it");
+      _sendMessage("Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it");
     }
   }
 

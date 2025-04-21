@@ -81,7 +81,7 @@ class RecipeService {
         // Direct response - backend might not be using queue despite what it reported
         print('Warning: Expected 202 but got 200 - server might not be using queues as expected');
 
-        final Map<String, dynamic> responseData = json.decode(response.body);
+    final Map<String, dynamic>responseData = json.decode(response.body);
 
         // Create a fake requestId to track this "direct" response
         final String fakeRequestId = 'direct-${DateTime.now().millisecondsSinceEpoch}';
@@ -138,7 +138,16 @@ class RecipeService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
 
-        if (responseData['status'] != null) {
+        // Better logging for debugging
+        print('Status check response data: ${responseData.keys}');
+
+        // Check if this is a complete recipe (no status field, but has recipe data)
+        if (responseData['status'] == null &&
+            (responseData['title'] != null || responseData['id'] != null)) {
+          print('Recipe is complete! Title: ${responseData['title']}');
+          return responseData; // This is the complete recipe
+        }
+        else if (responseData['status'] != null) {
           // Still processing - return status info
           print('Recipe still processing: ${responseData['status']}, progress: ${responseData['progress']}%');
 
@@ -170,30 +179,9 @@ class RecipeService {
 
           return responseData;
         } else {
-          // Complete recipe - return recipe data
-          print('Recipe generation complete');
-
-          // Validate the complete recipe
-          if (responseData.containsKey('title')) {
-            print('Recipe title: ${responseData['title']}');
-          }
-          if (responseData.containsKey('steps')) {
-            final steps = responseData['steps'];
-            if (steps is List) {
-              print('Recipe has ${steps.length} steps');
-
-              // Check for image URLs
-              int stepsWithImages = 0;
-              for (var step in steps) {
-                if (step is Map && step.containsKey('image_url') && step['image_url'] != null) {
-                  stepsWithImages++;
-                }
-              }
-              print('Recipe has $stepsWithImages steps with images');
-            }
-          }
-
-          return responseData;
+          // Unexpected response format
+          print('Unexpected response format: $responseData');
+          return responseData; // Return whatever we got
         }
       } else if (response.statusCode == 499) {
         // Cancelled
@@ -680,37 +668,37 @@ class RecipeService {
 
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
-    }
+      }
 
-    final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/popular?limit=$limit');
+      final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/popular?limit=$limit');
 
-    print('Fetching popular recipes: $uri');
+      print('Fetching popular recipes: $uri');
 
-    final response = await client.get(uri, headers: headers);
+      final response = await client.get(uri, headers: headers);
 
-    print('getPopularRecipes response code: ${response.statusCode}');
+      print('getPopularRecipes response code: ${response.statusCode}');
 
-    if (response.statusCode == 200) {
-    final Map<String, dynamic> responseData = json.decode(response.body);
-    final List<dynamic> recipesList = responseData['recipes'];
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> recipesList = responseData['recipes'];
 
-    if (recipesList.isEmpty) {
-    print('No popular recipes found');
-    return [];
-    }
+        if (recipesList.isEmpty) {
+          print('No popular recipes found');
+          return [];
+        }
 
-    print('Found ${recipesList.length} popular recipes');
+        print('Found ${recipesList.length} popular recipes');
 
-    return recipesList
-        .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
-        .toList();
-    } else {
-    final errorData = json.decode(response.body);
-    throw Exception(errorData['error']?['message'] ?? 'Failed to get popular recipes');
-    }
+        return recipesList
+            .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
+            .toList();
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error']?['message'] ?? 'Failed to get popular recipes');
+      }
     } catch (e) {
-    print('Error in getPopularRecipes: $e');
-    rethrow;
+      print('Error in getPopularRecipes: $e');
+      rethrow;
     }
   }
 

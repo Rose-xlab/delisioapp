@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import '../models/recipe.dart';
 import '../models/recipe_category.dart';
 import '../services/recipe_service.dart';
@@ -81,8 +82,8 @@ class RecipeProvider with ChangeNotifier {
     print("RecipeProvider: Starting polling for requestId: $requestId");
     _pollingErrorCount = 0; // Reset error count
 
-    // Poll every 3 seconds - not too aggressive to avoid rate limits
-    const duration = Duration(milliseconds: 3000);
+    // Poll every 5 seconds - not too aggressive to avoid rate limits
+    const duration = Duration(milliseconds: 5000);
 
     _pollingTimer = Timer.periodic(duration, (timer) async {
       // Check conditions to stop polling
@@ -94,6 +95,12 @@ class RecipeProvider with ChangeNotifier {
       }
 
       try {
+        // Add exponential backoff on rate limit errors
+        if (_pollingErrorCount > 0) {
+          // Wait longer between requests if we've hit rate limits before
+          await Future.delayed(Duration(milliseconds: _pollingErrorCount * 2000));
+        }
+
         print("RecipeProvider: Polling status for $requestId...");
         final statusResult = await _recipeService.checkRecipeStatus(requestId);
 
@@ -150,13 +157,9 @@ class RecipeProvider with ChangeNotifier {
 
           // Adjust polling interval by recreating timer with longer duration
           timer.cancel();
-          const longerDuration = Duration(milliseconds: 5000); // Longer interval for rate limit recovery
-          _pollingTimer = Timer.periodic(longerDuration, (newTimer) async {
-            // Recursive call to the same polling function
-            timer = newTimer; // Reference the new timer
-            await _doPollStatus(requestId, newTimer);
-          });
-
+          final newDuration = Duration(milliseconds: 5000 * math.pow(2, _pollingErrorCount).toInt());
+          print("RecipeProvider: Rate limit hit, increasing poll interval to ${newDuration.inMilliseconds}ms");
+          _pollingTimer = Timer(newDuration, () => _doPollStatus(requestId, timer));
         } else if (e.toString().contains('cancelled') || e.toString().contains('499')) {
           print("RecipeProvider: Generation was cancelled during polling");
           _wasCancelled = true;
