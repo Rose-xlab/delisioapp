@@ -230,9 +230,9 @@ class TrendingRecipeItem extends StatelessWidget {
                       color: Colors.red,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(
                           Icons.trending_up,
                           color: Colors.white,

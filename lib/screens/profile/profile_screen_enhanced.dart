@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/recipe_provider.dart';
-import '../../providers/user_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../models/user.dart';
 import '../../widgets/profile/settings_item.dart';

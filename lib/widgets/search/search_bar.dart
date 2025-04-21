@@ -172,12 +172,12 @@ class _EnhancedSearchBarState extends State<EnhancedSearchBar> {
                     widget.onCancel!();
                   }
                 },
-                child: const Text('Cancel'),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   minimumSize: const Size(10, 36),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+                child: const Text('Cancel'),
               ),
             ),
         ],

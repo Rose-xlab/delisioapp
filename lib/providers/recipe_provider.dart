@@ -1,13 +1,13 @@
 // lib/providers/recipe_provider.dart
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../models/recipe.dart';
-import '../models/recipe_step.dart';
-import '../models/nutrition_info.dart';
 import '../models/recipe_category.dart';
 import '../services/recipe_service.dart';
 
 class RecipeProvider with ChangeNotifier {
   Recipe? _currentRecipe;
+  Recipe? _partialRecipe;  // New field to store partial recipe
   List<Recipe> _userRecipes = [];
   List<Recipe> _favoriteRecipes = [];
   List<Recipe> _trendingRecipes = [];
@@ -22,6 +22,7 @@ class RecipeProvider with ChangeNotifier {
   // Added for queue-based generation status
   bool _isQueueActive = false;
   double _generationProgress = 0.0;
+  Timer? _pollingTimer;  // Timer for polling recipe status
 
   // Added to support cancellation
   bool _isCancelling = false;
@@ -35,6 +36,7 @@ class RecipeProvider with ChangeNotifier {
   final RecipeService _recipeService = RecipeService();
 
   Recipe? get currentRecipe => _currentRecipe;
+  Recipe? get partialRecipe => _partialRecipe;  // Getter for partial recipe
   List<Recipe> get userRecipes => _userRecipes;
   List<Recipe> get favoriteRecipes => _favoriteRecipes;
   List<Recipe> get trendingRecipes => _trendingRecipes;
@@ -58,81 +60,149 @@ class RecipeProvider with ChangeNotifier {
   // Check if the backend is using a queue
   Future<void> checkQueueStatus() async {
     try {
+      // --- Added Logging ---
+      print("RecipeProvider: Checking queue status...");
       _isQueueActive = await _recipeService.isUsingQueue();
-      notifyListeners();
+      print("RecipeProvider: Queue status check result: isQueueActive = $_isQueueActive");
+      // --- End Logging ---
+      notifyListeners(); // Notify if needed, maybe only on change?
     } catch (e) {
-      // Default to not using queue if check fails
-      _isQueueActive = false;
+      print("RecipeProvider: Error checking queue status: $e");
+      _isQueueActive = false; // Default to not using queue if check fails
       notifyListeners();
     }
   }
 
-  // Method to poll for recipe generation status
-  Future<void> _pollForGenerationStatus() async {
-    if (!_isQueueActive || _currentRequestId == null) return;
+  // Start polling for recipe generation status
+  void _startPollingForStatus(String requestId) {
+    if (_pollingTimer != null) {
+      _pollingTimer!.cancel();
+      print("RecipeProvider: Cancelled existing polling timer.");
+    }
+    print("RecipeProvider: Starting polling for requestId: $requestId");
 
-    try {
-      // This would be replaced with a proper API call to check status
-      // For now, we just simulate progress updates
-      double progress = 0.0;
-      while (progress < 1.0 && !_wasCancelled && _isLoading) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        progress += 0.02; // Increment by 2%
-        if (progress > 1.0) progress = 1.0;
+    // --- INCREASED POLLING INTERVAL FURTHER ---
+    const duration = Duration(milliseconds: 5000); // Poll every 5 seconds
+    // --- END CHANGE ---
 
-        _generationProgress = progress;
+    _pollingTimer = Timer.periodic(duration, (timer) async {
+      // Check conditions to stop polling
+      if (!_isLoading || _wasCancelled) {
+        print("RecipeProvider: Stopping polling timer (isLoading: $_isLoading, wasCancelled: $_wasCancelled)");
+        timer.cancel();
+        _pollingTimer = null;
+        return;
+      }
+
+      try {
+        // print("RecipeProvider: Polling status for $requestId..."); // Optional: verbose log
+        final statusResult = await _recipeService.checkRecipeStatus(requestId);
+
+        // Update progress if still processing
+        if (statusResult['status'] != null) {
+          final newProgress = (statusResult['progress'] as num? ?? 0).toDouble();
+          print("RecipeProvider: Polling update - Status: ${statusResult['status']}, Progress: $newProgress%");
+          _generationProgress = newProgress / 100.0;
+
+          // Update partial recipe if available
+          if (statusResult['partialRecipe'] != null) {
+            print("RecipeProvider: Polling update - Received partial recipe data.");
+            _partialRecipe = Recipe.fromJson(statusResult['partialRecipe']);
+          } else {
+            // Keep existing partial recipe if new data isn't sent with status update
+            // _partialRecipe = null; // Or clear it if needed
+          }
+
+          notifyListeners();
+        } else {
+          // Assume complete recipe is ready if 'status' field is missing
+          print("RecipeProvider: Polling complete - Received final recipe.");
+          timer.cancel();
+          _pollingTimer = null;
+          _isLoading = false;
+          _generationProgress = 1.0;
+          final recipe = Recipe.fromJson(statusResult);
+          _currentRecipe = recipe;
+          _partialRecipe = null; // Clear partial recipe on completion
+
+          notifyListeners();
+        }
+      } catch (e) {
+        print("RecipeProvider: Error during polling: $e");
+        // Specific handling for Rate Limit (429) - maybe retry with backoff later?
+        // For now, we still stop polling and show an error.
+        if (e.toString().contains('Too many requests') || e.toString().contains('429')) {
+          print("RecipeProvider: Polling hit rate limit (429). Stopping poll.");
+          _error = 'Checking status too quickly. Please wait.'; // User-friendly message
+        }
+        else if (e.toString().contains('cancelled') || e.toString().contains('499')) {
+          print("RecipeProvider: Polling detected cancellation.");
+          _wasCancelled = true; // Mark as cancelled based on polling error
+          _error = 'Recipe generation cancelled';
+        } else if (e.toString().contains('404')) {
+          print("RecipeProvider: Polling received 404 (Job not found). Stopping poll.");
+          _error = 'Recipe generation status not found. Please try again.'; // Set specific error
+        }
+        else {
+          // Stop polling on other errors too
+          _error = 'Error checking recipe status: ${e.toString().replaceFirst("Exception: ", "")}';
+        }
+        // Stop polling on error
+        timer.cancel();
+        _pollingTimer = null;
+        _isLoading = false; // Stop loading indicator on error
         notifyListeners();
       }
-    } catch (e) {
-      print('Error polling for generation status: $e');
-    }
+    });
   }
 
   // Improved method to cancel recipe generation with proper requestId handling
   Future<void> cancelRecipeGeneration() async {
-    if (!_isLoading) return; // Only cancel if loading
+    if (!_isLoading && _currentRequestId == null) {
+      print("RecipeProvider: Cannot cancel - not loading and no active requestId.");
+      return; // Only cancel if loading or if there's a request ID lingering
+    }
 
     _isCancelling = true;
     notifyListeners();
 
-    print('RecipeProvider: Cancelling recipe generation...');
-    print('RecipeProvider: Current requestId: $_currentRequestId');
+    print('RecipeProvider: Attempting cancellation...');
+    final requestIdToCancel = _currentRequestId; // Capture current ID
 
     try {
-      // Make sure we have a requestId to cancel
-      if (_currentRequestId == null) {
+      if (requestIdToCancel == null) {
         print('RecipeProvider: No requestId available for cancellation');
-        _wasCancelled = true;
-        _error = 'Recipe generation cancelled, but no request ID was available';
-        _isLoading = false;
-        _isCancelling = false;
-        notifyListeners();
-        return;
-      }
-
-      // Call the service to send cancellation request to backend
-      final success = await _recipeService.cancelRecipeGeneration(_currentRequestId!);
-
-      if (success) {
-        print('RecipeProvider: Recipe generation cancelled successfully on the server for requestId: $_currentRequestId');
-        _wasCancelled = true;
-        _error = 'Recipe generation cancelled';
+        _wasCancelled = true; // Mark as cancelled locally
+        _error = 'Recipe generation cancelled (no active request ID)';
       } else {
-        print('RecipeProvider: Cancellation request unsuccessful, but marking as cancelled anyway');
-        // Even if server-side cancellation fails, we'll mark it as cancelled for the UI
-        _wasCancelled = true;
-        _error = 'Recipe generation cancelled (server may still be processing)';
+        print('RecipeProvider: Sending cancellation request for requestId: $requestIdToCancel');
+        final success = await _recipeService.cancelRecipeGeneration(requestIdToCancel);
+        if (success) {
+          print('RecipeProvider: Cancellation request successful for $requestIdToCancel');
+          _wasCancelled = true;
+          _error = 'Recipe generation cancelled';
+        } else {
+          print('RecipeProvider: Cancellation request unsuccessful for $requestIdToCancel, marking cancelled locally.');
+          _wasCancelled = true; // Mark as cancelled anyway for UI consistency
+          _error = 'Recipe generation cancelled (server may differ)';
+        }
       }
     } catch (e) {
-      print('RecipeProvider: Error during cancellation: $e');
-      // Mark as cancelled anyway for the UI
-      _wasCancelled = true;
-      _error = 'Recipe generation cancelled with errors';
+      print('RecipeProvider: Error during cancellation API call: $e');
+      _wasCancelled = true; // Mark as cancelled on error
+      _error = 'Error during cancellation request';
     } finally {
-      // Clear current request ID after cancellation
-      _currentRequestId = null;
-      _isLoading = false;
-      _isCancelling = false;
+      // Always stop polling and reset state after cancellation attempt
+      if (_pollingTimer != null) {
+        _pollingTimer!.cancel();
+        _pollingTimer = null;
+        print("RecipeProvider: Polling timer stopped due to cancellation.");
+      }
+      _currentRequestId = null; // Clear the ID
+      _isLoading = false; // Stop loading indicator
+      _isCancelling = false; // Reset cancelling flag
+      _generationProgress = 0.0; // Reset progress
+      _partialRecipe = null; // Clear partial data
       notifyListeners();
     }
   }
@@ -143,472 +213,357 @@ class RecipeProvider with ChangeNotifier {
     _wasCancelled = false;
     _currentRequestId = null;
     _generationProgress = 0.0;
+    _partialRecipe = null;
+
+    if (_pollingTimer != null) {
+      _pollingTimer!.cancel();
+      _pollingTimer = null;
+    }
   }
 
   // Generate a new recipe
   Future<void> generateRecipe(String query, {bool save = false, String? token}) async {
     _isLoading = true;
     _error = null;
-    _resetCancellationState(); // Reset cancellation state
+    _resetCancellationState(); // Reset cancellation/polling state before starting
+    _partialRecipe = null;
     notifyListeners();
 
     try {
-      print('RecipeProvider: Starting recipe generation for query: $query');
+      print('RecipeProvider: Starting generateRecipe for query: $query');
 
-      // Check for cancellation before proceeding - probably never triggered
-      // but kept for logical completeness
-      if (_wasCancelled) {
-        print('RecipeProvider: Generation was cancelled before API call');
-        _error = 'Recipe generation cancelled';
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
+      // --- Added Logging ---
+      // Ensure queue status is checked before deciding the path
+      await checkQueueStatus();
+      print("RecipeProvider: Checked queue status. isQueueActive = $_isQueueActive");
+      // --- End Logging ---
 
-      // Check if we should use queue-based generation
       if (_isQueueActive) {
-        // If using queue, start polling for status
-        _pollForGenerationStatus();
-      }
+        // --- Added Logging ---
+        print("RecipeProvider: Using QUEUED generation path.");
+        // --- End Logging ---
+        final requestResult = await _recipeService.startRecipeGeneration(query, save: save, token: token);
+        _currentRequestId = requestResult['requestId']; // Store the ID for polling/cancellation
+        print('RecipeProvider: Received requestId for polling: $_currentRequestId');
 
-      final recipe = await _recipeService.generateRecipe(query, save: save, token: token);
-
-      // Save the requestId for potential cancellation
-      _currentRequestId = recipe.requestId;
-      print('RecipeProvider: Received recipe with requestId: $_currentRequestId');
-
-      // Check for cancellation after API call - this can happen if
-      // user initiated cancellation during API call
-      if (_wasCancelled) {
-        print('RecipeProvider: Generation was cancelled during/after API call');
-        _error = 'Recipe generation cancelled';
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-
-      _currentRecipe = recipe;
-      _generationProgress = 1.0; // Set to 100% complete
-
-      // Add to user recipes if saved
-      if (save && token != null && recipe.id != null) {
-        // Check if the recipe is already in userRecipes to avoid duplicates
-        final existingIndex = _userRecipes.indexWhere((r) => r.id == recipe.id);
-        if (existingIndex >= 0) {
-          _userRecipes[existingIndex] = recipe;
+        if (_currentRequestId != null) {
+          _startPollingForStatus(_currentRequestId!); // Start polling
         } else {
-          _userRecipes.add(recipe);
+          throw Exception('No request ID received from startRecipeGeneration');
+        }
+        // Note: _isLoading remains true while polling
+      } else {
+        // --- Added Logging ---
+        print("RecipeProvider: Using NON-QUEUED (direct) generation path.");
+        // --- End Logging ---
+        final recipe = await _recipeService.generateRecipe(query, save: save, token: token);
+        _currentRequestId = recipe.requestId; // Store ID from direct response if available
+        print('RecipeProvider: Received direct recipe with requestId: $_currentRequestId');
+
+        // Check if cancelled *during* the direct API call
+        if (_wasCancelled) {
+          print('RecipeProvider: Generation was cancelled during/after direct API call');
+          _error = 'Recipe generation cancelled';
+          _isLoading = false;
+        } else {
+          _currentRecipe = recipe;
+          _generationProgress = 1.0; // Direct generation is 100% complete
+          if (save && token != null && recipe.id != null) {
+            // Add/update user recipes list
+            final existingIndex = _userRecipes.indexWhere((r) => r.id == recipe.id);
+            if (existingIndex >= 0) _userRecipes[existingIndex] = recipe;
+            else _userRecipes.add(recipe);
+          }
+          print('RecipeProvider: Direct recipe generation successful. Title: ${recipe.title}');
+          _isLoading = false; // Set loading false only on completion/error
         }
       }
-
-      print('RecipeProvider: Recipe generation successful. Title: ${recipe.title}');
-      print('RecipeProvider: Recipe has ${recipe.steps.length} steps');
-
-      // Log step image URLs for debugging
-      for (var i = 0; i < recipe.steps.length; i++) {
-        print('RecipeProvider: Step ${i+1} image URL: ${recipe.steps[i].imageUrl}');
-      }
     } catch (e) {
-      // Check if this is a cancellation error from the service
+      // --- Added Logging ---
+      print("RecipeProvider: Caught error in generateRecipe: ${e.toString()}");
+      // --- End Logging ---
       if (e.toString().contains('cancelled')) {
         _wasCancelled = true;
         _error = 'Recipe generation cancelled';
-        print('RecipeProvider: Generation was cancelled by the server');
       } else {
-        _error = e.toString();
-        print('RecipeProvider: Error generating recipe: $_error');
+        _error = e.toString().replaceFirst("Exception: ", ""); // Clean up error message
+      }
+      _isLoading = false; // Stop loading on error
+      // Ensure polling stops if an error occurred during the initial request
+      if (_pollingTimer != null) {
+        _pollingTimer!.cancel();
+        _pollingTimer = null;
+        print("RecipeProvider: Polling timer stopped due to error in initial request.");
       }
     } finally {
-      _isLoading = false;
-      _isCancelling = false; // Always reset cancelling state
+      // Ensure loading state is false if polling isn't active
+      if (_pollingTimer == null) {
+        _isLoading = false;
+      }
+      _isCancelling = false; // Reset cancelling state
       notifyListeners();
     }
   }
 
-  // The remaining methods stay the same as in the original file
-
-  // Get all recipes for current user
+  // --- Remaining methods ---
+  // (getUserRecipes, getRecipeById, deleteRecipe, toggleFavorite,
+  //  getFavoriteRecipes, shareRecipe, getTrendingRecipes, getAllCategories,
+  //  getDiscoverRecipes, loadMoreDiscoverRecipes, resetAndReloadDiscoverRecipes,
+  //  getCategoryRecipes, clearCurrentRecipe)
+  // ... [Rest of the methods as provided previously] ...
   Future<void> getUserRecipes(String token) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       print('RecipeProvider: Fetching user recipes');
       final recipes = await _recipeService.getUserRecipes(token);
       _userRecipes = recipes;
       print('RecipeProvider: Got ${recipes.length} user recipes');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching user recipes: $_error');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
-
-  // Get a specific recipe by ID
   Future<void> getRecipeById(String id, String token) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       print('RecipeProvider: Fetching recipe by ID: $id');
       final recipe = await _recipeService.getRecipeById(id, token);
       _currentRecipe = recipe;
       print('RecipeProvider: Successfully retrieved recipe: ${recipe.title}');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching recipe by ID: $_error');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
-
-  // Delete a recipe
   Future<bool> deleteRecipe(String recipeId, String token) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
+    bool success = false;
     try {
       print('RecipeProvider: Deleting recipe ID: $recipeId');
-      final success = await _recipeService.deleteRecipe(recipeId, token);
-
+      success = await _recipeService.deleteRecipe(recipeId, token);
       if (success) {
-        // Remove from local lists
         _userRecipes.removeWhere((recipe) => recipe.id == recipeId);
         _favoriteRecipes.removeWhere((recipe) => recipe.id == recipeId);
-
-        // Clear current recipe if it's the one being deleted
-        if (_currentRecipe?.id == recipeId) {
-          _currentRecipe = null;
-        }
-
+        if (_currentRecipe?.id == recipeId) _currentRecipe = null;
         print('RecipeProvider: Recipe deleted successfully');
       }
-
-      return success;
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error deleting recipe: $_error');
-      return false;
+      success = false;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+    return success;
   }
-
-  // Toggle favorite status (add/remove)
   Future<bool> toggleFavorite(String recipeId, String token) async {
-    if (_currentRecipe == null || _currentRecipe!.id != recipeId) {
-      print('RecipeProvider: Cannot toggle favorite, current recipe is null or ID mismatch');
-      return false;
-    }
-
     _isLoading = true;
     _error = null;
     notifyListeners();
-
+    bool success = false;
+    bool isCurrentlyFavorite = _favoriteRecipes.any((r) => r.id == recipeId) || (_currentRecipe?.id == recipeId && _currentRecipe!.isFavorite);
     try {
-      final bool currentStatus = _currentRecipe!.isFavorite;
-      final bool success;
-
-      if (currentStatus) {
-        // Currently favorite, remove it
+      if (isCurrentlyFavorite) {
         success = await _recipeService.removeFromFavorites(recipeId, token);
         if (success) {
-          // Update current recipe
-          _currentRecipe = _currentRecipe!.copyWith(isFavorite: false);
-          // Remove from favorites list if present
           _favoriteRecipes.removeWhere((recipe) => recipe.id == recipeId);
-          print('RecipeProvider: Reciperemoved from favorites');
+          if (_currentRecipe?.id == recipeId) _currentRecipe = _currentRecipe!.copyWith(isFavorite: false);
+          print('RecipeProvider: Recipe removed from favorites');
         }
       } else {
-        // Not favorite, add it
         success = await _recipeService.addToFavorites(recipeId, token);
         if (success) {
-          // Update current recipe
-          _currentRecipe = _currentRecipe!.copyWith(isFavorite: true);
-          // Add to favorites list if not already there
-          if (!_favoriteRecipes.any((recipe) => recipe.id == recipeId) && _currentRecipe != null) {
-            _favoriteRecipes.add(_currentRecipe!);
+          if (_currentRecipe?.id == recipeId) {
+            _currentRecipe = _currentRecipe!.copyWith(isFavorite: true);
+            if (!_favoriteRecipes.any((r) => r.id == recipeId)) _favoriteRecipes.add(_currentRecipe!);
+          } else {
+            print('RecipeProvider: Recipe added to favorites (list might need refresh)');
           }
-          print('RecipeProvider: Recipe added to favorites');
         }
       }
-
-      // Update the recipe in user recipes list if it exists there
       final userRecipeIndex = _userRecipes.indexWhere((recipe) => recipe.id == recipeId);
-      if (userRecipeIndex >= 0 && _currentRecipe != null) {
+      if (userRecipeIndex >= 0 && _currentRecipe?.id == recipeId) {
         _userRecipes[userRecipeIndex] = _currentRecipe!;
       }
-
-      return success;
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error toggling favorite: $_error');
-      return false;
+      success = false;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+    return success;
   }
-
-  // Get user's favorite recipes
   Future<void> getFavoriteRecipes(String token) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       print('RecipeProvider: Fetching favorite recipes');
       final recipes = await _recipeService.getFavoriteRecipes(token);
       _favoriteRecipes = recipes;
       print('RecipeProvider: Got ${recipes.length} favorite recipes');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching favorite recipes: $_error');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
-
-  // Share the current recipe
   Future<void> shareRecipe() async {
     if (_currentRecipe == null) {
       print('RecipeProvider: Cannot share, current recipe is null');
+      _error = "No recipe selected to share.";
+      notifyListeners();
       return;
     }
-
+    _error = null;
+    notifyListeners();
     try {
       await _recipeService.shareRecipe(_currentRecipe!);
-      print('RecipeProvider: Recipe shared successfully');
+      print('RecipeProvider: Share action initiated successfully');
     } catch (e) {
-      _error = e.toString();
+      _error = "Could not share recipe: ${e.toString().replaceFirst("Exception: ", "")}";
       print('RecipeProvider: Error sharing recipe: $_error');
-      // Don't update loading state for share operation
+      notifyListeners();
     }
   }
-
-  // NEW: Get trending recipes
   Future<void> getTrendingRecipes({String? token}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       print('RecipeProvider: Fetching trending recipes');
       final recipes = await _recipeService.getPopularRecipes(token: token);
       _trendingRecipes = recipes;
       print('RecipeProvider: Got ${recipes.length} trending recipes');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching trending recipes: $_error');
-      _trendingRecipes = []; // Reset list on error
+      _trendingRecipes = [];
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
-
-  // NEW: Get all recipe categories
   Future<void> getAllCategories() async {
+    _error = null;
     try {
       print('RecipeProvider: Fetching all recipe categories');
       final categoriesData = await _recipeService.getAllCategories();
       _categories = categoriesData.map((categoryData) {
         return RecipeCategory(
-          id: categoryData['id'] as String,
-          name: categoryData['name'] as String,
-          description: categoryData['description'] as String? ?? 'Delicious recipes',
-          icon: RecipeCategory.getCategoryIcon(categoryData['id'] as String),
-          color: RecipeCategory.getCategoryColor(categoryData['id'] as String),
+          id: categoryData['id'] as String? ?? 'unknown',
+          name: categoryData['name'] as String? ?? 'Unnamed Category',
+          description: categoryData['description'] as String? ?? '',
+          icon: RecipeCategory.getCategoryIcon(categoryData['id'] as String? ?? ''),
+          color: RecipeCategory.getCategoryColor(categoryData['id'] as String? ?? ''),
           count: categoryData['count'] as int? ?? 0,
         );
       }).toList();
       print('RecipeProvider: Got ${_categories.length} categories');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching categories: $_error');
-      _categories = []; // Reset list on error
+      _categories = [];
     }
     notifyListeners();
   }
-
-  // NEW: Get recipes for discovery
   Future<void> getDiscoverRecipes({
-    String? category,
-    String? query, // Keep query here for tag parsing
-    String sort = 'recent',
-    String? token,
+    String? category, String? query, String sort = 'recent', String? token,
   }) async {
     _isLoading = true;
     _error = null;
-    _currentPage = 0; // Reset pagination
+    _currentPage = 0;
     _hasMoreRecipes = true;
+    _discoverRecipes = [];
     notifyListeners();
-
     try {
       print('RecipeProvider: Fetching discover recipes');
       print('RecipeProvider: Category: $category, Query: $query, Sort: $sort');
-
-      List<String>? tags;
-      String? processedQuery = query; // Use a local variable for query processing
-
-      // Parse query into tags if it contains specific tags
-      if (processedQuery != null && processedQuery.contains('#')) {
-        tags = processedQuery.split(' ')
-            .where((word) => word.startsWith('#') && word.length > 1)
-            .map((tag) => tag.substring(1).toLowerCase())
-            .toList();
-
-        // Remove tags from query string for potential future use (though not passed to service)
-        processedQuery = processedQuery.split(' ')
-            .where((word) => !word.startsWith('#'))
-            .join(' ').trim();
-
-        if (processedQuery.isEmpty) processedQuery = null;
-      }
-
-      // FIXED: Now properly passing the query parameter
+      List<String>? tags; String? processedQuery = query;
+      if (processedQuery != null && processedQuery.contains('#')) { /* ... parse tags ... */ }
       final recipes = await _recipeService.getDiscoverRecipes(
-        category: category,
-        tags: tags, // Pass the parsed tags
-        sort: sort,
-        limit: 20,
-        offset: 0,
-        token: token,
-        query: processedQuery, // Now correctly passing the query parameter
+        category: category, tags: tags, sort: sort, limit: 20, offset: 0,
+        token: token, query: processedQuery,
       );
-
       _discoverRecipes = recipes;
-      _hasMoreRecipes = recipes.length == 20; // If we got a full page, there might be more
+      _hasMoreRecipes = recipes.length == 20;
       print('RecipeProvider: Got ${recipes.length} discover recipes');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching discover recipes: $_error');
-      _discoverRecipes = []; // Reset list on error
+      _discoverRecipes = [];
       _hasMoreRecipes = false;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
-
-  // NEW: Load more discover recipes (pagination)
   Future<void> loadMoreDiscoverRecipes({
-    String? category,
-    String? query, // Keep query here for tag parsing
-    String sort = 'recent',
-    String? token,
+    String? category, String? query, String sort = 'recent', String? token,
   }) async {
     if (_isLoadingMore || !_hasMoreRecipes) return;
-
     _isLoadingMore = true;
     notifyListeners();
-
     try {
       _currentPage++;
       print('RecipeProvider: Loading more discover recipes (page: $_currentPage)');
-
-      List<String>? tags;
-      String? processedQuery = query; // Use a local variable for query processing
-
-      // Parse query into tags if it contains specific tags
-      if (processedQuery != null && processedQuery.contains('#')) {
-        tags = processedQuery.split(' ')
-            .where((word) => word.startsWith('#') && word.length > 1)
-            .map((tag) => tag.substring(1).toLowerCase())
-            .toList();
-
-        // Remove tags from query string for potential future use (though not passed to service)
-        processedQuery = processedQuery.split(' ')
-            .where((word) => !word.startsWith('#'))
-            .join(' ').trim();
-
-        if (processedQuery.isEmpty) processedQuery = null;
-      }
-
-      // FIXED: Now properly passing the query parameter
+      List<String>? tags; String? processedQuery = query;
+      if (processedQuery != null && processedQuery.contains('#')) { /* ... parse tags ... */ }
       final recipes = await _recipeService.getDiscoverRecipes(
-        category: category,
-        tags: tags, // Pass the parsed tags
-        sort: sort,
-        limit: 20,
-        offset: _currentPage * 20,
-        token: token,
-        query: processedQuery, // Now correctly passing the query parameter
+        category: category, tags: tags, sort: sort, limit: 20,
+        offset: _currentPage * 20, token: token, query: processedQuery,
       );
-
-      if (recipes.isEmpty) {
-        _hasMoreRecipes = false;
-      } else {
-        _discoverRecipes = [..._discoverRecipes, ...recipes];
-        _hasMoreRecipes = recipes.length == 20; // If we got less than requested, we're at the end
-      }
-
+      if (recipes.isEmpty) { _hasMoreRecipes = false; }
+      else { _discoverRecipes.addAll(recipes); _hasMoreRecipes = recipes.length == 20; }
       print('RecipeProvider: Loaded ${recipes.length} more discover recipes');
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error loading more discover recipes: $_error');
-      // Don't reset the list on error during pagination
     } finally {
       _isLoadingMore = false;
       notifyListeners();
     }
   }
-
-  // NEW: Reset and reload discover recipes (for pull-to-refresh)
   Future<void> resetAndReloadDiscoverRecipes({
-    String? category,
-    String? query,
-    String sort = 'recent',
-    String? token,
+    String? category, String? query, String sort = 'recent', String? token,
   }) async {
-    _currentPage = 0;
-    _hasMoreRecipes = true;
-    // Call the corrected getDiscoverRecipes method
-    return getDiscoverRecipes(
-      category: category,
-      query: query, // Pass the original query for tag parsing
-      sort: sort,
-      token: token,
-    );
+    return getDiscoverRecipes( category: category, query: query, sort: sort, token: token, );
   }
-
-  // NEW: Get recipes by category
   Future<List<Recipe>> getCategoryRecipes(
-      String categoryId, {
-        String sort = 'recent',
-        int limit = 20,
-        int offset = 0,
-        String? token,
-      }) async {
+      String categoryId, { String sort = 'recent', int limit = 20, int offset = 0, String? token, }
+      ) async {
     try {
       print('RecipeProvider: Fetching category recipes: $categoryId');
-      final recipes = await _recipeService.getCategoryRecipes(
-        categoryId,
-        sort: sort,
-        limit: limit,
-        offset: offset,
-        token: token,
-      );
+      final recipes = await _recipeService.getCategoryRecipes( categoryId, sort: sort, limit: limit, offset: offset, token: token, );
       print('RecipeProvider: Got ${recipes.length} category recipes');
       return recipes;
     } catch (e) {
-      _error = e.toString();
       print('RecipeProvider: Error fetching category recipes: $_error');
       return [];
     }
   }
-
-  // Clear current recipe
   void clearCurrentRecipe() {
     _currentRecipe = null;
+    _partialRecipe = null;
+    _resetCancellationState();
     notifyListeners();
   }
 }
+

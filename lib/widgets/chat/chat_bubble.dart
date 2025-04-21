@@ -162,7 +162,7 @@ class ChatBubble extends StatelessWidget {
                   } else if (isNumberedItem) {
                     final match = RegExp(r'^(\d+\.)').firstMatch(line.trim());
                     if (match != null) {
-                      prefix = match.group(0)! + ' ';
+                      prefix = '${match.group(0)!} ';
                       content = line.substring(line.indexOf(RegExp(r'\d+\.')) + match.group(0)!.length).trim();
                     }
                   }

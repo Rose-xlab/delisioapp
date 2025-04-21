@@ -1,7 +1,6 @@
 // lib/screens/home_screen_enhanced.dart (continued)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:math' as math;
 
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
@@ -288,7 +287,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _viewCategory(String categoryId) {
-    Navigator.of(context).pushNamed('/category/${categoryId}');
+    Navigator.of(context).pushNamed('/category/$categoryId');
   }
 
   @override
@@ -505,12 +504,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                           if (_activeCategory != null)
                             TextButton(
                               onPressed: () => _onCategorySelected(null),
-                              child: const Text('See All'),
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: const Size(50, 30),
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
+                              child: const Text('See All'),
                             ),
                         ],
                       ),
@@ -706,10 +705,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _generateRecipe,
-                child: const Text('Generate This Recipe'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
+                child: const Text('Generate This Recipe'),
               ),
             ],
           ],

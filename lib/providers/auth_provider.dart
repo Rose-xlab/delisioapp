@@ -80,11 +80,9 @@ class AuthProvider with ChangeNotifier {
         if (session != null) {
           potentialNewToken = session.accessToken;
           final supabaseUser = session.user;
-          if (supabaseUser != null) {
-            try { potentialNewUser = User.fromSupabaseUser(supabaseUser); }
-            catch (e) { if (kDebugMode) print("Auth Listener User Model Error: $e"); potentialNewUser = null; potentialNewToken = null; }
-          } else { potentialNewUser = null; potentialNewToken = null; }
-        } else { potentialNewUser = null; potentialNewToken = null; }
+          try { potentialNewUser = User.fromSupabaseUser(supabaseUser); }
+          catch (e) { if (kDebugMode) print("Auth Listener User Model Error: $e"); potentialNewUser = null; potentialNewToken = null; }
+                } else { potentialNewUser = null; potentialNewToken = null; }
         if (_token != potentialNewToken || _user?.id != potentialNewUser?.id) {
           _token = potentialNewToken; _user = potentialNewUser; _error = null; changed = true;
           if (kDebugMode) print("AuthProvider: State updated (SignedIn/TokenRefresh/UserUpdate) - User: ${_user?.id}, Token: ${_token != null}");
@@ -118,7 +116,7 @@ class AuthProvider with ChangeNotifier {
         if (session != null) {
           mfaToken = session.accessToken;
           // ignore: unnecessary_non_null_assertion
-          if (session.user != null) mfaUser = User.fromSupabaseUser(session.user!);
+          mfaUser = User.fromSupabaseUser(session.user!);
         }
         if (_token != mfaToken || _user?.id != mfaUser?.id) {
           _token = mfaToken; _user = mfaUser; _error = null; changed = true;

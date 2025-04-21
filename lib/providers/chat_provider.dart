@@ -12,7 +12,7 @@ import 'dart:math' as math;
 class ChatProvider with ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ChatService _chatService = ChatService();
-  AuthProvider? _authProvider;
+  AuthProvider? _authProvider; // Already exists
 
   List<Conversation> _conversations = [];
   bool _isLoadingConversations = false;
@@ -49,30 +49,41 @@ class ChatProvider with ChangeNotifier {
   void updateAuth(AuthProvider? auth) {
     if (kDebugMode) print("ChatProvider: Received updateAuth. New auth state isAuthenticated: ${auth?.isAuthenticated}");
     bool authChanged = _authProvider?.isAuthenticated != auth?.isAuthenticated;
-    _authProvider = auth;
+    _authProvider = auth; // Update the internal auth provider reference
     if (authChanged) {
       if (!(_authProvider?.isAuthenticated ?? false)) {
         if (kDebugMode) print("ChatProvider: Auth state changed to logged out, resetting chat state.");
         _conversations = []; _conversationsError = null; resetActiveChat();
       } else {
         if (kDebugMode) print("ChatProvider: Auth state changed to logged in, reloading conversations.");
-        loadConversations();
+        loadConversations(); // This already calls _checkQueueStatus indirectly
       }
+    } else if (_authProvider?.isAuthenticated ?? false) {
+      // If auth didn't change but user is authenticated, still check queue status
+      // This handles cases where the provider might be updated without login/logout event
+      _checkQueueStatus();
     }
-
-    // Check queue status when auth provider is updated
-    _checkQueueStatus();
   }
 
   // --- Check if queue system is being used ---
   Future<void> _checkQueueStatus() async {
     try {
-      _isQueueActive = await _chatService.isChatQueueActive();
+      // --- MODIFIED: Get token and pass it ---
+      final token = _authProvider?.token; // Get token from AuthProvider
+      if (kDebugMode && token == null) {
+        print("ChatProvider: Attempting to check queue status, but token is null (User might be logged out).");
+      }
+      // Pass the token (even if null, service handles it)
+      _isQueueActive = await _chatService.isChatQueueActive(token: token);
+      // --- END MODIFICATION ---
+
       if (kDebugMode) print("ChatProvider: Queue system is ${_isQueueActive ? 'active' : 'not active'}");
     } catch (e) {
       if (kDebugMode) print("ChatProvider: Error checking queue status: $e");
       _isQueueActive = false; // Default to no queue if check fails
     }
+    // Notify listeners if the queue status might affect the UI
+    // notifyListeners(); // Uncomment if UI depends directly on isQueueActive
   }
 
   // --- Methods ---
@@ -93,7 +104,7 @@ class ChatProvider with ChangeNotifier {
     if(kDebugMode) print("ChatProvider: Loading conversations for user $userId (from AuthProvider)");
     try {
       final response = await _supabase.from('conversations').select().eq('user_id', userId).order('updated_at', ascending: false);
-      _conversations = response.map((data) => Conversation.fromJson(data as Map<String, dynamic>)).toList();
+      _conversations = response.map((data) => Conversation.fromJson(data)).toList();
       if(kDebugMode) print("ChatProvider: Loaded ${_conversations.length} conversations.");
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error loading conversations: $e\n$stackTrace");
@@ -101,7 +112,7 @@ class ChatProvider with ChangeNotifier {
     } finally {
       _isLoadingConversations = false;
       // Check queue status after loading conversations
-      await _checkQueueStatus();
+      await _checkQueueStatus(); // It's okay to call this here, it uses the updated _authProvider
       notifyListeners();
     }
   }
@@ -123,12 +134,13 @@ class ChatProvider with ChangeNotifier {
       final response = await _supabase.from('messages').select().eq('conversation_id', _activeConversationId!).order('created_at', ascending: true);
 
       _activeMessages = response.map((data) {
-        final mapData = data as Map<String, dynamic>;
+        final mapData = data;
         MessageType type = (mapData['role'] == 'assistant') ? MessageType.ai : MessageType.user;
 
-        // --- ADD LOGS HERE (Loading) ---
+        // --- Original loading logs (Retained) ---
         final metadata = mapData['metadata'];
-        print("<<< ChatProvider: Loading message ID ${mapData['id']}, Raw metadata from DB: ${metadata?.toString()} (Type: ${metadata?.runtimeType})");
+        // Using kDebugMode for conditional printing
+        if (kDebugMode) print("<<< ChatProvider: Loading message ID ${mapData['id']}, Raw metadata from DB: ${metadata?.toString()} (Type: ${metadata?.runtimeType})");
         List<String>? suggestionsList;
         if (metadata != null && metadata is Map && metadata['suggestions'] != null && metadata['suggestions'] is List) {
           try {
@@ -136,16 +148,16 @@ class ChatProvider with ChangeNotifier {
                 .whereType<String>()
                 .toList();
             if (suggestionsList.isEmpty) suggestionsList = null;
-            print("<<< ChatProvider: Parsed suggestions list from DB: ${suggestionsList?.toString()}");
+            if (kDebugMode) print("<<< ChatProvider: Parsed suggestions list from DB: ${suggestionsList?.toString()}");
           } catch (e) {
             if (kDebugMode) print("<<< ChatProvider: Error casting suggestions metadata from DB for msg ${mapData['id']}: $e");
             suggestionsList = null;
           }
         } else {
-          print("<<< ChatProvider: No valid suggestions list found in metadata for msg ${mapData['id']}.");
+          if (kDebugMode) print("<<< ChatProvider: No valid suggestions list found in metadata for msg ${mapData['id']}.");
           suggestionsList = null;
         }
-        // --- END OF ADDED LOGS ---
+        // --- END OF Original loading logs ---
 
         return ChatMessage(
           id: mapData['id'] as String,
@@ -180,20 +192,27 @@ class ChatProvider with ChangeNotifier {
       final newId = response['id'] as String?;
       if (newId != null) {
         if(kDebugMode) print("ChatProvider: New conversation created with ID: $newId");
-        await loadConversations(); await selectConversation(newId); return newId;
+        await loadConversations(); // Reloads conversations list
+        await selectConversation(newId); // Selects the new one
+        return newId;
       }
       else { throw Exception("Failed to retrieve ID for new conversation."); }
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error creating new conversation: $e\n$stackTrace");
-      _conversationsError = "Failed to create conversation."; _isLoadingConversations = false; notifyListeners(); return null;
+      _conversationsError = "Failed to create conversation.";
+    } finally {
+      _isLoadingConversations = false;
+      notifyListeners(); // Ensure UI updates after operation, regardless of success/failure
     }
+    return null; // Return null if try block didn't succeed
   }
 
   Future<void> sendMessage(String content) async {
     if (_isSendingMessage) return;
     if (_activeConversationId == null) { _sendMessageError = "No active chat."; notifyListeners(); return; }
     final userId = _authProvider?.user?.id;
-    if (userId == null) { _sendMessageError = "User not logged in."; notifyListeners(); return; }
+    // Message can be sent even if userId is null if backend allows optionalAuth
+    // if (userId == null) { _sendMessageError = "User not logged in."; notifyListeners(); return; }
 
     _isSendingMessage = true; _sendMessageError = null; notifyListeners();
 
@@ -203,14 +222,18 @@ class ChatProvider with ChangeNotifier {
     ChatMessage? localAiMessage;
 
     try {
-      // Save User Message
-      if(kDebugMode) print("ChatProvider: Saving user message to DB...");
-      await _supabase.from('messages').insert({
-        'conversation_id': _activeConversationId!,
-        'user_id': userId,
-        'role': 'user',
-        'content': content
-      });
+      // Save User Message (Only if user is logged in)
+      if (userId != null) {
+        if(kDebugMode) print("ChatProvider: Saving user message to DB...");
+        await _supabase.from('messages').insert({
+          'conversation_id': _activeConversationId!,
+          'user_id': userId, // Use the actual userId
+          'role': 'user',
+          'content': content
+        });
+      } else {
+        if(kDebugMode) print("ChatProvider: User not logged in, skipping saving user message to DB.");
+      }
 
       // Get recent message history for context
       List<ChatMessage> contextMessages = [];
@@ -221,31 +244,35 @@ class ChatProvider with ChangeNotifier {
         if(kDebugMode) print("ChatProvider: Including ${contextMessages.length} previous messages as context");
       }
 
-      // Call Backend/AI Service with conversation history
+      // --- MODIFIED: Get token and pass it ---
+      final token = _authProvider?.token; // Get token
       if(kDebugMode) print("ChatProvider: Calling backend chat service with context history...");
       final Map<String, dynamic> response = await _chatService.sendMessage(
           _activeConversationId!,
           content,
-          contextMessages
+          contextMessages,
+          token: token // <-- Pass token here
       );
+      // --- END MODIFICATION ---
 
-      // --- ADD LOGS HERE (Sending) ---
-      print(">>> ChatProvider: Received from ChatService: ${response.toString()}");
+
+      // --- Original Sending logs (Retained) ---
+      if (kDebugMode) print(">>> ChatProvider: Received from ChatService: ${response.toString()}");
       final String? aiReplyContent = response['reply'] as String?;
       List<String>? suggestionsList;
       final suggestionsData = response['suggestions']; // Get the suggestions data
-      print(">>> ChatProvider: Raw suggestions data from backend: ${suggestionsData?.toString()} (Type: ${suggestionsData?.runtimeType})");
+      if (kDebugMode) print(">>> ChatProvider: Raw suggestions data from backend: ${suggestionsData?.toString()} (Type: ${suggestionsData?.runtimeType})");
       if (suggestionsData != null && suggestionsData is List) {
         try {
           suggestionsList = suggestionsData.whereType<String>().toList();
           if (suggestionsList.isEmpty) suggestionsList = null; // Treat empty list as null for consistency
         } catch (e) {
-          print(">>> ChatProvider: Error casting suggestions from backend: $e");
+          if (kDebugMode) print(">>> ChatProvider: Error casting suggestions from backend: $e");
           suggestionsList = null;
         }
       }
-      print(">>> ChatProvider: Parsed suggestions list for local message: ${suggestionsList?.toString()}");
-      // --- END OF ADDED LOGS ---
+      if (kDebugMode) print(">>> ChatProvider: Parsed suggestions list for local message: ${suggestionsList?.toString()}");
+      // --- END OF Original Sending logs ---
 
       if (aiReplyContent == null || aiReplyContent.isEmpty) throw Exception("Received empty reply from assistant.");
 
@@ -264,29 +291,34 @@ class ChatProvider with ChangeNotifier {
       final metadataToSave = {'suggestions': suggestionsList ?? []}; // Save empty list if null
       final assistantMessageDataToSave = {
         'conversation_id': _activeConversationId!,
-        'user_id': null,
+        'user_id': null, // AI messages don't have a user_id
         'role': 'assistant',
         'content': aiReplyContent,
         'metadata': metadataToSave, // Save parsed list (or empty)
       };
 
-      // --- ADD LOG HERE (Sending) ---
-      print(">>> ChatProvider: Metadata being saved to DB: ${jsonEncode(metadataToSave)}"); // Log JSON being saved
-      // --- END OF ADDED LOG ---
+      // --- Original Sending log (Retained) ---
+      if (kDebugMode) print(">>> ChatProvider: Metadata being saved to DB: ${jsonEncode(metadataToSave)}"); // Log JSON being saved
+      // --- END OF Original Sending log ---
 
-      // Save Assistant Message
+      // Save Assistant Message (Save regardless of user login status, as AI replied)
       if(kDebugMode) print("ChatProvider: Saving assistant message to DB...");
       await _supabase.from('messages').insert(assistantMessageDataToSave);
 
-      // Update Conversation Timestamp
-      if(kDebugMode) print("ChatProvider: Updating conversation timestamp...");
-      await _supabase.from('conversations').update({'updated_at': DateTime.now().toIso8601String()}).eq('id', _activeConversationId!);
+      // Update Conversation Timestamp (Only if user is logged in and conversation belongs to them)
+      if (userId != null) {
+        if(kDebugMode) print("ChatProvider: Updating conversation timestamp...");
+        await _supabase.from('conversations').update({'updated_at': DateTime.now().toIso8601String()}).eq('id', _activeConversationId!);
+      } else {
+        if(kDebugMode) print("ChatProvider: User not logged in, skipping conversation timestamp update.");
+      }
 
       if(kDebugMode) print("ChatProvider: Send message process complete.");
 
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error during sendMessage full process: $e\n$stackTrace");
-      _sendMessageError = "Failed to send message.";
+      // Use the error message from the exception if available
+      _sendMessageError = e.toString().replaceFirst("Exception: ", "");
       _activeMessages.remove(localUserMessage); // Attempt to remove optimistic user msg
       if (localAiMessage != null) _activeMessages.remove(localAiMessage); // Attempt to remove optimistic AI msg
       notifyListeners(); // Notify UI about the error state and removal
@@ -308,11 +340,20 @@ class ChatProvider with ChangeNotifier {
     if (userId == null) { _conversationsError = "Cannot delete: User not logged in."; notifyListeners(); return; }
     if(kDebugMode) print("ChatProvider: Deleting conversation $conversationId");
     try {
-      await _supabase.from('conversations').delete().eq('id', conversationId);
+      // Ensure deletion only happens if the conversation belongs to the user
+      await _supabase.from('conversations').delete().match({'id': conversationId, 'user_id': userId});
+      int initialLength = _conversations.length;
       _conversations.removeWhere((c) => c.id == conversationId);
+      if (initialLength == _conversations.length) {
+        if(kDebugMode) print("ChatProvider: Delete action completed, but conversation $conversationId not found locally or delete RLS failed.");
+        // Optionally, reload conversations to ensure consistency if RLS might have blocked delete
+        // await loadConversations();
+      } else {
+        if(kDebugMode) print("ChatProvider: Conversation $conversationId deleted locally.");
+      }
+
       if (_activeConversationId == conversationId) resetActiveChat();
       notifyListeners();
-      if(kDebugMode) print("ChatProvider: Conversation $conversationId deleted locally and from DB.");
     } catch(e,stackTrace) {
       if(kDebugMode) print("ChatProvider: Error deleting conversation: $e\n$stackTrace");
       _conversationsError = "Failed to delete conversation.";
@@ -320,40 +361,50 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  // Poll for AI response if using queue system
+  // Poll for AI response if using queue system (Original, retained)
+  // Note: This polling logic might need adjustment based on how backend notifies completion
   Future<void> _startPollingForResponse(String messageId) async {
     if (!_isQueueActive) return;
 
     _isPolling = true;
     int attempts = 0;
-    const maxAttempts = 30;  // 15 seconds (500ms * 30)
+    const maxAttempts = 30;  // 15 seconds (500ms * 30) - Adjust as needed
 
     while (_isPolling && attempts < maxAttempts) {
       attempts++;
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // Check if we already have a response
-      final hasResponse = _activeMessages.any((m) =>
-      m.type == MessageType.ai &&
-          m.id != 'local_' // Not a local optimistic message
-      );
+      // Check if we already have a response for the corresponding user message
+      // This assumes AI response is linked or added shortly after user message processing
+      // This logic might need refinement based on actual response flow
+      final userMessageIndex = _activeMessages.indexWhere((m) => m.id == messageId); // Find the original user message
+      bool hasResponse = false;
+      if (userMessageIndex != -1 && userMessageIndex + 1 < _activeMessages.length) {
+        // Check if the next message exists and is from AI
+        hasResponse = _activeMessages[userMessageIndex + 1].type == MessageType.ai;
+      }
 
       if (hasResponse) {
-        if (kDebugMode) print("ChatProvider: Response received while polling, stopping polls");
+        if (kDebugMode) print("ChatProvider: Response likely received, stopping polls");
         _isPolling = false;
         break;
       }
 
-      // Check if we're still sending
+      // Check if we're still sending (i.e., waiting for the backend call to return)
       if (!_isSendingMessage) {
-        if (kDebugMode) print("ChatProvider: Message sending completed/failed, stopping polls");
+        if (kDebugMode) print("ChatProvider: Message sending phase completed/failed, stopping polls");
         _isPolling = false;
         break;
       }
 
-      if (kDebugMode && attempts % 5 == 0) {
-        print("ChatProvider: Still waiting for response, attempt $attempts");
+      if (kDebugMode && attempts % 10 == 0) { // Log less frequently
+        print("ChatProvider: Still waiting for queued response, poll attempt $attempts");
       }
+    }
+
+    if (_isPolling && attempts >= maxAttempts) {
+      if (kDebugMode) print("ChatProvider: Polling timed out waiting for response.");
+      // Optionally set an error state or notify user
     }
 
     _isPolling = false;

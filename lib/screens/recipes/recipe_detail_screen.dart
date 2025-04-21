@@ -1,4 +1,5 @@
 // lib/screens/recipes/recipe_detail_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode print
@@ -7,12 +8,12 @@ import '../../providers/recipe_provider.dart';
 import '../../providers/chat_provider.dart'; // Added for chat functionality
 import '../../providers/auth_provider.dart'; // Added for authentication
 import '../../models/recipe.dart'; // Ensure updated model is imported
-import '../../models/recipe_step.dart';
-import '../../models/nutrition_info.dart'; // Ensure updated NutritionInfo model is imported
+// Ensure updated NutritionInfo model is imported
 import '../../models/chat_message.dart'; // Added for chat messages
 import '../../widgets/recipes/ingredient_list.dart';
 import '../../widgets/recipes/step_card.dart';
 import '../../widgets/recipes/nutrition_card.dart'; // Import for the styled NutritionCard
+import '../../widgets/recipes/recipe_generation_progress.dart'; // New widget for progressive display
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
 import '../../widgets/chat/message_input.dart'; // Added for chat input
@@ -348,9 +349,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               return FractionallySizedBox(
                 heightFactor: 0.75, // Use 75% of screen height
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: const BorderRadius.only(
+                    borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(16),
                       topRight: Radius.circular(16),
                     ),
@@ -397,7 +398,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         child: _creatingConversation || isLoadingMessages
                             ? const Center(child: CircularProgressIndicator())
                             : error != null && messages.isEmpty
-                            ? Center(child: Text("Error: $error", style: TextStyle(color: Colors.red)))
+                            ? Center(child: Text("Error: $error", style: const TextStyle(color: Colors.red)))
                             : messages.isEmpty
                             ? const Center(child: Text('Starting conversation...'))
                             : ListView.builder(
@@ -499,8 +500,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
     final recipe = recipeProvider.currentRecipe;
+    final partialRecipe = recipeProvider.partialRecipe; // Get partial recipe
     final isLoading = recipeProvider.isLoading;
     final error = recipeProvider.error;
+    final progress = recipeProvider.generationProgress;
+    final isCancelling = recipeProvider.isCancelling;
 
     // Whether user is logged in
     final bool isAuthenticated = authProvider.isAuthenticated;
@@ -512,11 +516,64 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       // ... other debug prints ...
     }
 
-    // --- Handle Loading/Error/Null --- Unchanged
+    // --- Handle Loading/Error/Null ---
     if (isLoading && recipe == null) {
+      // Check if we have a partial recipe to display
+      if (partialRecipe != null) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Generating Recipe...')),
+          body: RecipeGenerationProgress(
+            partialRecipe: partialRecipe,
+            progress: progress,
+            onCancel: () => recipeProvider.cancelRecipeGeneration(),
+            isCancelling: isCancelling,
+          ),
+        );
+      }
+
+      // No partial recipe yet, show loading indicator
       return Scaffold(
         appBar: AppBar(title: const Text('Loading Recipe...')),
-        body: const LoadingIndicator(message: 'Preparing your recipe...'),
+        body: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const LoadingIndicator(message: 'Preparing your recipe...'),
+            const SizedBox(height: 24),
+            if (recipeProvider.isQueueActive)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  children: [
+                    LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.grey[300],
+                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '${(progress * 100).toInt()}% complete',
+                      style: TextStyle(color: Theme.of(context).primaryColor),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: isCancelling
+                          ? null
+                          : () => recipeProvider.cancelRecipeGeneration(),
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      label: Text(
+                        isCancelling ? 'Cancelling...' : 'Cancel Generation',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       );
     }
     if (error != null && recipe == null) {
@@ -532,7 +589,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       );
     }
 
-    // --- Recipe Loaded UI ---
+    // --- Recipe Loaded UI --- (same as before)
     return Scaffold(
       appBar: AppBar(
         title: Text(recipe.title),

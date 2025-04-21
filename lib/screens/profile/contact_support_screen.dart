@@ -20,7 +20,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
   bool _isLoading = false;
 
   String _appVersion = '';
-  String _deviceInfo = 'Unknown Device';
+  final String _deviceInfo = 'Unknown Device';
   final List<String> _supportCategories = [
     'Technical Issue',
     'Account Problem',
@@ -61,14 +61,14 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
     final userEmail = user?.email ?? 'Not logged in';
     final userInfo = user != null ? 'User ID: ${user.id}' : 'Not logged in';
 
-    final subject = Uri.encodeComponent('[${_selectedCategory}] ${_subjectController.text}');
+    final subject = Uri.encodeComponent('[$_selectedCategory] ${_subjectController.text}');
     final body = Uri.encodeComponent('''
 ${_messageController.text}
 
 ---
 App Version: $_appVersion
 Device: $_deviceInfo
-${userInfo}
+$userInfo
 Email: $userEmail
 ---
 ''');

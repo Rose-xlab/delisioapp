@@ -17,7 +17,7 @@ class NutritionCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       elevation: 3,
       clipBehavior: Clip.antiAlias,
-      color: cs.surfaceVariant, // a gentle backdrop
+      color: cs.surfaceContainerHighest, // a gentle backdrop
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -70,7 +70,7 @@ class NutritionCard extends StatelessWidget {
     final isEven = label.hashCode.isEven;
     final bgColor = isEven
         ? cs.surface
-        : cs.surfaceVariant.withOpacity(0.2);
+        : cs.surfaceContainerHighest.withOpacity(0.2);
 
     return Container(
       color: bgColor,

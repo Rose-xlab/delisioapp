@@ -19,7 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   late final List<Widget> _screens;
   String? _chatId; // Store active chat ID
-  bool _creatingConversation = false;
+  final bool _creatingConversation = false;
 
   @override
   void initState() {

@@ -139,7 +139,7 @@ class _MessageInputState extends State<MessageInput> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 child: widget.isLoading
-                    ? SizedBox(
+                    ? const SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
