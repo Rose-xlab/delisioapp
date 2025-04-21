@@ -1,4 +1,4 @@
-// lib/services/recipe_service.dart
+// lib/services/recipe_service.dart - with improved status checking and error handling
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
@@ -24,13 +24,16 @@ class RecipeService {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
+        print('Queue status API response: ${responseData['isQueueActive']}');
         return responseData['isQueueActive'] == true;
       } else {
         // If endpoint doesn't exist, assume no queue
+        print('Queue status API returned non-200 status: ${response.statusCode}');
         return false;
       }
     } catch (e) {
       // If error, assume no queue
+      print('Error checking queue status: $e');
       return false;
     }
   }
@@ -74,10 +77,37 @@ class RecipeService {
         }
 
         return responseData;
+      } else if (response.statusCode == 200) {
+        // Direct response - backend might not be using queue despite what it reported
+        print('Warning: Expected 202 but got 200 - server might not be using queues as expected');
+
+        final Map<String, dynamic> responseData = json.decode(response.body);
+
+        // Create a fake requestId to track this "direct" response
+        final String fakeRequestId = 'direct-${DateTime.now().millisecondsSinceEpoch}';
+        _currentRequestId = fakeRequestId;
+
+        // Return a structure that the polling system can understand
+        return {
+          'requestId': fakeRequestId,
+          'status': 'completed',
+          'message': 'Recipe generated directly',
+          // Store the complete recipe to return immediately on first poll
+          'recipe': responseData
+        };
       } else {
         // Handle error
-        final errorData = json.decode(response.body);
-        final errorMessage = errorData['error']?['message'] ?? 'Failed to start recipe generation';
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['error']?['message'] ??
+              errorData['message'] ??
+              'Failed to start recipe generation (status: ${response.statusCode})';
+        } catch (parseError) {
+          errorMessage = 'Failed to start recipe generation (status: ${response.statusCode})';
+        }
+
+        print('Error response: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
@@ -86,10 +116,18 @@ class RecipeService {
     }
   }
 
-  // Check recipe generation status - NEW METHOD
+  // Improved check recipe generation status
   Future<Map<String, dynamic>> checkRecipeStatus(String requestId) async {
     try {
       print('Checking recipe status for requestId: $requestId');
+
+      // Handle our fake "direct" requestIds from startRecipeGeneration
+      if (requestId.startsWith('direct-')) {
+        print('This is a direct response (non-queued) with fake requestId');
+        // Return empty map to signal that polling should stop
+        // The recipe should have already been captured in the response from startRecipeGeneration
+        return {};
+      }
 
       final response = await client.get(
         Uri.parse('$baseUrl${ApiConfig.recipes}/status/$requestId'),
@@ -103,19 +141,85 @@ class RecipeService {
         if (responseData['status'] != null) {
           // Still processing - return status info
           print('Recipe still processing: ${responseData['status']}, progress: ${responseData['progress']}%');
+
+          // Check if there's a partial recipe
+          if (responseData.containsKey('partialRecipe')) {
+            print('Partial recipe data received');
+
+            // Validate partial recipe
+            final partialRecipe = responseData['partialRecipe'];
+            if (partialRecipe != null) {
+              // Basic validation to prevent later errors
+              if (partialRecipe is Map<String, dynamic>) {
+                if (partialRecipe.containsKey('title')) {
+                  print('Partial title: ${partialRecipe['title']}');
+                }
+                if (partialRecipe.containsKey('steps')) {
+                  final steps = partialRecipe['steps'];
+                  if (steps is List) {
+                    print('Partial recipe has ${steps.length} steps');
+                  }
+                }
+              } else {
+                print('Warning: partialRecipe is not a Map: ${partialRecipe.runtimeType}');
+                // Fix non-Map partial recipes
+                responseData['partialRecipe'] = null;
+              }
+            }
+          }
+
           return responseData;
         } else {
           // Complete recipe - return recipe data
           print('Recipe generation complete');
+
+          // Validate the complete recipe
+          if (responseData.containsKey('title')) {
+            print('Recipe title: ${responseData['title']}');
+          }
+          if (responseData.containsKey('steps')) {
+            final steps = responseData['steps'];
+            if (steps is List) {
+              print('Recipe has ${steps.length} steps');
+
+              // Check for image URLs
+              int stepsWithImages = 0;
+              for (var step in steps) {
+                if (step is Map && step.containsKey('image_url') && step['image_url'] != null) {
+                  stepsWithImages++;
+                }
+              }
+              print('Recipe has $stepsWithImages steps with images');
+            }
+          }
+
           return responseData;
         }
       } else if (response.statusCode == 499) {
         // Cancelled
+        print('Recipe generation was cancelled (499)');
         throw Exception('Recipe generation was cancelled');
+      } else if (response.statusCode == 404) {
+        // Not found
+        print('Recipe job not found (404)');
+        throw Exception('Recipe generation job not found');
+      } else if (response.statusCode == 429) {
+        // Rate limit
+        print('Rate limited (429)');
+        throw Exception('Too many status check requests. Please wait and try again.');
       } else {
-        // Error
-        final errorData = json.decode(response.body);
-        final errorMessage = errorData['error']?['message'] ?? 'Failed to check recipe status';
+        // Other error
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['error']?['message'] ??
+              errorData['message'] ??
+              'Failed to check recipe status (${response.statusCode})';
+        } catch (parseError) {
+          errorMessage = 'Failed to check recipe status (${response.statusCode})';
+        }
+
+        print('Error response: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
@@ -156,11 +260,38 @@ class RecipeService {
         // Direct response (legacy mode)
         final Map<String, dynamic> responseData = json.decode(response.body);
         print('Recipe generation successful (direct mode)');
-        return Recipe.fromJson(responseData);
+
+        try {
+          return Recipe.fromJson(responseData);
+        } catch (parseError) {
+          print('Error parsing recipe: $parseError');
+          throw Exception('Failed to parse recipe response: $parseError');
+        }
+      } else if (response.statusCode == 202) {
+        // We got a 202 (queued) response but we're in the direct path
+        // This could happen if the backend unexpectedly uses the queue
+        print('Warning: Got 202 Accepted in direct recipe generation path');
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final String? requestId = responseData['requestId'] as String?;
+
+        if (requestId != null) {
+          throw Exception('Recipe generation was queued. Please use startRecipeGeneration instead. RequestId: $requestId');
+        } else {
+          throw Exception('Recipe generation was queued but no request ID was provided');
+        }
       } else {
         // Handle error
-        final errorData = json.decode(response.body);
-        final errorMessage = errorData['error']?['message'] ?? 'Failed to generate recipe';
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['error']?['message'] ??
+              errorData['message'] ??
+              'Failed to generate recipe (status: ${response.statusCode})';
+        } catch (parseError) {
+          errorMessage = 'Failed to generate recipe (status: ${response.statusCode})';
+        }
+
+        print('Error response: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
@@ -169,10 +300,16 @@ class RecipeService {
     }
   }
 
-  // Cancel recipe generation
+  // Cancel recipe generation with improved error handling
   Future<bool> cancelRecipeGeneration(String requestId) async {
     try {
       print('Sending cancellation request for requestId: $requestId');
+
+      // Immediately return success for direct request IDs (they're already "complete")
+      if (requestId.startsWith('direct-')) {
+        print('This is a fake direct requestId, no need to cancel');
+        return true;
+      }
 
       final response = await client.post(
         Uri.parse('$baseUrl${ApiConfig.cancelRecipe}'),
@@ -184,17 +321,27 @@ class RecipeService {
       print('Cancel API response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final success = responseData['success'] as bool? ?? false;
+        Map<String, dynamic> responseData;
+        try {
+          responseData = json.decode(response.body);
+        } catch (e) {
+          print('Error parsing cancel response: $e');
+          return false;
+        }
 
-        print('Cancellation request ${success ? 'successful' : 'failed'}: ${responseData['message']}');
+        final success = responseData['success'] == true;
+        print('Cancellation request ${success ? 'successful' : 'failed'}: ${responseData['message'] ?? 'No message'}');
 
         // Clear the requestId if cancellation was successful
-        if (success) {
+        if (success && requestId == _currentRequestId) {
           _currentRequestId = null;
         }
 
         return success;
+      } else if (response.statusCode == 404) {
+        // Recipe may have already completed or not found
+        print('Recipe job not found for cancellation (404) - may have already completed');
+        return true; // Consider this a success - nothing to cancel
       } else {
         print('Error response from cancel API: ${response.body}');
         return false;
@@ -205,7 +352,6 @@ class RecipeService {
     }
   }
 
-  // The remaining methods from the original file...
   // Get all recipes for current user
   Future<List<Recipe>> getUserRecipes(String token) async {
     try {
@@ -221,16 +367,6 @@ class RecipeService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-
-        // Add logging for time fields in the first recipe (if available)
-        if (responseData['recipes'] is List && responseData['recipes'].isNotEmpty) {
-          final firstRecipe = responseData['recipes'][0];
-          print('Sample recipe time fields from list:');
-          print('- prep_time_minutes: ${firstRecipe['prep_time_minutes']}');
-          print('- cook_time_minutes: ${firstRecipe['cook_time_minutes']}');
-          print('- total_time_minutes: ${firstRecipe['total_time_minutes']}');
-        }
-
         final List<dynamic> recipesList = responseData['recipes'];
         return recipesList
             .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
@@ -260,22 +396,18 @@ class RecipeService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-
-        // Check if the recipe is a favorite
         final bool isFavorite = responseData['isFavorite'] ?? false;
-
-        // Add logging for time fields
         final Map<String, dynamic> recipeData = responseData['recipe'];
-        print('Recipe by ID time fields:');
-        print('- prep_time_minutes: ${recipeData['prep_time_minutes']}');
-        print('- cook_time_minutes: ${recipeData['cook_time_minutes']}');
-        print('- total_time_minutes: ${recipeData['total_time_minutes']}');
 
-        // Create the recipe object
-        final recipe = Recipe.fromJson(recipeData);
-
-        // Return the recipe with the favorite status
-        return recipe.copyWith(isFavorite: isFavorite);
+        try {
+          final recipe = Recipe.fromJson(recipeData);
+          return recipe.copyWith(isFavorite: isFavorite);
+        } catch (parseError) {
+          print('Error parsing recipe: $parseError');
+          throw Exception('Failed to parse recipe data: $parseError');
+        }
+      } else if (response.statusCode == 404) {
+        throw Exception('Recipe not found');
       } else {
         final errorData = json.decode(response.body);
         throw Exception(errorData['error']?['message'] ?? 'Failed to get recipe');
@@ -304,8 +436,11 @@ class RecipeService {
       if (response.statusCode == 200) {
         print('Recipe deleted successfully');
         return true;
+      } else if (response.statusCode == 404) {
+        throw Exception('Recipe not found');
+      } else if (response.statusCode == 403) {
+        throw Exception('Not authorized to delete this recipe');
       } else {
-        print('Error response from delete API: ${response.body}');
         final errorData = json.decode(response.body);
         throw Exception(errorData['error']?['message'] ?? 'Failed to delete recipe');
       }
@@ -333,8 +468,9 @@ class RecipeService {
       if (response.statusCode == 200) {
         print('Recipe added to favorites successfully');
         return true;
+      } else if (response.statusCode == 404) {
+        throw Exception('Recipe not found');
       } else {
-        print('Error response from favorites API: ${response.body}');
         final errorData = json.decode(response.body);
         throw Exception(errorData['error']?['message'] ?? 'Failed to add recipe to favorites');
       }
@@ -362,8 +498,10 @@ class RecipeService {
       if (response.statusCode == 200) {
         print('Recipe removed from favorites successfully');
         return true;
+      } else if (response.statusCode == 404) {
+        print('Recipe not found in favorites (404)');
+        return true; // Already not a favorite
       } else {
-        print('Error response from favorites API: ${response.body}');
         final errorData = json.decode(response.body);
         throw Exception(errorData['error']?['message'] ?? 'Failed to remove recipe from favorites');
       }
@@ -458,7 +596,7 @@ class RecipeService {
     }
   }
 
-  // NEW: Get recipes for discovery
+  // Get recipes for discovery
   Future<List<Recipe>> getDiscoverRecipes({
     String? category,
     List<String>? tags,
@@ -466,7 +604,7 @@ class RecipeService {
     int limit = 20,
     int offset = 0,
     String? token,
-    String? query, // Added the query parameter
+    String? query,
   }) async {
     try {
       // Build query parameters
@@ -484,7 +622,6 @@ class RecipeService {
         queryParams['tags'] = tags.join(',');
       }
 
-      // Add query parameter if provided
       if (query != null && query.isNotEmpty) {
         queryParams['query'] = query;
       }
@@ -502,7 +639,6 @@ class RecipeService {
       );
 
       print('Fetching discover recipes: $uri');
-      print('Headers: $headers');
 
       final response = await client.get(uri, headers: headers);
 
@@ -532,7 +668,7 @@ class RecipeService {
     }
   }
 
-  // NEW: Get popular recipes
+  // Get popular recipes
   Future<List<Recipe>> getPopularRecipes({
     int limit = 5,
     String? token,
@@ -544,41 +680,41 @@ class RecipeService {
 
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
-      }
+    }
 
-      final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/popular?limit=$limit');
+    final uri = Uri.parse('$baseUrl${ApiConfig.recipes}/popular?limit=$limit');
 
-      print('Fetching popular recipes: $uri');
+    print('Fetching popular recipes: $uri');
 
-      final response = await client.get(uri, headers: headers);
+    final response = await client.get(uri, headers: headers);
 
-      print('getPopularRecipes response code: ${response.statusCode}');
+    print('getPopularRecipes response code: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> recipesList = responseData['recipes'];
+    if (response.statusCode == 200) {
+    final Map<String, dynamic> responseData = json.decode(response.body);
+    final List<dynamic> recipesList = responseData['recipes'];
 
-        if (recipesList.isEmpty) {
-          print('No popular recipes found');
-          return [];
-        }
+    if (recipesList.isEmpty) {
+    print('No popular recipes found');
+    return [];
+    }
 
-        print('Found ${recipesList.length} popular recipes');
+    print('Found ${recipesList.length} popular recipes');
 
-        return recipesList
-            .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
-            .toList();
-      } else {
-        final errorData = json.decode(response.body);
-        throw Exception(errorData['error']?['message'] ?? 'Failed to get popular recipes');
-      }
+    return recipesList
+        .map((recipeJson) => Recipe.fromJson(Map<String, dynamic>.from(recipeJson)))
+        .toList();
+    } else {
+    final errorData = json.decode(response.body);
+    throw Exception(errorData['error']?['message'] ?? 'Failed to get popular recipes');
+    }
     } catch (e) {
-      print('Error in getPopularRecipes: $e');
-      rethrow;
+    print('Error in getPopularRecipes: $e');
+    rethrow;
     }
   }
 
-  // NEW: Get recipes by category
+  // Get recipes by category
   Future<List<Recipe>> getCategoryRecipes(
       String categoryId, {
         String sort = 'recent',
@@ -636,7 +772,7 @@ class RecipeService {
     }
   }
 
-  // NEW: Get all categories with recipe counts
+  // Get all categories with recipe counts
   Future<List<Map<String, dynamic>>> getAllCategories() async {
     try {
       final response = await client.get(

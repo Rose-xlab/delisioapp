@@ -27,6 +27,10 @@ class Recipe {
   // NEW: Add popularity metrics
   final int? views;
   final double? qualityScore;
+  // NEW: Add progress for partial recipes
+  final double? progress;
+  // NEW: Add isPartial flag for progressive display
+  final bool isPartial;
 
   Recipe({
     this.id,
@@ -46,6 +50,8 @@ class Recipe {
     this.tags, // NEW: Tags field
     this.views, // NEW: View count
     this.qualityScore, // NEW: Quality score
+    this.progress, // NEW: Progress percentage
+    this.isPartial = false, // NEW: Flag for partial recipes
   });
 
   // Create a copy of the recipe with updated fields
@@ -67,6 +73,8 @@ class Recipe {
     List<String>? tags,
     int? views,
     double? qualityScore,
+    double? progress,
+    bool? isPartial,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -86,15 +94,50 @@ class Recipe {
       tags: tags ?? this.tags,
       views: views ?? this.views,
       qualityScore: qualityScore ?? this.qualityScore,
+      progress: progress ?? this.progress,
+      isPartial: isPartial ?? this.isPartial,
     );
   }
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
-    // Debug prints are helpful during development
-    // if (kDebugMode) {
-    //   print('--- Parsing Recipe ---');
-    //   print('JSON Keys: ${json.keys.toList()}');
-    // }
+    // --- Helper: Safely parse double ---
+    // MOVED THIS FUNCTION EARLIER to fix "can't be referenced before it is declared" errors
+    double? parseDoubleSafe(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) {
+        // Remove any 'g' or other unit indicators
+        final cleanValue = value.replaceAll(RegExp(r'[^\d.+-]'), '');
+        return double.tryParse(cleanValue);
+      }
+      return null;
+    }
+
+    // Debug information to help diagnose issues
+    if (kDebugMode) {
+      print('--- Parsing Recipe ---');
+      print('JSON Keys: ${json.keys.toList()}');
+
+      // Log key time fields
+      if (json.containsKey('prep_time_minutes')) {
+        print('prep_time_minutes: ${json['prep_time_minutes']} (${json['prep_time_minutes'].runtimeType})');
+      }
+      if (json.containsKey('prepTime')) {
+        print('prepTime: ${json['prepTime']} (${json['prepTime'].runtimeType})');
+      }
+
+      // Log partial recipe info
+      if (json.containsKey('progress')) {
+        print('progress: ${json['progress']} (${json['progress'].runtimeType})');
+      }
+      if (json.containsKey('isPartial')) {
+        print('isPartial: ${json['isPartial']}');
+      }
+      if (json.containsKey('status')) {
+        print('status: ${json['status']}');
+      }
+    }
 
     // --- Helper: Safely parse nullable integer fields ---
     // Handles int, String, double (by truncation), or null input.
@@ -120,14 +163,22 @@ class Recipe {
         // Ensure each step is a map before passing to RecipeStep.fromJson
         if (stepData is Map<String, dynamic>) {
           try {
-            // *** IMPORTANT: Ensure RecipeStep.fromJson is robust ***
             results.add(RecipeStep.fromJson(stepData));
           } catch (e, s) {
             if (kDebugMode) {
               print('Error parsing individual step: $e\nStack: $s\nStep data: $stepData');
             }
-            // Optionally skip problematic steps or handle error differently
+            // Create a basic step with available text
+            if (stepData.containsKey('text') && stepData['text'] is String) {
+              results.add(RecipeStep(
+                text: stepData['text'] as String,
+                imageUrl: null,
+              ));
+            }
           }
+        } else if (stepData is String) {
+          // Handle case where step might just be a string
+          results.add(RecipeStep(text: stepData, imageUrl: null));
         } else {
           if (kDebugMode) print('Skipping invalid step format: $stepData');
         }
@@ -137,9 +188,18 @@ class Recipe {
 
     // --- Helper: Safely parse List<String> for ingredients ---
     List<String> extractIngredients(dynamic ingredientsJson) {
-      if (ingredientsJson == null || ingredientsJson is! List || ingredientsJson.isEmpty) {
+      if (ingredientsJson == null) return [];
+
+      if (ingredientsJson is! List) {
+        // Try to handle string case (e.g., comma-separated)
+        if (ingredientsJson is String) {
+          return ingredientsJson.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        }
         return [];
       }
+
+      if (ingredientsJson.isEmpty) return [];
+
       try {
         // Attempt to convert each item to String
         return ingredientsJson.map((item) => item.toString()).toList();
@@ -165,44 +225,62 @@ class Recipe {
 
     // --- Helper: Safely parse DateTime ---
     DateTime parseCreatedAt(dynamic dateStr) {
-      if (dateStr == null || dateStr is! String) return DateTime.now(); // Default to now
-      try {
-        return DateTime.parse(dateStr);
-      } catch (e) {
-        if (kDebugMode) print('Error parsing date: $dateStr - $e');
-        return DateTime.now(); // Default to now on parsing error
+      if (dateStr == null) return DateTime.now(); // Default to now
+
+      if (dateStr is DateTime) return dateStr;
+
+      if (dateStr is String) {
+        try {
+          return DateTime.parse(dateStr);
+        } catch (e) {
+          if (kDebugMode) print('Error parsing date: $dateStr - $e');
+        }
       }
+
+      if (dateStr is int) {
+        try {
+          // Handle Unix timestamp (seconds)
+          return DateTime.fromMillisecondsSinceEpoch(dateStr * 1000);
+        } catch (e) {
+          if (kDebugMode) print('Error parsing timestamp: $dateStr - $e');
+        }
+      }
+
+      return DateTime.now(); // Default to now on parsing error
     }
 
     // --- Helper: Safely parse NutritionInfo ---
-    // Uses the updated NutritionInfo.fromJson which expects numeric types.
     NutritionInfo parseNutrition(dynamic nutritionJson) {
-      // Default NutritionInfo with numeric types (matching updated model)
+      // Default nutrition with zeros
       final defaultNutrition = NutritionInfo(calories: 0, protein: 0.0, fat: 0.0, carbs: 0.0);
 
-      if (nutritionJson is Map<String, dynamic>) {
+      // If null or not an object, return default
+      if (nutritionJson == null) return defaultNutrition;
+      if (nutritionJson is! Map<String, dynamic>) {
+        if (kDebugMode) print('Nutrition info not a Map: ${nutritionJson.runtimeType}');
+        return defaultNutrition;
+      }
+
+      try {
+        return NutritionInfo.fromJson(nutritionJson);
+      } catch (e, s) {
+        if (kDebugMode) {
+          print('Error parsing nutrition info: $e\nStack: $s\nNutrition JSON: $nutritionJson');
+        }
+
+        // Try to extract individual fields if regular parsing fails
         try {
-          // *** IMPORTANT: Ensure NutritionInfo.fromJson handles its fields robustly ***
-          // (Should handle nulls, potential string numbers, etc., as implemented before)
-          return NutritionInfo.fromJson(nutritionJson);
-        } catch (e, s) {
-          if (kDebugMode) {
-            print('Error parsing nutrition info: $e\nStack: $s\nNutrition JSON: $nutritionJson');
-          }
-          return defaultNutrition; // Return default on error
+          return NutritionInfo(
+            calories: parseIntSafe(nutritionJson['calories']) ?? 0,
+            protein: parseDoubleSafe(nutritionJson['protein']) ?? 0.0,
+            fat: parseDoubleSafe(nutritionJson['fat']) ?? 0.0,
+            carbs: parseDoubleSafe(nutritionJson['carbs']) ?? 0.0,
+          );
+        } catch (fallbackError) {
+          if (kDebugMode) print('Fallback nutrition extraction failed: $fallbackError');
+          return defaultNutrition;
         }
       }
-      // Return default if nutritionJson is null or not a map
-      return defaultNutrition;
-    }
-
-    // --- Helper: Safely parse double ---
-    double? parseDoubleSafe(dynamic value) {
-      if (value == null) return null;
-      if (value is double) return value;
-      if (value is int) return value.toDouble();
-      if (value is String) return double.tryParse(value);
-      return null;
     }
 
     // --- Extract Time Fields ---
@@ -213,12 +291,9 @@ class Recipe {
 
     // --- Extract requestId for cancellation support ---
     String? requestId = json['requestId'] as String?;
-    if (requestId != null && kDebugMode) {
-      print('Extracted requestId from recipe JSON: $requestId');
-    }
 
     // --- Extract isFavorite status ---
-    bool isFavorite = json['isFavorite'] as bool? ?? false;
+    bool isFavorite = json['isFavorite'] == true;
 
     // --- Extract category and tags ---
     String? category = json['category'] as String?;
@@ -228,9 +303,25 @@ class Recipe {
     int? views = parseIntSafe(json['views']);
     double? qualityScore = parseDoubleSafe(json['quality_score']);
 
+    // --- Extract progress and partial status for progressive display ---
+    double? progress;
+    if (json.containsKey('progress')) {
+      final rawProgress = json['progress'];
+      if (rawProgress is num) {
+        progress = rawProgress.toDouble() / 100.0; // Convert percentage to 0.0-1.0
+      } else if (rawProgress is String) {
+        final parsed = double.tryParse(rawProgress);
+        if (parsed != null) progress = parsed / 100.0;
+      }
+    }
+
+    // Check if this is a partial recipe - FIX for null check error
+    final status = json['status'];
+    bool isPartial = json['isPartial'] == true ||
+        (status != null && (status == 'active' || status == 'waiting'));
+
     // --- Construct the Recipe Object ---
     return Recipe(
-      // Use `as String?` for nullable fields, providing default if necessary
       id: json['id'] as String?,
       title: json['title'] as String? ?? 'Untitled Recipe', // Provide default title
       servings: parseIntSafe(json['servings']) ?? 1, // Default to 1 serving if invalid/null
@@ -254,11 +345,13 @@ class Recipe {
       // Add popularity metrics
       views: views,
       qualityScore: qualityScore,
+      // Add progress and partial status
+      progress: progress,
+      isPartial: isPartial,
     );
   }
 
   // --- Serialization to JSON ---
-  // Ensure child models (RecipeStep, NutritionInfo) also have toJson methods.
   Map<String, dynamic> toJson() {
     return {
       // Only include non-null fields if desired, or let DB handle nulls
@@ -286,6 +379,10 @@ class Recipe {
       // Include popularity metrics if available
       if (views != null) 'views': views,
       if (qualityScore != null) 'quality_score': qualityScore,
+      // Include progress info if available
+      // FIX: Fixed null safety issue with multiplication operator
+      if (progress != null) 'progress': ((progress ?? 0) * 100).round(), // Convert back to percentage with null safety
+      'isPartial': isPartial,
     };
   }
 }
