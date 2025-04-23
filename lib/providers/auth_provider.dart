@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../models/user.dart'; // Ensure User.fromSupabaseUser factory exists here
 import '../models/user_preferences.dart';
 import '../services/auth_service.dart';
+import '../config/sentry_config.dart'; // Import Sentry config
 
 class AuthProvider with ChangeNotifier {
   final supabase.SupabaseClient _supabase = supabase.Supabase.instance.client;
@@ -40,8 +41,19 @@ class AuthProvider with ChangeNotifier {
         try {
           _user = User.fromSupabaseUser(supabaseUser);
           if (kDebugMode) print("AuthProvider: Initial user set from session: ${_user?.id}");
+
+          // Set user in Sentry
+          if (_user != null) {
+            setUser(_user!.id, email: _user!.email, name: _user!.name);
+            addBreadcrumb(
+              message: 'User initialized from existing session',
+              category: 'auth',
+              data: {'userId': _user!.id},
+            );
+          }
         } catch (e) {
           if (kDebugMode) print("AuthProvider: Error creating User model from initial Supabase user: $e");
+          captureException(e, stackTrace: StackTrace.current);
           _user = null; _token = null;
         }
       } else {
@@ -58,6 +70,7 @@ class AuthProvider with ChangeNotifier {
       onError: (error) {
         if (kDebugMode) print("AuthProvider: AuthStateChange Stream Error: $error");
         _setError("Auth listener error: ${error.toString()}");
+        captureException(error, stackTrace: StackTrace.current);
       },
     );
     Future.microtask(() => notifyListeners());
@@ -72,6 +85,13 @@ class AuthProvider with ChangeNotifier {
 
     if (kDebugMode) print("AuthProvider: Received auth event: $event, Session exists: ${session != null}");
 
+    // Add a Sentry breadcrumb for auth state changes
+    addBreadcrumb(
+      message: 'Auth state change',
+      category: 'auth',
+      data: {'event': event.name, 'hasSession': session != null},
+    );
+
     switch (event) {
       case supabase.AuthChangeEvent.signedIn:
       case supabase.AuthChangeEvent.tokenRefreshed:
@@ -80,9 +100,23 @@ class AuthProvider with ChangeNotifier {
         if (session != null) {
           potentialNewToken = session.accessToken;
           final supabaseUser = session.user;
-          try { potentialNewUser = User.fromSupabaseUser(supabaseUser); }
-          catch (e) { if (kDebugMode) print("Auth Listener User Model Error: $e"); potentialNewUser = null; potentialNewToken = null; }
-                } else { potentialNewUser = null; potentialNewToken = null; }
+          try {
+            potentialNewUser = User.fromSupabaseUser(supabaseUser);
+            // Update user in Sentry when signed in or updated
+            if (potentialNewUser != null) {
+              setUser(
+                  potentialNewUser.id,
+                  email: potentialNewUser.email,
+                  name: potentialNewUser.name
+              );
+            }
+          }
+          catch (e) {
+            if (kDebugMode) print("Auth Listener User Model Error: $e");
+            captureException(e, stackTrace: StackTrace.current);
+            potentialNewUser = null; potentialNewToken = null;
+          }
+        } else { potentialNewUser = null; potentialNewToken = null; }
         if (_token != potentialNewToken || _user?.id != potentialNewUser?.id) {
           _token = potentialNewToken; _user = potentialNewUser; _error = null; changed = true;
           if (kDebugMode) print("AuthProvider: State updated (SignedIn/TokenRefresh/UserUpdate) - User: ${_user?.id}, Token: ${_token != null}");
@@ -94,6 +128,8 @@ class AuthProvider with ChangeNotifier {
       // ignore: unnecessary_null_comparison
         if (_token != null || _user != null) {
           _token = null; _user = null; _error = null; changed = true;
+          // Clear user from Sentry on sign out
+          clearUser();
           if (kDebugMode) print("AuthProvider: State updated - User signed out (Event: $event).");
         }
         break;
@@ -102,6 +138,8 @@ class AuthProvider with ChangeNotifier {
       // ignore: unnecessary_null_comparison
         if (_token != null || _user != null) {
           _token = null; _user = null; _error = null; changed = true;
+          // Clear user from Sentry on password recovery
+          clearUser();
           if (kDebugMode) print("AuthProvider: Password recovery event - User signed out.");
         }
         break;
@@ -117,6 +155,10 @@ class AuthProvider with ChangeNotifier {
           mfaToken = session.accessToken;
           // ignore: unnecessary_non_null_assertion
           mfaUser = User.fromSupabaseUser(session.user!);
+          // Update user in Sentry after MFA verification
+          if (mfaUser != null) {
+            setUser(mfaUser.id, email: mfaUser.email, name: mfaUser.name);
+          }
         }
         if (_token != mfaToken || _user?.id != mfaUser?.id) {
           _token = mfaToken; _user = mfaUser; _error = null; changed = true;
@@ -142,6 +184,15 @@ class AuthProvider with ChangeNotifier {
   void _setError(String errorMessage) {
     if (_error != errorMessage) {
       _error = errorMessage;
+      // Log errors to Sentry
+      if (_error != null) {
+        addBreadcrumb(
+          message: 'Auth error occurred',
+          category: 'error',
+          data: {'error': _error},
+          level: SentryLevel.error,
+        );
+      }
       notifyListeners();
     }
   }
@@ -151,12 +202,22 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Add a breadcrumb for sign-up attempt
+    addBreadcrumb(
+      message: 'Sign-up attempt',
+      category: 'auth',
+      data: {'email': email, 'name': name},
+    );
+
     try {
       await _authService.signUp(email, password, name); // Uses Supabase client now
       if (kDebugMode) print("AuthProvider: signUp service call successful (state update relies on listener).");
     } catch (e) {
       if (kDebugMode) print("AuthProvider: signUp failed: $e");
       _setError(e.toString());
+      // Log sign-up failures to Sentry
+      captureException(e, stackTrace: StackTrace.current);
       rethrow;
     } finally {
       _isLoading = false;
@@ -169,12 +230,22 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Add a breadcrumb for sign-in attempt
+    addBreadcrumb(
+      message: 'Sign-in attempt',
+      category: 'auth',
+      data: {'email': email},
+    );
+
     try {
       await _authService.signIn(email, password); // Uses Supabase client now
       if (kDebugMode) print("AuthProvider: signIn service call successful (state update relies on listener).");
     } catch (e) {
       if (kDebugMode) print("AuthProvider: signIn failed: $e");
       _setError(e.toString());
+      // Log sign-in failures to Sentry
+      captureException(e, stackTrace: StackTrace.current);
       rethrow;
     } finally {
       _isLoading = false;
@@ -187,10 +258,18 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Add a breadcrumb for sign-out attempt
+    addBreadcrumb(
+      message: 'Sign-out attempt',
+      category: 'auth',
+    );
+
     try {
       // No token needed for service call now
       if (kDebugMode) print("AuthProvider: Calling signOut service...");
       await _authService.signOut(); // Uses Supabase client now
+      clearUser(); // Clear user from Sentry
       if (kDebugMode) print("AuthProvider: signOut service call successful (state update relies on listener).");
       // Listener will clear _token and _user
     } catch (e) {
@@ -199,6 +278,8 @@ class AuthProvider with ChangeNotifier {
       if (_token != null) { _token = null; changed = true; }
       if (_user != null) { _user = null; changed = true; }
       _setError(e.toString());
+      // Log sign-out failures to Sentry
+      captureException(e, stackTrace: StackTrace.current);
       if (changed) notifyListeners();
     } finally {
       _isLoading = false;
@@ -216,16 +297,32 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Add a breadcrumb for profile refresh
+    addBreadcrumb(
+      message: 'Refreshing user profile',
+      category: 'auth',
+      data: {'userId': _user?.id},
+    );
+
     try {
       // Call service (which gets token internally from Supabase session)
       final detailedUser = await _authService.getCurrentUser();
       bool changed = (_user != detailedUser); // Basic object check
       _user = detailedUser;
+
+      // Update user in Sentry if user changed
+      if (_user != null && changed) {
+        setUser(_user!.id, email: _user!.email, name: _user!.name);
+      }
+
       if (kDebugMode) print("AuthProvider: User profile refreshed: ${_user?.id}");
       if (changed) notifyListeners();
     } catch(e) {
       if (kDebugMode) print("AuthProvider: Failed to refresh user profile: $e");
       _setError("Could not refresh profile: ${e.toString()}");
+      // Log profile refresh failures to Sentry
+      captureException(e, stackTrace: StackTrace.current);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -247,6 +344,13 @@ class AuthProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    // Add a breadcrumb for preference update
+    addBreadcrumb(
+      message: 'Updating user preferences',
+      category: 'auth',
+      data: {'userId': currentUser.id},
+    );
+
     try {
       // FIX: Call service with only the preferences argument
       // Assuming AuthService signature is: Future<UserPreferences> updatePreferences(UserPreferences preferences)
@@ -265,6 +369,8 @@ class AuthProvider with ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print("AuthProvider: updatePreferences failed: $e");
       _setError(e.toString());
+      // Log preference update failures to Sentry
+      captureException(e, stackTrace: StackTrace.current);
     } finally {
       _isLoading = false;
       notifyListeners();
