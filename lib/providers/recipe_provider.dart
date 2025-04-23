@@ -9,6 +9,7 @@ import '../services/recipe_service.dart';
 import '../main.dart'; // Import for navigatorKey
 import '../providers/subscription_provider.dart'; // Import for subscription provider
 import '../widgets/recipes/generation_limit_dialog.dart'; // Import for the limit dialog
+import '../config/sentry_config.dart'; // Import the Sentry config
 
 class RecipeProvider with ChangeNotifier {
   Recipe? _currentRecipe;
@@ -66,12 +67,20 @@ class RecipeProvider with ChangeNotifier {
   // Check if the backend is using a queue
   Future<void> checkQueueStatus() async {
     try {
+      // Add breadcrumb for this operation
+      addBreadcrumb(
+        message: 'Checking queue status',
+        category: 'api',
+      );
+
       print("RecipeProvider: Checking queue status...");
       _isQueueActive = await _recipeService.isUsingQueue();
       print("RecipeProvider: Queue status check result: isQueueActive = $_isQueueActive");
       notifyListeners();
     } catch (e) {
       print("RecipeProvider: Error checking queue status: $e");
+      // Log the error to Sentry
+      captureException(e, stackTrace: StackTrace.current);
       _isQueueActive = false; // Default to not using queue if check fails
       notifyListeners();
     }
@@ -86,6 +95,13 @@ class RecipeProvider with ChangeNotifier {
 
     print("RecipeProvider: Starting polling for requestId: $requestId");
     _pollingErrorCount = 0; // Reset error count
+
+    // Add breadcrumb for starting polling
+    addBreadcrumb(
+      message: 'Starting recipe status polling',
+      category: 'recipe',
+      data: {'requestId': requestId},
+    );
 
     // Poll every 5 seconds - not too aggressive to avoid rate limits
     const duration = Duration(milliseconds: 5000);
@@ -127,6 +143,11 @@ class RecipeProvider with ChangeNotifier {
             } catch (parseError) {
               print("RecipeProvider: Error parsing partial recipe: $parseError");
               // Don't set error state for partial recipe parsing issues
+              // Log to Sentry
+              captureException(parseError,
+                  stackTrace: StackTrace.current,
+                  hint: 'Error parsing partial recipe'
+              );
             }
           }
 
@@ -144,9 +165,22 @@ class RecipeProvider with ChangeNotifier {
             _currentRecipe = recipe;
             _partialRecipe = null; // Clear partial recipe on completion
             print("RecipeProvider: Final recipe received with title: ${recipe.title}");
+
+            // Add breadcrumb for successful recipe completion
+            addBreadcrumb(
+              message: 'Recipe generation complete',
+              category: 'recipe',
+              data: {'title': recipe.title},
+            );
           } catch (parseError) {
             print("RecipeProvider: Error parsing final recipe: $parseError");
             _error = 'Error parsing recipe data';
+
+            // Log to Sentry
+            captureException(parseError,
+                stackTrace: StackTrace.current,
+                hint: 'Error parsing final recipe'
+            );
           }
 
           notifyListeners();
@@ -160,6 +194,13 @@ class RecipeProvider with ChangeNotifier {
         if (e.toString().contains('Too many requests') || e.toString().contains('429')) {
           print("RecipeProvider: Rate limit hit (429). Slowing down polling rate.");
 
+          // Add breadcrumb for rate limit
+          addBreadcrumb(
+            message: 'Rate limit hit during recipe polling',
+            category: 'error',
+            level: SentryLevel.warning,
+          );
+
           // Adjust polling interval by recreating timer with longer duration
           timer.cancel();
           final newDuration = Duration(milliseconds: 5000 * math.pow(2, _pollingErrorCount).toInt());
@@ -172,6 +213,13 @@ class RecipeProvider with ChangeNotifier {
           timer.cancel();
           _pollingTimer = null;
           _isLoading = false;
+
+          // Add breadcrumb for cancellation
+          addBreadcrumb(
+            message: 'Recipe generation was cancelled',
+            category: 'recipe',
+          );
+
           notifyListeners();
         } else if (e.toString().contains('404')) {
           print("RecipeProvider: Recipe job not found (404)");
@@ -182,6 +230,13 @@ class RecipeProvider with ChangeNotifier {
             timer.cancel();
             _pollingTimer = null;
             _isLoading = false;
+
+            // Log to Sentry
+            captureException(e,
+                stackTrace: StackTrace.current,
+                hint: 'Recipe job not found after multiple attempts'
+            );
+
             notifyListeners();
           }
         } else {
@@ -192,6 +247,13 @@ class RecipeProvider with ChangeNotifier {
             timer.cancel();
             _pollingTimer = null;
             _isLoading = false;
+
+            // Log to Sentry
+            captureException(e,
+                stackTrace: StackTrace.current,
+                hint: 'Multiple polling errors'
+            );
+
             notifyListeners();
           }
         }
@@ -223,6 +285,11 @@ class RecipeProvider with ChangeNotifier {
             _partialRecipe = Recipe.fromJson(statusResult['partialRecipe']);
           } catch (parseError) {
             print("Error parsing partial recipe: $parseError");
+            // Log to Sentry
+            captureException(parseError,
+                stackTrace: StackTrace.current,
+                hint: 'Error parsing partial recipe in _doPollStatus'
+            );
           }
         }
 
@@ -238,8 +305,20 @@ class RecipeProvider with ChangeNotifier {
           final recipe = Recipe.fromJson(statusResult);
           _currentRecipe = recipe;
           _partialRecipe = null;
+
+          // Add breadcrumb for successful recipe completion
+          addBreadcrumb(
+            message: 'Recipe generation complete in _doPollStatus',
+            category: 'recipe',
+            data: {'title': recipe.title},
+          );
         } catch (parseError) {
           _error = 'Error parsing recipe data';
+          // Log to Sentry
+          captureException(parseError,
+              stackTrace: StackTrace.current,
+              hint: 'Error parsing final recipe in _doPollStatus'
+          );
         }
 
         notifyListeners();
@@ -252,6 +331,13 @@ class RecipeProvider with ChangeNotifier {
         timer.cancel();
         _pollingTimer = null;
         _isLoading = false;
+
+        // Log to Sentry
+        captureException(e,
+            stackTrace: StackTrace.current,
+            hint: 'Multiple errors in _doPollStatus'
+        );
+
         notifyListeners();
       }
     }
@@ -267,6 +353,13 @@ class RecipeProvider with ChangeNotifier {
     _isCancelling = true;
     notifyListeners();
 
+    // Add breadcrumb for cancellation attempt
+    addBreadcrumb(
+      message: 'Attempting to cancel recipe generation',
+      category: 'recipe',
+      data: {'requestId': _currentRequestId},
+    );
+
     print('RecipeProvider: Attempting cancellation...');
     final requestIdToCancel = _currentRequestId;
 
@@ -280,16 +373,35 @@ class RecipeProvider with ChangeNotifier {
           print('RecipeProvider: Cancellation successful');
           _wasCancelled = true;
           _error = 'Recipe generation cancelled';
+
+          // Add breadcrumb for successful cancellation
+          addBreadcrumb(
+            message: 'Recipe generation cancelled successfully',
+            category: 'recipe',
+          );
         } else {
           print('RecipeProvider: Cancellation API call failed, marking cancelled locally');
           _wasCancelled = true;
           _error = 'Recipe generation cancelled (server may still be processing)';
+
+          // Add breadcrumb for failed cancellation
+          addBreadcrumb(
+            message: 'Cancellation API call failed, marked cancelled locally',
+            category: 'recipe',
+            level: SentryLevel.warning,
+          );
         }
       }
     } catch (e) {
       print('RecipeProvider: Error during cancellation: $e');
       _wasCancelled = true;
       _error = 'Error during cancellation request';
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error during recipe cancellation'
+      );
     } finally {
       // Always stop polling and reset state
       if (_pollingTimer != null) {
@@ -351,6 +463,11 @@ class RecipeProvider with ChangeNotifier {
           }
         } catch (e) {
           print("RecipeProvider: Error checking subscription status: $e");
+          // Log to Sentry
+          captureException(e,
+              stackTrace: StackTrace.current,
+              hint: 'Error checking subscription status before recipe generation'
+          );
           // Continue with generation even if subscription check fails
         }
       }
@@ -361,6 +478,13 @@ class RecipeProvider with ChangeNotifier {
     _resetCancellationState();
     _partialRecipe = null;
     notifyListeners();
+
+    // Add breadcrumb for starting recipe generation
+    addBreadcrumb(
+      message: 'Starting recipe generation',
+      category: 'recipe',
+      data: {'query': query, 'save': save},
+    );
 
     try {
       print('RecipeProvider: Starting generateRecipe for query: $query');
@@ -408,6 +532,13 @@ class RecipeProvider with ChangeNotifier {
           }
           print('RecipeProvider: Direct recipe generation successful');
           _isLoading = false;
+
+          // Add breadcrumb for successful direct generation
+          addBreadcrumb(
+            message: 'Direct recipe generation complete',
+            category: 'recipe',
+            data: {'title': recipe.title},
+          );
         }
       }
     } catch (e) {
@@ -426,6 +557,12 @@ class RecipeProvider with ChangeNotifier {
         _pollingTimer!.cancel();
         _pollingTimer = null;
       }
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error in generateRecipe'
+      );
     } finally {
       if (_pollingTimer == null) {
         _isLoading = false;
@@ -445,6 +582,12 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching user recipes',
+        category: 'recipe',
+      );
+
       print('RecipeProvider: Fetching user recipes');
       final recipes = await _recipeService.getUserRecipes(token);
       _userRecipes = recipes;
@@ -452,6 +595,12 @@ class RecipeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching user recipes: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching user recipes'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -464,6 +613,13 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching recipe by ID',
+        category: 'recipe',
+        data: {'recipeId': id},
+      );
+
       print('RecipeProvider: Fetching recipe by ID: $id');
       final recipe = await _recipeService.getRecipeById(id, token);
       _currentRecipe = recipe;
@@ -471,6 +627,12 @@ class RecipeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching recipe by ID: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching recipe by ID'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -484,6 +646,13 @@ class RecipeProvider with ChangeNotifier {
     bool success = false;
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Deleting recipe',
+        category: 'recipe',
+        data: {'recipeId': recipeId},
+      );
+
       print('RecipeProvider: Deleting recipe ID: $recipeId');
       success = await _recipeService.deleteRecipe(recipeId, token);
       if (success) {
@@ -496,6 +665,12 @@ class RecipeProvider with ChangeNotifier {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error deleting recipe: $_error');
       success = false;
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error deleting recipe'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -512,6 +687,13 @@ class RecipeProvider with ChangeNotifier {
         (_currentRecipe?.id == recipeId && _currentRecipe!.isFavorite);
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: isCurrentlyFavorite ? 'Removing recipe from favorites' : 'Adding recipe to favorites',
+        category: 'recipe',
+        data: {'recipeId': recipeId},
+      );
+
       if (isCurrentlyFavorite) {
         success = await _recipeService.removeFromFavorites(recipeId, token);
         if (success) {
@@ -543,6 +725,12 @@ class RecipeProvider with ChangeNotifier {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error toggling favorite: $_error');
       success = false;
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error toggling recipe favorite status'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -556,6 +744,12 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching favorite recipes',
+        category: 'recipe',
+      );
+
       print('RecipeProvider: Fetching favorite recipes');
       final recipes = await _recipeService.getFavoriteRecipes(token);
       _favoriteRecipes = recipes;
@@ -563,6 +757,12 @@ class RecipeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching favorite recipes: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching favorite recipes'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -581,12 +781,25 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Sharing recipe',
+        category: 'recipe',
+        data: {'title': _currentRecipe!.title},
+      );
+
       await _recipeService.shareRecipe(_currentRecipe!);
       print('RecipeProvider: Share action initiated successfully');
     } catch (e) {
       _error = "Could not share recipe: ${e.toString().replaceFirst("Exception: ", "")}";
       print('RecipeProvider: Error sharing recipe: $_error');
       notifyListeners();
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error sharing recipe'
+      );
     }
   }
 
@@ -596,6 +809,12 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching trending recipes',
+        category: 'recipe',
+      );
+
       print('RecipeProvider: Fetching trending recipes');
       final recipes = await _recipeService.getPopularRecipes(token: token);
       _trendingRecipes = recipes;
@@ -604,6 +823,12 @@ class RecipeProvider with ChangeNotifier {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching trending recipes: $_error');
       _trendingRecipes = [];
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching trending recipes'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -613,11 +838,17 @@ class RecipeProvider with ChangeNotifier {
   Future<void> getAllCategories() async {
     _error = null;
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching recipe categories',
+        category: 'recipe',
+      );
+
       print('RecipeProvider: Fetching all recipe categories');
       final categoriesData = await _recipeService.getAllCategories();
       _categories = categoriesData.map((categoryData) {
         return RecipeCategory(
-          id: categoryData['id'] as String? ?? 'unknown',
+            id: categoryData['id'] as String? ?? 'unknown',
           name: categoryData['name'] as String? ?? 'Unnamed Category',
           description: categoryData['description'] as String? ?? '',
           icon: RecipeCategory.getCategoryIcon(categoryData['id'] as String? ?? ''),
@@ -630,6 +861,12 @@ class RecipeProvider with ChangeNotifier {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error fetching categories: $_error');
       _categories = [];
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching recipe categories'
+      );
     }
     notifyListeners();
   }
@@ -645,6 +882,17 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching discover recipes',
+        category: 'recipe',
+        data: {
+          'category': category,
+          'query': query,
+          'sort': sort
+        },
+      );
+
       print('RecipeProvider: Fetching discover recipes');
       print('RecipeProvider: Category: $category, Query: $query, Sort: $sort');
 
@@ -680,6 +928,12 @@ class RecipeProvider with ChangeNotifier {
       print('RecipeProvider: Error fetching discover recipes: $_error');
       _discoverRecipes = [];
       _hasMoreRecipes = false;
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching discover recipes'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -697,6 +951,18 @@ class RecipeProvider with ChangeNotifier {
     try {
       _currentPage++;
       print('RecipeProvider: Loading more discover recipes (page: $_currentPage)');
+
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Loading more discover recipes',
+        category: 'recipe',
+        data: {
+          'page': _currentPage,
+          'category': category,
+          'query': query,
+          'sort': sort
+        },
+      );
 
       List<String>? tags;
       String? processedQuery = query;
@@ -732,6 +998,12 @@ class RecipeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString().replaceFirst("Exception: ", "");
       print('RecipeProvider: Error loading more discover recipes: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error loading more discover recipes'
+      );
     } finally {
       _isLoadingMore = false;
       notifyListeners();
@@ -758,6 +1030,18 @@ class RecipeProvider with ChangeNotifier {
       }
       ) async {
     try {
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Fetching category recipes',
+        category: 'recipe',
+        data: {
+          'categoryId': categoryId,
+          'sort': sort,
+          'limit': limit,
+          'offset': offset
+        },
+      );
+
       print('RecipeProvider: Fetching category recipes: $categoryId');
       final recipes = await _recipeService.getCategoryRecipes(
         categoryId,
@@ -770,6 +1054,13 @@ class RecipeProvider with ChangeNotifier {
       return recipes;
     } catch (e) {
       print('RecipeProvider: Error fetching category recipes: $e');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error fetching category recipes'
+      );
+
       return [];
     }
   }

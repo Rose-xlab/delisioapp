@@ -8,6 +8,7 @@ import '../models/conversation.dart';
 import '../services/chat_service.dart';
 import './auth_provider.dart';
 import 'dart:math' as math;
+import '../config/sentry_config.dart'; // Import the Sentry config
 
 class ChatProvider with ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -50,6 +51,14 @@ class ChatProvider with ChangeNotifier {
     if (kDebugMode) print("ChatProvider: Received updateAuth. New auth state isAuthenticated: ${auth?.isAuthenticated}");
     bool authChanged = _authProvider?.isAuthenticated != auth?.isAuthenticated;
     _authProvider = auth; // Update the internal auth provider reference
+
+    // Add breadcrumb for auth state change
+    addBreadcrumb(
+      message: 'Auth state updated in ChatProvider',
+      category: 'auth',
+      data: {'isAuthenticated': auth?.isAuthenticated},
+    );
+
     if (authChanged) {
       if (!(_authProvider?.isAuthenticated ?? false)) {
         if (kDebugMode) print("ChatProvider: Auth state changed to logged out, resetting chat state.");
@@ -73,6 +82,13 @@ class ChatProvider with ChangeNotifier {
       if (kDebugMode && token == null) {
         print("ChatProvider: Attempting to check queue status, but token is null (User might be logged out).");
       }
+
+      // Add breadcrumb
+      addBreadcrumb(
+        message: 'Checking chat queue status',
+        category: 'api',
+      );
+
       // Pass the token (even if null, service handles it)
       _isQueueActive = await _chatService.isChatQueueActive(token: token);
       // --- END MODIFICATION ---
@@ -81,6 +97,12 @@ class ChatProvider with ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print("ChatProvider: Error checking queue status: $e");
       _isQueueActive = false; // Default to no queue if check fails
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error checking chat queue status'
+      );
     }
     // Notify listeners if the queue status might affect the UI
     // notifyListeners(); // Uncomment if UI depends directly on isQueueActive
@@ -102,6 +124,14 @@ class ChatProvider with ChangeNotifier {
     }
     _isLoadingConversations = true; _conversationsError = null; notifyListeners();
     if(kDebugMode) print("ChatProvider: Loading conversations for user $userId (from AuthProvider)");
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Loading conversations',
+      category: 'chat',
+      data: {'userId': userId},
+    );
+
     try {
       final response = await _supabase.from('conversations').select().eq('user_id', userId).order('updated_at', ascending: false);
       _conversations = response.map((data) => Conversation.fromJson(data)).toList();
@@ -109,6 +139,12 @@ class ChatProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error loading conversations: $e\n$stackTrace");
       _conversationsError = "Failed to load conversations."; _conversations = [];
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: stackTrace,
+          hint: 'Error loading conversations'
+      );
     } finally {
       _isLoadingConversations = false;
       // Check queue status after loading conversations
@@ -120,6 +156,14 @@ class ChatProvider with ChangeNotifier {
   Future<void> selectConversation(String conversationId) async {
     if (_activeConversationId == conversationId && _activeMessages.isNotEmpty) return;
     if(kDebugMode) print("ChatProvider: Selecting conversation $conversationId");
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Selecting conversation',
+      category: 'chat',
+      data: {'conversationId': conversationId},
+    );
+
     _activeConversationId = conversationId; _activeMessages = []; _messagesError = null;
     _sendMessageError = null; _isLoadingMessages = true; notifyListeners();
     await _loadMessagesForActiveConversation();
@@ -129,6 +173,13 @@ class ChatProvider with ChangeNotifier {
     if (_activeConversationId == null) return;
     if(kDebugMode) print("ChatProvider: Loading messages for conversation $_activeConversationId");
     // isLoadingMessages already true
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Loading messages for conversation',
+      category: 'chat',
+      data: {'conversationId': _activeConversationId},
+    );
 
     try {
       final response = await _supabase.from('messages').select().eq('conversation_id', _activeConversationId!).order('created_at', ascending: true);
@@ -152,6 +203,12 @@ class ChatProvider with ChangeNotifier {
           } catch (e) {
             if (kDebugMode) print("<<< ChatProvider: Error casting suggestions metadata from DB for msg ${mapData['id']}: $e");
             suggestionsList = null;
+
+            // Log to Sentry
+            captureException(e,
+                stackTrace: StackTrace.current,
+                hint: 'Error parsing message suggestions from database'
+            );
           }
         } else {
           if (kDebugMode) print("<<< ChatProvider: No valid suggestions list found in metadata for msg ${mapData['id']}.");
@@ -172,6 +229,12 @@ class ChatProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error loading messages: $e\n$stackTrace");
       _messagesError = "Failed to load messages."; _activeMessages = [];
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: stackTrace,
+          hint: 'Error loading messages for conversation'
+      );
     } finally {
       _isLoadingMessages = false; notifyListeners();
     }
@@ -186,6 +249,14 @@ class ChatProvider with ChangeNotifier {
       return null;
     }
     if(kDebugMode) print("ChatProvider: Creating new conversation for user $userId (from AuthProvider)");
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Creating new conversation',
+      category: 'chat',
+      data: {'userId': userId},
+    );
+
     _isLoadingConversations = true; notifyListeners();
     try {
       final response = await _supabase.from('conversations').insert({'user_id': userId}).select('id').single();
@@ -200,6 +271,12 @@ class ChatProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error creating new conversation: $e\n$stackTrace");
       _conversationsError = "Failed to create conversation.";
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: stackTrace,
+          hint: 'Error creating new conversation'
+      );
     } finally {
       _isLoadingConversations = false;
       notifyListeners(); // Ensure UI updates after operation, regardless of success/failure
@@ -215,6 +292,16 @@ class ChatProvider with ChangeNotifier {
     // if (userId == null) { _sendMessageError = "User not logged in."; notifyListeners(); return; }
 
     _isSendingMessage = true; _sendMessageError = null; notifyListeners();
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Sending chat message',
+      category: 'chat',
+      data: {
+        'conversationId': _activeConversationId,
+        'contentLength': content.length
+      },
+    );
 
     final localUserMessage = ChatMessage(id: 'local_${DateTime.now().millisecondsSinceEpoch}', content: content, type: MessageType.user, timestamp: DateTime.now());
     _activeMessages.add(localUserMessage); notifyListeners();
@@ -269,6 +356,12 @@ class ChatProvider with ChangeNotifier {
         } catch (e) {
           if (kDebugMode) print(">>> ChatProvider: Error casting suggestions from backend: $e");
           suggestionsList = null;
+
+          // Log to Sentry
+          captureException(e,
+              stackTrace: StackTrace.current,
+              hint: 'Error parsing suggestions from chat API response'
+          );
         }
       }
       if (kDebugMode) print(">>> ChatProvider: Parsed suggestions list for local message: ${suggestionsList?.toString()}");
@@ -322,6 +415,12 @@ class ChatProvider with ChangeNotifier {
       _activeMessages.remove(localUserMessage); // Attempt to remove optimistic user msg
       if (localAiMessage != null) _activeMessages.remove(localAiMessage); // Attempt to remove optimistic AI msg
       notifyListeners(); // Notify UI about the error state and removal
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: stackTrace,
+          hint: 'Error sending chat message'
+      );
     } finally {
       _isSendingMessage = false;
       notifyListeners(); // Notify about sending state change
@@ -333,12 +432,26 @@ class ChatProvider with ChangeNotifier {
     _sendMessageError = null; _isSendingMessage = false;
     if(kDebugMode) print("ChatProvider: Active chat state reset.");
     notifyListeners();
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Reset active chat',
+      category: 'chat',
+    );
   }
 
   Future<void> deleteConversation(String conversationId) async {
     final userId = _authProvider?.user?.id;
     if (userId == null) { _conversationsError = "Cannot delete: User not logged in."; notifyListeners(); return; }
     if(kDebugMode) print("ChatProvider: Deleting conversation $conversationId");
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Deleting conversation',
+      category: 'chat',
+      data: {'conversationId': conversationId, 'userId': userId},
+    );
+
     try {
       // Ensure deletion only happens if the conversation belongs to the user
       await _supabase.from('conversations').delete().match({'id': conversationId, 'user_id': userId});
@@ -354,10 +467,16 @@ class ChatProvider with ChangeNotifier {
 
       if (_activeConversationId == conversationId) resetActiveChat();
       notifyListeners();
-    } catch(e,stackTrace) {
+    } catch(e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error deleting conversation: $e\n$stackTrace");
       _conversationsError = "Failed to delete conversation.";
       notifyListeners();
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: stackTrace,
+          hint: 'Error deleting conversation'
+      );
     }
   }
 
@@ -369,6 +488,13 @@ class ChatProvider with ChangeNotifier {
     _isPolling = true;
     int attempts = 0;
     const maxAttempts = 30;  // 15 seconds (500ms * 30) - Adjust as needed
+
+    // Add breadcrumb
+    addBreadcrumb(
+      message: 'Starting to poll for AI response',
+      category: 'chat',
+      data: {'messageId': messageId, 'maxAttempts': maxAttempts},
+    );
 
     while (_isPolling && attempts < maxAttempts) {
       attempts++;
@@ -405,6 +531,14 @@ class ChatProvider with ChangeNotifier {
     if (_isPolling && attempts >= maxAttempts) {
       if (kDebugMode) print("ChatProvider: Polling timed out waiting for response.");
       // Optionally set an error state or notify user
+
+      // Add breadcrumb for polling timeout
+      addBreadcrumb(
+        message: 'Polling for AI response timed out',
+        category: 'chat',
+        level: SentryLevel.warning,
+        data: {'messageId': messageId, 'attempts': attempts},
+      );
     }
 
     _isPolling = false;

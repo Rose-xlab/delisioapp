@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+export 'package:sentry_flutter/sentry_flutter.dart' show SentryLevel;
+
+
 /// Initialize Sentry for the entire application
 Future<void> initSentry(Function(dynamic options) appRunner) async {
   // Try to get DSN from .env file

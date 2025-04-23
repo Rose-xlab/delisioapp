@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
+import '../config/sentry_config.dart'; // Import the Sentry config
 
 class SubscriptionProvider with ChangeNotifier {
   final SubscriptionService _subscriptionService = SubscriptionService();
@@ -80,12 +81,35 @@ class SubscriptionProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    // Add breadcrumb for loading subscription status
+    addBreadcrumb(
+      message: 'Loading subscription status',
+      category: 'subscription',
+    );
+
     try {
       final info = await _subscriptionService.getSubscriptionStatus(token);
       _subscriptionInfo = info;
+
+      // Add breadcrumb with subscription details
+      addBreadcrumb(
+        message: 'Subscription status loaded',
+        category: 'subscription',
+        data: {
+          'tier': info.tier.toString(),
+          'status': info.status.toString(),
+          'recipeGenerationsRemaining': info.recipeGenerationsRemaining,
+        },
+      );
     } catch (e) {
       _error = e.toString();
       print('Error loading subscription: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error loading subscription status'
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -97,6 +121,13 @@ class SubscriptionProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Add breadcrumb for subscription attempt
+    addBreadcrumb(
+      message: 'Subscribing to plan',
+      category: 'subscription',
+      data: {'tier': tier.toString()},
+    );
 
     try {
       // Create dynamic success and cancel URLs
@@ -115,6 +146,14 @@ class SubscriptionProvider with ChangeNotifier {
       final url = Uri.parse(checkoutUrl);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
+
+        // Add breadcrumb for successful checkout launch
+        addBreadcrumb(
+          message: 'Launched checkout URL',
+          category: 'subscription',
+          data: {'tier': tier.toString()},
+        );
+
         return true;
       } else {
         throw Exception('Could not launch checkout URL');
@@ -122,6 +161,13 @@ class SubscriptionProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       print('Error subscribing to plan: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error subscribing to plan'
+      );
+
       return false;
     } finally {
       _isLoading = false;
@@ -135,6 +181,12 @@ class SubscriptionProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    // Add breadcrumb for managing subscription
+    addBreadcrumb(
+      message: 'Opening subscription management portal',
+      category: 'subscription',
+    );
+
     try {
       final returnUrl = 'https://delisio.app/subscription/return';
 
@@ -147,6 +199,13 @@ class SubscriptionProvider with ChangeNotifier {
       final url = Uri.parse(portalUrl);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
+
+        // Add breadcrumb for successful portal launch
+        addBreadcrumb(
+          message: 'Launched customer portal',
+          category: 'subscription',
+        );
+
         return true;
       } else {
         throw Exception('Could not launch customer portal URL');
@@ -154,6 +213,13 @@ class SubscriptionProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       print('Error managing subscription: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error managing subscription'
+      );
+
       return false;
     } finally {
       _isLoading = false;
@@ -166,6 +232,12 @@ class SubscriptionProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Add breadcrumb for cancellation attempt
+    addBreadcrumb(
+      message: 'Cancelling subscription',
+      category: 'subscription',
+    );
 
     try {
       final success = await _subscriptionService.cancelSubscription(token);
@@ -181,12 +253,26 @@ class SubscriptionProvider with ChangeNotifier {
           recipeGenerationsRemaining: _subscriptionInfo!.recipeGenerationsRemaining,
           cancelAtPeriodEnd: true, // Set this to true
         );
+
+        // Add breadcrumb for successful cancellation
+        addBreadcrumb(
+          message: 'Subscription cancelled successfully',
+          category: 'subscription',
+          data: {'tier': _subscriptionInfo!.tier.toString()},
+        );
       }
 
       return success;
     } catch (e) {
       _error = e.toString();
       print('Error canceling subscription: $_error');
+
+      // Log to Sentry
+      captureException(e,
+          stackTrace: StackTrace.current,
+          hint: 'Error cancelling subscription'
+      );
+
       return false;
     } finally {
       _isLoading = false;
