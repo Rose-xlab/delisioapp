@@ -1,9 +1,14 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:provider/provider.dart';
 import '../models/recipe.dart';
 import '../models/recipe_category.dart';
+import '../models/subscription.dart'; // Import the new subscription model
 import '../services/recipe_service.dart';
+import '../main.dart'; // Import for navigatorKey
+import '../providers/subscription_provider.dart'; // Import for subscription provider
+import '../widgets/recipes/generation_limit_dialog.dart'; // Import for the limit dialog
 
 class RecipeProvider with ChangeNotifier {
   Recipe? _currentRecipe;
@@ -315,8 +320,42 @@ class RecipeProvider with ChangeNotifier {
     }
   }
 
-  // Generate a new recipe - enhanced for better queue handling
+  // Generate a new recipe - enhanced for better queue handling and subscription checks
   Future<void> generateRecipe(String query, {bool save = false, String? token}) async {
+    // Check subscription status first
+    if (token != null) {
+      final BuildContext? context = navigatorKey.currentContext;
+
+      if (context != null) {
+        final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
+
+        // Force reload subscription status to ensure we have the latest info
+        try {
+          await subscriptionProvider.loadSubscriptionStatus(token);
+
+          final subscriptionInfo = subscriptionProvider.subscriptionInfo;
+          if (subscriptionInfo != null &&
+              subscriptionInfo.tier != SubscriptionTier.premium &&
+              subscriptionInfo.recipeGenerationsRemaining <= 0) {
+
+            // Show limit reached dialog
+            if (context.mounted) {
+              showDialog(
+                context: context,
+                builder: (ctx) => GenerationLimitDialog(
+                  currentTier: subscriptionInfo.tier,
+                ),
+              );
+            }
+            return;
+          }
+        } catch (e) {
+          print("RecipeProvider: Error checking subscription status: $e");
+          // Continue with generation even if subscription check fails
+        }
+      }
+    }
+
     _isLoading = true;
     _error = null;
     _resetCancellationState();
@@ -397,8 +436,8 @@ class RecipeProvider with ChangeNotifier {
     }
   }
 
-  // The rest of the RecipeProvider remains unchanged
-  // (UserRecipes, FavoriteRecipes, Trending, Discover, etc.)
+  // The rest of the RecipeProvider methods remain unchanged
+  // (getUserRecipes, getRecipeById, deleteRecipe, toggleFavorite, etc.)
 
   Future<void> getUserRecipes(String token) async {
     _isLoading = true;

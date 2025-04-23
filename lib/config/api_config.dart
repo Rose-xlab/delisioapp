@@ -21,6 +21,12 @@ class ApiConfig {
   static const String recipePopular = '$apiVersion/recipes/popular';
   static const String recipeCategories = '$apiVersion/recipes/categories';
 
+  // Subscription endpoints
+  static const String subscriptionStatus = '$apiVersion/subscriptions/status';
+  static const String subscriptionCheckout = '$apiVersion/subscriptions/checkout';
+  static const String subscriptionPortal = '$apiVersion/subscriptions/portal';
+  static const String subscriptionCancel = '$apiVersion/subscriptions/cancel';
+
   // Helper method to construct recipe-specific endpoints
   static String recipeById(String id) => '$recipes/$id';
   static String favoriteRecipe(String id) => '$recipes/$id/favorite';

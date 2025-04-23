@@ -1,13 +1,17 @@
-// lib/services/recipe_service.dart - with improved status checking and error handling
+// lib/services/recipe_service.dart - with enhanced status checking and error handling
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import '../config/api_config.dart';
 import '../models/recipe.dart';
+import 'dart:async';
 
 class RecipeService {
   final String baseUrl = ApiConfig.baseUrl;
   final http.Client client = http.Client();
+
+  // Cache of completed and partial recipes to reduce status check requests
+  final Map<String, dynamic> _recipeStatusCache = {};
 
   // Track current recipe generation requestId
   String? _currentRequestId;
@@ -76,16 +80,26 @@ class RecipeService {
           throw Exception('No requestId received for recipe generation');
         }
 
+        // Clear previous cache for this requestId if it exists
+        _recipeStatusCache.remove(_currentRequestId);
+
         return responseData;
       } else if (response.statusCode == 200) {
         // Direct response - backend might not be using queue despite what it reported
         print('Warning: Expected 202 but got 200 - server might not be using queues as expected');
 
-    final Map<String, dynamic>responseData = json.decode(response.body);
+        final Map<String, dynamic> responseData = json.decode(response.body);
 
         // Create a fake requestId to track this "direct" response
         final String fakeRequestId = 'direct-${DateTime.now().millisecondsSinceEpoch}';
         _currentRequestId = fakeRequestId;
+
+        // Add to cache
+        _recipeStatusCache[fakeRequestId] = {
+          'status': 'completed',
+          'progress': 100,
+          ...responseData
+        };
 
         // Return a structure that the polling system can understand
         return {
@@ -116,16 +130,25 @@ class RecipeService {
     }
   }
 
-  // Improved check recipe generation status
+  // Improved check recipe generation status with caching
   Future<Map<String, dynamic>> checkRecipeStatus(String requestId) async {
     try {
+      // First check our local cache - if we already know it's completed
+      if (_recipeStatusCache.containsKey(requestId)) {
+        print('Using cached recipe status for requestId: $requestId');
+        return _recipeStatusCache[requestId];
+      }
+
       print('Checking recipe status for requestId: $requestId');
 
       // Handle our fake "direct" requestIds from startRecipeGeneration
       if (requestId.startsWith('direct-')) {
         print('This is a direct response (non-queued) with fake requestId');
+        // Return cached data if available
+        if (_recipeStatusCache.containsKey(requestId)) {
+          return _recipeStatusCache[requestId];
+        }
         // Return empty map to signal that polling should stop
-        // The recipe should have already been captured in the response from startRecipeGeneration
         return {};
       }
 
@@ -137,14 +160,16 @@ class RecipeService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-
-        // Better logging for debugging
         print('Status check response data: ${responseData.keys}');
 
         // Check if this is a complete recipe (no status field, but has recipe data)
         if (responseData['status'] == null &&
             (responseData['title'] != null || responseData['id'] != null)) {
           print('Recipe is complete! Title: ${responseData['title']}');
+
+          // Cache the completed recipe
+          _recipeStatusCache[requestId] = responseData;
+
           return responseData; // This is the complete recipe
         }
         else if (responseData['status'] != null) {
@@ -155,10 +180,9 @@ class RecipeService {
           if (responseData.containsKey('partialRecipe')) {
             print('Partial recipe data received');
 
-            // Validate partial recipe
+            // Basic validation on the partial recipe
             final partialRecipe = responseData['partialRecipe'];
             if (partialRecipe != null) {
-              // Basic validation to prevent later errors
               if (partialRecipe is Map<String, dynamic>) {
                 if (partialRecipe.containsKey('title')) {
                   print('Partial title: ${partialRecipe['title']}');
@@ -171,10 +195,23 @@ class RecipeService {
                 }
               } else {
                 print('Warning: partialRecipe is not a Map: ${partialRecipe.runtimeType}');
-                // Fix non-Map partial recipes
                 responseData['partialRecipe'] = null;
               }
             }
+          }
+
+          // If progress is 100 but status is not "completed", cache this
+          // This helps prevent further unnecessary status checks
+          if (responseData['progress'] == 100) {
+            _recipeStatusCache[requestId] = responseData;
+          } else if (responseData['progress'] > 80) {
+            // For high progress, cache briefly to reduce API calls
+            _recipeStatusCache[requestId] = responseData;
+
+            // Remove from cache after 30 seconds to force a refresh
+            Future.delayed(const Duration(seconds: 30), () {
+              _recipeStatusCache.remove(requestId);
+            });
           }
 
           return responseData;
@@ -184,7 +221,12 @@ class RecipeService {
           return responseData; // Return whatever we got
         }
       } else if (response.statusCode == 499) {
-        // Cancelled
+        // Cancelled - cache this so we don't check again
+        _recipeStatusCache[requestId] = {
+          'status': 'cancelled',
+          'message': 'Recipe generation was cancelled',
+          'progress': 100
+        };
         print('Recipe generation was cancelled (499)');
         throw Exception('Recipe generation was cancelled');
       } else if (response.statusCode == 404) {
@@ -192,8 +234,15 @@ class RecipeService {
         print('Recipe job not found (404)');
         throw Exception('Recipe generation job not found');
       } else if (response.statusCode == 429) {
-        // Rate limit
+        // Rate limit - use cache with current progress if available
         print('Rate limited (429)');
+
+        // If we have partial progress in cache, return that instead of failing
+        if (_recipeStatusCache.containsKey(requestId)) {
+          print('Using cached data while rate limited');
+          return _recipeStatusCache[requestId];
+        }
+
         throw Exception('Too many status check requests. Please wait and try again.');
       } else {
         // Other error
@@ -213,6 +262,25 @@ class RecipeService {
     } catch (e) {
       print('Error checking recipe status: $e');
       rethrow;
+    }
+  }
+
+  // Cache a partial recipe result (can be called from provider)
+  void cachePartialRecipe(String requestId, Map<String, dynamic> data) {
+    if (requestId.isNotEmpty) {
+      _recipeStatusCache[requestId] = {
+        'status': 'processing',
+        'progress': data['progress'] ?? 50,
+        'partialRecipe': data,
+      };
+
+      // Remove from cache after 60 seconds to force a refresh
+      Future.delayed(const Duration(seconds: 60), () {
+        if (_recipeStatusCache.containsKey(requestId) &&
+            _recipeStatusCache[requestId]['status'] == 'processing') {
+          _recipeStatusCache.remove(requestId);
+        }
+      });
     }
   }
 
@@ -325,6 +393,13 @@ class RecipeService {
           _currentRequestId = null;
         }
 
+        // Add to cache to indicate cancelled status
+        _recipeStatusCache[requestId] = {
+          'status': 'cancelled',
+          'message': 'Recipe generation was cancelled',
+          'progress': 100
+        };
+
         return success;
       } else if (response.statusCode == 404) {
         // Recipe may have already completed or not found
@@ -337,6 +412,24 @@ class RecipeService {
     } catch (e) {
       print('Error in cancelRecipeGeneration: $e');
       return false;
+    }
+  }
+
+  // Clean cache entries
+  void cleanCache() {
+    // Remove entries older than 2 hours
+    final now = DateTime.now();
+    final keysToRemove = <String>[];
+
+    _recipeStatusCache.forEach((key, value) {
+      final timestamp = value['timestamp'] as DateTime?;
+      if (timestamp != null && now.difference(timestamp).inHours > 2) {
+        keysToRemove.add(key);
+      }
+    });
+
+    for (final key in keysToRemove) {
+      _recipeStatusCache.remove(key);
     }
   }
 
@@ -792,6 +885,23 @@ class RecipeService {
       print('Error in getAllCategories: $e');
       rethrow;
     }
+  }
+
+  // Periodically clean cache to avoid memory leaks
+  void startCacheCleanupTimer() {
+    // Clean cache every 30 minutes
+    Timer.periodic(const Duration(minutes: 30), (timer) {
+      cleanCache();
+    });
+  }
+
+  // Dispose method to clean up resources
+  void dispose() {
+    // Clear any ongoing resources
+    client.close();
+
+    // Clear cache
+    _recipeStatusCache.clear();
   }
 }
 

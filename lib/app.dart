@@ -16,11 +16,13 @@ import 'screens/profile/notification_preferences_screen.dart';
 import 'screens/profile/faq_screen.dart';
 import 'screens/profile/about_screen.dart';
 import 'screens/profile/contact_support_screen.dart';
+import 'screens/profile/subscription_screen.dart'; // New import for subscription screen
 
 // --- Other Imports ---
 import 'theme/app_theme_updated.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
+import 'main.dart'; // Import for navigatorKey
 
 class DelisioApp extends StatelessWidget {
   const DelisioApp({Key? key}) : super(key: key);
@@ -36,6 +38,7 @@ class DelisioApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey, // Add global navigator key for accessing context from providers
       initialRoute: '/', // Start with splash screen
 
       // Use routes for simple, non-argument routes
@@ -52,6 +55,7 @@ class DelisioApp extends StatelessWidget {
         '/faq': (context) => const FAQScreen(),
         '/about': (context) => const AboutScreen(),
         '/contact': (context) => const ContactSupportScreen(),
+        '/subscription': (context) => const SubscriptionScreen(), // Add subscription screen route
       },
 
       // Use onGenerateRoute for routes that need arguments (like /chat)

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/subscription_provider.dart'; // Import for subscription provider
 import '../../models/user.dart';
 import '../../widgets/profile/settings_item.dart';
 import '../../widgets/profile/preference_tag.dart';
@@ -46,6 +47,10 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
         if (authProvider.token != null) {
           await recipeProvider.getUserRecipes(authProvider.token!);
           await recipeProvider.getFavoriteRecipes(authProvider.token!);
+
+          // Load subscription data
+          await Provider.of<SubscriptionProvider>(context, listen: false)
+              .loadSubscriptionStatus(authProvider.token!);
         } else {
           print('Authentication token is null.');
           // Handle the case where token is null, maybe sign out or show error
@@ -403,315 +408,321 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
     final formattedJoinDate = DateFormat.yMMMd().format(joinDate); // e.g., Apr 20, 2025
 
     return Scaffold(
-      appBar: AppBar(
+        appBar: AppBar(
         title: const Text('Your Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh profile',
-            // Disable refresh button while loading
-            onPressed: _isLoading ? null : _loadUserData,
-          ),
-        ],
+    actions: [
+    IconButton(
+    icon: const Icon(Icons.refresh),
+    tooltip: 'Refresh profile',
+    // Disable refresh button while loading
+    onPressed: _isLoading ? null : _loadUserData,
+    ),
+    ],
+    ),
+    body: RefreshIndicator(
+    onRefresh: _loadUserData,
+    child: SingleChildScrollView(
+    physics: const AlwaysScrollableScrollPhysics(), // Ensure scroll physics allow refresh
+    padding: const EdgeInsets.only(bottom: 32), // Bottom padding for scrollable content
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch, // Stretch cards to full width
+    children: [
+    // --- Profile header ---
+    Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+    // Use theme colors for better adaptation
+    color: theme.colorScheme.primary,
+    boxShadow: [
+    BoxShadow(
+    // FIX: Use withOpacity instead of withValues
+    color: Colors.black.withOpacity(0.1),
+    blurRadius: 8,
+    offset: const Offset(0, 3),
+    ),
+    ],
+    // Optional: Add border radius to bottom
+    // borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+    ),
+    child: Row(
+    children: [
+    CircleAvatar(
+    radius: 40,
+    // FIX: Use withOpacity instead of withValues
+    backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.9),
+    child: Text(
+    // Check for empty name
+    user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+    style: TextStyle(
+    fontSize: 36,
+    fontWeight: FontWeight.bold,
+    // Color should contrast with avatar background
+    color: theme.colorScheme.primary,
+    ),
+    ),
+    ),
+    const SizedBox(width: 20),
+    Expanded( // Allow text to expand and wrap/truncate
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Text(
+    user.name.isNotEmpty ? user.name : 'Valued User', // Fallback name
+    style: theme.textTheme.headlineSmall?.copyWith( // Use theme text styles
+    color: theme.colorScheme.onPrimary,
+    fontWeight: FontWeight.bold
+    ),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    ),
+    const SizedBox(height: 4),
+    // Only display email if it's not empty
+    if (user.email.isNotEmpty)
+    Text(
+    user.email,
+    style: theme.textTheme.bodyLarge?.copyWith(
+    // FIX: Use withOpacity instead of withValues
+    color: theme.colorScheme.onPrimary.withOpacity(0.9),
+    ),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    ),
+    const SizedBox(height: 8),
+    Text(
+    'Member since $formattedJoinDate',
+    style: theme.textTheme.bodyMedium?.copyWith(
+    // FIX: Use withOpacity instead of withValues
+    color: theme.colorScheme.onPrimary.withOpacity(0.8),
+    ),
+    ),
+    ],
+    ),
+    ),
+    ],
+    ),
+    ),
+
+    // --- User Stats ---
+    Card(
+    margin: const EdgeInsets.all(16),
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+    ),
+    elevation: 1.0, // Subtle elevation
+    child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Text( // Use themed text style
+    'Your Stats',
+    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+    ),
+    const SizedBox(height: 16),
+    Row(
+    mainAxisAlignment: MainAxisAlignment.spaceAround,
+    children: [
+    // Use Expanded for even spacing
+    Expanded(
+    child: StatItem(
+    value: savedRecipesCount.toString(),
+    label: 'Recipes',
+    icon: Icons.menu_book, // More specific icon
+    color: theme.colorScheme.primary,
+    ),
+    ),
+    Expanded(
+    child: StatItem(
+    value: favoritesCount.toString(),
+    label: 'Favorites',
+    icon: Icons.favorite, // Keep filled favorite icon
+    color: Colors.redAccent, // Slightly brighter red
+    ),
+    ),
+    Expanded(
+    child: StatItem(
+    // Show month name for Join Date stat
+    value: DateFormat('MMM').format(joinDate), // e.g., Apr
+    label: 'Joined',
+    icon: Icons.calendar_today,
+    color: Colors.blueAccent, // Brighter blue
+    ),
+    ),
+    ],
+    ),
+    ],
+    ),
+    ),
+    ),
+
+    // --- Cooking Preferences Section ---
+    _buildPreferencesSection(context, user), // Build the section
+
+    // --- Account Settings ---
+    Card(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+    ),
+    elevation: 1.0,
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Padding( // Consistent padding
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    child: Text(
+    'Account Settings',
+    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+    ),
+    ),
+    // Add Subscription Settings Item
+    SettingsItem(
+    icon: Icons.card_membership,
+    title: 'Subscription Plans',
+    onTap: () => Navigator.of(context).pushNamed('/subscription'),
+    ),
+    SettingsItem(
+    icon: Icons.lock_outline,
+    title: 'Change Password',
+    onTap: () {
+    // TODO: Implement password change navigation
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Change password screen not implemented')),
+    );
+      // Example: Navigator.of(context).pushNamed('/change-password');
+    },
+    ),
+      SettingsItem(
+        icon: Icons.email_outlined,
+        title: 'Update Email',
+        onTap: () {
+          // TODO: Implement email update navigation
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Update email screen not implemented')),
+          );
+          // Example: Navigator.of(context).pushNamed('/update-email');
+        },
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadUserData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(), // Ensure scroll physics allow refresh
-          padding: const EdgeInsets.only(bottom: 32), // Bottom padding for scrollable content
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch, // Stretch cards to full width
-            children: [
-              // --- Profile header ---
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  // Use theme colors for better adaptation
-                  color: theme.colorScheme.primary,
-                  boxShadow: [
-                    BoxShadow(
-                      // FIX: Use withOpacity instead of withValues
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                  // Optional: Add border radius to bottom
-                  // borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      // FIX: Use withOpacity instead of withValues
-                      backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.9),
-                      child: Text(
-                        // Check for empty name
-                        user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                          // Color should contrast with avatar background
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded( // Allow text to expand and wrap/truncate
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.name.isNotEmpty ? user.name : 'Valued User', // Fallback name
-                            style: theme.textTheme.headlineSmall?.copyWith( // Use theme text styles
-                                color: theme.colorScheme.onPrimary,
-                                fontWeight: FontWeight.bold
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          // Only display email if it's not empty
-                          if (user.email.isNotEmpty)
-                            Text(
-                              user.email,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                // FIX: Use withOpacity instead of withValues
-                                color: theme.colorScheme.onPrimary.withOpacity(0.9),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Member since $formattedJoinDate',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              // FIX: Use withOpacity instead of withValues
-                              color: theme.colorScheme.onPrimary.withOpacity(0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+      // This item is slightly redundant if there's a dedicated preferences section/button
+      // Keep it if it serves a distinct purpose or navigates differently
+      SettingsItem(
+        icon: Icons.edit_outlined,
+        title: 'Edit Cooking Preferences',
+        onTap: () => Navigator.of(context).pushNamed('/preferences'),
+      ),
+      SettingsItem(
+        icon: Icons.delete_outline,
+        title: 'Delete Account',
+        textColor: Colors.red,
+        iconColor: Colors.red, // Make icon red too
+        onTap: _showDeleteAccountDialog,
+      ),
+      const Divider(indent: 16, endIndent: 16), // Visual separator
+      SettingsItem(
+        icon: Icons.exit_to_app,
+        title: 'Sign Out',
+        onTap: _signOut, // Use the sign out method
+      ),
+    ],
+    ),
+    ),
 
-              // --- User Stats ---
-              Card(
-                margin: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 1.0, // Subtle elevation
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text( // Use themed text style
-                        'Your Stats',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          // Use Expanded for even spacing
-                          Expanded(
-                            child: StatItem(
-                              value: savedRecipesCount.toString(),
-                              label: 'Recipes',
-                              icon: Icons.menu_book, // More specific icon
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          Expanded(
-                            child: StatItem(
-                              value: favoritesCount.toString(),
-                              label: 'Favorites',
-                              icon: Icons.favorite, // Keep filled favorite icon
-                              color: Colors.redAccent, // Slightly brighter red
-                            ),
-                          ),
-                          Expanded(
-                            child: StatItem(
-                              // Show month name for Join Date stat
-                              value: DateFormat('MMM').format(joinDate), // e.g., Apr
-                              label: 'Joined',
-                              icon: Icons.calendar_today,
-                              color: Colors.blueAccent, // Brighter blue
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+      // --- App Settings ---
+      Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 1.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'App Settings',
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
-
-              // --- Cooking Preferences Section ---
-              _buildPreferencesSection(context, user), // Build the section
-
-              // --- Account Settings ---
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding( // Consistent padding
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Text(
-                        'Account Settings',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    SettingsItem(
-                      icon: Icons.lock_outline,
-                      title: 'Change Password',
-                      onTap: () {
-                        // TODO: Implement password change navigation
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Change password screen not implemented')),
-                        );
-                        // Example: Navigator.of(context).pushNamed('/change-password');
-                      },
-                    ),
-                    SettingsItem(
-                      icon: Icons.email_outlined,
-                      title: 'Update Email',
-                      onTap: () {
-                        // TODO: Implement email update navigation
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Update email screen not implemented')),
-                        );
-                        // Example: Navigator.of(context).pushNamed('/update-email');
-                      },
-                    ),
-                    // This item is slightly redundant if there's a dedicated preferences section/button
-                    // Keep it if it serves a distinct purpose or navigates differently
-                    SettingsItem(
-                      icon: Icons.edit_outlined,
-                      title: 'Edit Cooking Preferences',
-                      onTap: () => Navigator.of(context).pushNamed('/preferences'),
-                    ),
-                    SettingsItem(
-                      icon: Icons.delete_outline,
-                      title: 'Delete Account',
-                      textColor: Colors.red,
-                      iconColor: Colors.red, // Make icon red too
-                      onTap: _showDeleteAccountDialog,
-                    ),
-                    const Divider(indent: 16, endIndent: 16), // Visual separator
-                    SettingsItem(
-                      icon: Icons.exit_to_app,
-                      title: 'Sign Out',
-                      onTap: _signOut, // Use the sign out method
-                    ),
-                  ],
-                ),
-              ),
-
-              // --- App Settings ---
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Text(
-                        'App Settings',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    SwitchListTile(
-                      title: const Text('Dark Mode'),
-                      // Show appropriate icon based on state
-                      secondary: Icon(themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode),
-                      value: themeProvider.isDarkMode,
-                      onChanged: (value) {
-                        // Update theme via provider (use listen: false for actions)
-                        Provider.of<ThemeProvider>(context, listen: false).setDarkMode(value);
-                      },
-                      activeColor: theme.colorScheme.primary, // Use theme color for active switch
-                    ),
-                    SettingsItem(
-                      icon: Icons.notifications_outlined,
-                      title: 'Notification Preferences',
-                      onTap: () => Navigator.of(context).pushNamed('/notifications'),
-                    ),
-                  ],
-                ),
-              ),
-
-              // --- Help & Support ---
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Text(
-                        'Help & Support',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    SettingsItem(
-                      icon: Icons.help_outline,
-                      title: 'FAQ',
-                      onTap: () => Navigator.of(context).pushNamed('/faq'),
-                    ),
-                    SettingsItem(
-                      icon: Icons.support_agent,
-                      title: 'Contact Support',
-                      onTap: () => Navigator.of(context).pushNamed('/contact'),
-                    ),
-                    SettingsItem(
-                      icon: Icons.star_outline,
-                      title: 'Rate App',
-                      onTap: () async {
-                        // Keep original URL for now
-                        final url = Uri.parse('https://play.google.com/store/apps/details?id=com.delisio.app');
-                        // Use launchUrl from url_launcher
-                        if (await canLaunchUrl(url)) {
-                          // Consider launch mode (in-app browser vs external)
-                          await launchUrl(url, mode: LaunchMode.externalApplication);
-                        } else {
-                          print('Could not launch $url');
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open app store page')),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                    SettingsItem(
-                      icon: Icons.info_outline,
-                      title: 'About Delisio', // App name
-                      onTap: () => Navigator.of(context).pushNamed('/about'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+            SwitchListTile(
+              title: const Text('Dark Mode'),
+              // Show appropriate icon based on state
+              secondary: Icon(themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+              value: themeProvider.isDarkMode,
+              onChanged: (value) {
+                // Update theme via provider (use listen: false for actions)
+                Provider.of<ThemeProvider>(context, listen: false).setDarkMode(value);
+              },
+              activeColor: theme.colorScheme.primary, // Use theme color for active switch
+            ),
+            SettingsItem(
+              icon: Icons.notifications_outlined,
+              title: 'Notification Preferences',
+              onTap: () => Navigator.of(context).pushNamed('/notifications'),
+            ),
+          ],
         ),
       ),
+
+      // --- Help & Support ---
+      Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 1.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Help & Support',
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            SettingsItem(
+              icon: Icons.help_outline,
+              title: 'FAQ',
+              onTap: () => Navigator.of(context).pushNamed('/faq'),
+            ),
+            SettingsItem(
+              icon: Icons.support_agent,
+              title: 'Contact Support',
+              onTap: () => Navigator.of(context).pushNamed('/contact'),
+            ),
+            SettingsItem(
+              icon: Icons.star_outline,
+              title: 'Rate App',
+              onTap: () async {
+                // Keep original URL for now
+                final url = Uri.parse('https://play.google.com/store/apps/details?id=com.delisio.app');
+                // Use launchUrl from url_launcher
+                if (await canLaunchUrl(url)) {
+                  // Consider launch mode (in-app browser vs external)
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                } else {
+                  print('Could not launch $url');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not open app store page')),
+                    );
+                  }
+                }
+              },
+            ),
+            SettingsItem(
+              icon: Icons.info_outline,
+              title: 'About Delisio', // App name
+              onTap: () => Navigator.of(context).pushNamed('/about'),
+            ),
+          ],
+        ),
+      ),
+    ],
+    ),
+    ),
+    ),
     );
   }
 }

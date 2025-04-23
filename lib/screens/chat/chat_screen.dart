@@ -1,4 +1,4 @@
-// lib/screens/chat/chat_screen.dart - Updated to improve UX
+// lib/screens/chat/chat_screen.dart - Updated with production-ready recipe extraction
 
 import 'dart:async';
 import 'package:intl/intl.dart';
@@ -72,6 +72,56 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
+  // Improved recipe name extraction with multiple strategies
+  String _extractRecipeName(String text) {
+    // If the text is already reasonably short, just use it
+    if (text.length <= 190) return text;
+
+    // Try to find recipe name patterns first
+    List<RegExp> recipePatterns = [
+      // Match common recipe name formats with food types
+      RegExp(r"^([A-Z][A-Za-z\s''-]+(?:Bread|Cake|Soup|Pasta|Stew|Salad|Curry|Pie|Roll|Dish|Bowl|Meal))\b"),
+      // Match a recipe name that starts with 'Traditional', 'Classic', etc.
+      RegExp(r"^((?:Traditional|Classic|Authentic|Homemade|Easy|Quick|Simple|Healthy)\s+[A-Za-z\s''-]+)\b"),
+      // Match "X-style Y" patterns (e.g., "Italian-style Lasagna")
+      RegExp(r"^([A-Za-z]+(?:-style)\s+[A-Za-z\s''-]+)\b"),
+    ];
+
+    // Try each pattern
+    for (var pattern in recipePatterns) {
+      var matches = pattern.firstMatch(text);
+      if (matches != null && matches.group(1) != null) {
+        String name = matches.group(1)!.trim();
+        if (name.length >= 3 && name.length <= 100) {
+          return name;
+        }
+      }
+    }
+
+    // Try to extract name based on punctuation
+    // Look for name ending with a colon
+    int colonIndex = text.indexOf(':');
+    if (colonIndex > 3 && colonIndex < 100) {
+      return text.substring(0, colonIndex).trim();
+    }
+
+    // Look for name ending with a period or new paragraph
+    int periodIndex = text.indexOf('.');
+    if (periodIndex > 3 && periodIndex < 100) {
+      return text.substring(0, periodIndex).trim();
+    }
+
+    // If all else fails, take the first sentence or a reasonable number of words
+    List<String> words = text.split(' ');
+    if (words.length > 3) {
+      int wordCount = words.length <= 12 ? words.length : 12; // Max 12 words
+      return words.take(wordCount).join(' ').trim();
+    }
+
+    // Last resort: just take the first part of the text
+    return text.substring(0, text.length > 100 ? 100 : text.length).trim();
+  }
+
   void _onSuggestionSelected(String suggestion, bool generateRecipe) {
     print("Suggestion selected in ChatScreen: $suggestion, generate: $generateRecipe");
 
@@ -82,7 +132,36 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (generateRecipe) {
-      _generateRecipeFromChat(suggestion);
+      // Process the suggestion for recipe generation
+      String recipeQuery = suggestion;
+
+      // Only process if we exceed or approach the limit (leaving some margin)
+      if (recipeQuery.length > 190) {
+        print("Original query (${recipeQuery.length} chars): '$recipeQuery'");
+
+        // Try intelligent extraction first
+        String extractedName = _extractRecipeName(suggestion);
+
+        // If the extracted name is reasonable in length and not too short
+        if (extractedName.length >= 3 && extractedName.length <= 50) {
+          recipeQuery = extractedName;
+          print("Using extracted recipe name: '$recipeQuery'");
+        } else {
+          // If extraction failed, use basic truncation but try to cut at a sensible point
+          int cutPoint = 190;
+          // Try to cut at a sentence or phrase boundary if possible
+          for (int i = 190; i >= 150; i--) {
+            if (i < recipeQuery.length && (recipeQuery[i] == '.' || recipeQuery[i] == ',' || recipeQuery[i] == ';')) {
+              cutPoint = i + 1;
+              break;
+            }
+          }
+          recipeQuery = recipeQuery.substring(0, cutPoint).trim();
+          print("Truncated to ${recipeQuery.length} chars: '$recipeQuery'");
+        }
+      }
+
+      _generateRecipeFromChat(recipeQuery);
     } else {
       _sendMessage("Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it.");
     }
@@ -649,33 +728,33 @@ class ConversationsDrawer extends StatelessWidget {
       ChatProvider chatProvider
       ) {
     return ListView.builder(
-      itemCount: conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
-        final isSelected = conversation.id == currentConversationId;
+        itemCount: conversations.length,
+        itemBuilder: (context, index) {
+      final conversation = conversations[index];
+      final isSelected = conversation.id == currentConversationId;
 
-        // Format relative time (e.g. "2h ago", "Yesterday", etc.)
-        final now = DateTime.now();
-        final difference = now.difference(conversation.updatedAt);
-        String timeText;
+      // Format relative time (e.g. "2h ago", "Yesterday", etc.)
+      final now = DateTime.now();
+      final difference = now.difference(conversation.updatedAt);
+      String timeText;
 
-        if (difference.inMinutes < 1) {
-          timeText = 'Just now';
-        } else if (difference.inHours < 1) {
-          timeText = '${difference.inMinutes}m ago';
-        } else if (difference.inHours < 24) {
-          timeText = '${difference.inHours}h ago';
-        } else if (difference.inDays < 2) {
-          timeText = 'Yesterday';
-        } else if (difference.inDays < 7) {
-          timeText = '${difference.inDays}d ago';
-        } else {
-          // Format as Month Day (e.g. Apr 15)
-          final DateFormat formatter = DateFormat('MMM d');
-          timeText = formatter.format(conversation.updatedAt);
-        }
+      if (difference.inMinutes < 1) {
+        timeText = 'Just now';
+      } else if (difference.inHours < 1) {
+        timeText = '${difference.inMinutes}m ago';
+      } else if (difference.inHours < 24) {
+        timeText = '${difference.inHours}h ago';
+      } else if (difference.inDays < 2) {
+        timeText = 'Yesterday';
+      } else if (difference.inDays < 7) {
+        timeText = '${difference.inDays}d ago';
+      } else {
+        // Format as Month Day (e.g. Apr 15)
+        final DateFormat formatter = DateFormat('MMM d');
+        timeText = formatter.format(conversation.updatedAt);
+      }
 
-        return Dismissible(
+      return Dismissible(
           key: Key(conversation.id),
           background: Container(
             color: Colors.red,
@@ -727,116 +806,116 @@ class ConversationsDrawer extends StatelessWidget {
             }
           },
           child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: isSelected
-                  ? Theme.of(context).primaryColor
-                  : Colors.grey[200],
-              child: Icon(
-                Icons.chat_bubble_outline,
-                color: isSelected
-                    ? Colors.white
-                    : Colors.grey[600],
-                size: 20,
-              ),
-            ),
-            title: Text(
-              conversation.title ?? 'Chat ${index + 1}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            subtitle: Text(
-              timeText,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            selected: isSelected,
-            selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.1),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            onTap: () {
-              Navigator.pop(context); // Close drawer
-              // Only navigate if selecting a different conversation
-              if (!isSelected) {
-                Navigator.of(context).pushReplacementNamed(
-                    '/chat',
-                    arguments: conversation.id
-                );
-              }
-            },
-            trailing: PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: Colors.grey[600], size: 20),
-              onSelected: (value) async {
-                if (value == 'rename') {
-                  // TODO: Add rename functionality
-                } else if (value == 'delete') {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text("Delete Conversation?"),
-                      content: const Text(
-                          "This will permanently delete this conversation history."
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text("CANCEL"),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text(
-                            "DELETE",
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ) ?? false;
+          leading: CircleAvatar(
+          backgroundColor: isSelected
+          ? Theme.of(context).primaryColor
+        : Colors.grey[200],
+    child: Icon(
+    Icons.chat_bubble_outline,
+    color: isSelected
+    ? Colors.white
+        : Colors.grey[600],
+    size: 20,
+    ),
+    ),
+    title: Text(
+    conversation.title ?? 'Chat ${index + 1}',
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(
+    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    ),
+    ),
+    subtitle: Text(
+    timeText,
+    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+    ),
+    selected: isSelected,
+    selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.1),
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8),
+    ),
+    onTap: () {
+    Navigator.pop(context); // Close drawer
+    // Only navigate if selecting a different conversation
+    if (!isSelected) {
+    Navigator.of(context).pushReplacementNamed(
+    '/chat',
+    arguments: conversation.id
+    );
+    }
+    },
+    trailing: PopupMenuButton<String>(
+    icon: Icon(Icons.more_vert, color: Colors.grey[600], size: 20),
+    onSelected: (value) async {
+    if (value == 'rename') {
+    // TODO: Add rename functionality
+    } else if (value == 'delete') {
+    final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+    title: const Text("Delete Conversation?"),
+    content: const Text(
+    "This will permanently delete this conversation history."
+    ),
+    actions: [
+    TextButton(
+    onPressed: () => Navigator.of(context).pop(false),
+    child: const Text("CANCEL"),
+    ),
+    TextButton(
+    onPressed: () => Navigator.of(context).pop(true),
+    child: const Text(
+    "DELETE",
+    style: TextStyle(color: Colors.red),
+    ),
+    ),
+    ],
+    ),
+    ) ?? false;
 
-                  if (confirmed && context.mounted) {
-                    await chatProvider.deleteConversation(conversation.id);
+    if (confirmed && context.mounted) {
+    await chatProvider.deleteConversation(conversation.id);
 
-                    if (context.mounted && isSelected) {
-                      // If the deleted conversation was the active one, create a new chat
-                      final newConversationId = await chatProvider.createNewConversation();
-                      if (newConversationId != null && context.mounted) {
-                        Navigator.of(context).pushReplacementNamed(
-                            '/chat',
-                            arguments: newConversationId
-                        );
-                      }
-                    }
-                  }
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'rename',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 20),
-                      SizedBox(width: 8),
-                      Text('Rename'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, size: 20, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    if (context.mounted && isSelected) {
+    // If the deleted conversation was the active one, create a new chat
+    final newConversationId = await chatProvider.createNewConversation();
+    if (newConversationId != null && context.mounted) {
+    Navigator.of(context).pushReplacementNamed(
+    '/chat',
+    arguments: newConversationId
+    );
+    }
+    }
+    }
+    }
+    },
+    itemBuilder: (context) => [
+    const PopupMenuItem(
+    value: 'rename',
+    child: Row(
+    children: [
+    Icon(Icons.edit, size: 20),
+    SizedBox(width: 8),
+    Text('Rename'),
+    ],
+    ),
+    ),
+      const PopupMenuItem(
+        value: 'delete',
+        child: Row(
+          children: [
+            Icon(Icons.delete, size: 20, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+      ),
+    ],
+    ),
           ),
-        );
-      },
+      );
+        },
     );
   }
 }

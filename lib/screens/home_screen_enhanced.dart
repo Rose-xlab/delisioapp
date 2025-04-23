@@ -1,9 +1,11 @@
-// lib/screens/home_screen_enhanced.dart (continued)
+// lib/screens/home_screen_enhanced.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
+import '../providers/subscription_provider.dart';
+import '../models/subscription.dart';
 import '../widgets/home/trending_recipes.dart';
 import '../widgets/home/recipe_grid.dart';
 import '../widgets/search/search_bar.dart';
@@ -64,6 +66,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
+
+      // Load subscription status if user is authenticated
+      if (authProvider.isAuthenticated && token != null) {
+        await Provider.of<SubscriptionProvider>(context, listen: false)
+            .loadSubscriptionStatus(token);
+      }
 
       // Load trending recipes
       await recipeProvider.getTrendingRecipes(token: token);
@@ -126,6 +134,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
+
+      // Also refresh subscription data
+      if (authProvider.isAuthenticated && token != null) {
+        await Provider.of<SubscriptionProvider>(context, listen: false)
+            .loadSubscriptionStatus(token);
+      }
 
       await recipeProvider.resetAndReloadDiscoverRecipes(
         category: _activeCategory,
@@ -290,10 +304,139 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     Navigator.of(context).pushNamed('/category/$categoryId');
   }
 
+  Widget _buildSubscriptionBanner(BuildContext context) {
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+    final subscriptionInfo = subscriptionProvider.subscriptionInfo;
+
+    if (subscriptionInfo == null) {
+      return const SizedBox.shrink();
+    }
+
+    // Premium tier banner
+    if (subscriptionInfo.tier == SubscriptionTier.premium) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.purple.shade700, Colors.purple.shade500],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.star,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Premium Plan - Unlimited Recipes',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pushNamed('/subscription'),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.2),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Manage'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Basic or Free tier
+    Color color = subscriptionInfo.tier == SubscriptionTier.basic
+        ? Colors.blue
+        : Colors.green;
+    String tierName = subscriptionInfo.tier == SubscriptionTier.basic
+        ? 'Basic'
+        : 'Free';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            subscriptionInfo.tier == SubscriptionTier.basic
+                ? Icons.verified_user
+                : Icons.restaurant_menu,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$tierName Plan - ${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (subscriptionInfo.cancelAtPeriodEnd)
+                  Text(
+                    'Will cancel on ${_formatDate(subscriptionInfo.currentPeriodEnd)}',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/subscription'),
+            style: TextButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              subscriptionInfo.tier == SubscriptionTier.basic
+                  ? 'Manage'
+                  : 'Upgrade',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    // Format: "Jan 1, 2025"
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+    final theme = Theme.of(context);
 
     final categories = recipeProvider.categories;
     final trendingRecipes = recipeProvider.trendingRecipes;
@@ -408,6 +551,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   ],
                 ),
               ),
+
+              // Show subscription banner for logged in users
+              if (authProvider.isAuthenticated)
+                _buildSubscriptionBanner(context),
 
               // Main Content
               Expanded(

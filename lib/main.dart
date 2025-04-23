@@ -1,14 +1,18 @@
-// lib/main_updated.dart
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'app.dart'; // We'll update this next
+import 'app.dart';
 import 'providers/auth_provider.dart';
 import 'providers/recipe_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/user_provider.dart';
-import 'providers/theme_provider.dart'; // New theme provider
+import 'providers/theme_provider.dart';
+import 'providers/subscription_provider.dart'; // New import for subscription provider
+
+// Global navigator key for accessing context from providers
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +54,7 @@ void main() async {
         // 2. Other independent providers
         ChangeNotifierProvider(create: (_) => RecipeProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()), // Add subscription provider
 
         // 3. ChatProvider DEPENDS ON AuthProvider
         ChangeNotifierProxyProvider<AuthProvider, ChatProvider>(

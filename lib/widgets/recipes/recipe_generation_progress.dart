@@ -40,12 +40,16 @@ class RecipeGenerationProgress extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Generating Recipe...',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    // ***** CHANGE APPLIED HERE *****
+                    Expanded( // Wrapped the Text widget below in Expanded
+                      child: Text(
+                        'Generating Recipe...',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
+                    // ***** END OF CHANGE *****
                     if (!isCancelling)
                       TextButton.icon(
                         onPressed: onCancel,

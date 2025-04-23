@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recipe_provider.dart';
-// Import ChatProvider to potentially start new chat
+import '../../providers/subscription_provider.dart'; // Import subscription provider
+import '../../models/subscription.dart'; // Import subscription model
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -24,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Only load if mounted and context is available
       if (mounted) {
-        _loadUserRecipes();
+        _loadUserData();
       }
     });
   }
@@ -35,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadUserRecipes() async {
+  Future<void> _loadUserData() async {
     setState(() {
       _isLoading = true;
     });
@@ -43,22 +44,103 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.token != null) {
+        // Load recipes
         await Provider.of<RecipeProvider>(context, listen: false)
             .getUserRecipes(authProvider.token!);
-        print("User recipes loaded or updated.");
+
+        // Load subscription status
+        await Provider.of<SubscriptionProvider>(context, listen: false)
+            .loadSubscriptionStatus(authProvider.token!);
+
+        print("User data and subscription info loaded or updated.");
       }
     } catch (e) {
-      print('Error loading recipes: $e');
+      print('Error loading data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Could not load your recipes: ${e.toString()}')),
+              content: Text('Could not load your data: ${e.toString()}')),
         );
       }
     } finally {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  // Build the usage indicator widget based on subscription info
+  Widget _buildUsageIndicator(SubscriptionInfo subscriptionInfo) {
+    if (subscriptionInfo.tier == SubscriptionTier.premium) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.purple.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.purple),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(
+              Icons.all_inclusive,
+              color: Colors.purple,
+              size: 16,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Unlimited Recipes',
+              style: TextStyle(
+                color: Colors.purple,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Free or Basic plan
+      Color color = subscriptionInfo.tier == SubscriptionTier.basic
+          ? Colors.blue
+          : Colors.green;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.restaurant_menu,
+              color: color,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => Navigator.of(context).pushNamed('/subscription'),
+              child: Text(
+                'Upgrade',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -185,11 +267,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final userRecipes = recipeProvider.userRecipes;
     final bool isGenerating = recipeProvider.isLoading;
     final bool isCancelling = recipeProvider.isCancelling;
     final double progress = recipeProvider.generationProgress;
     final partialRecipe = recipeProvider.partialRecipe;
+    final subscriptionInfo = subscriptionProvider.subscriptionInfo;
 
     print("Building HomeScreen. Logged in: ${authProvider.token != null}");
 
@@ -218,6 +302,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   'What would you like to cook today?',
                   style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
+
+                // Show subscription status indicator if logged in and info available
+                if (authProvider.isAuthenticated && subscriptionInfo != null) ...[
+                  const SizedBox(height: 12),
+                  _buildUsageIndicator(subscriptionInfo),
+                ],
+
                 const SizedBox(height: 16),
                 Row(
                   // ... (TextField and Search Icon Button remain the same) ...
@@ -417,17 +508,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                         "Recipe details fetched, navigating...");
                                     if (mounted) {
                                       Navigator
-                                        .of(context)
-                                        .pushNamed('/recipe');
+                                          .of(context)
+                                          .pushNamed('/recipe');
                                     }
                                   } catch (e) {
                                     print("Error loading recipe details: $e");
                                     if (mounted) {
                                       ScaffoldMessenger
-                                        .of(context)
-                                        .showSnackBar(SnackBar(content: Text(
-                                        'Could not load recipe details: ${e
-                                            .toString()}')));
+                                          .of(context)
+                                          .showSnackBar(SnackBar(content: Text(
+                                          'Could not load recipe details: ${e
+                                              .toString()}')));
                                     }
                                   }
                                 },
