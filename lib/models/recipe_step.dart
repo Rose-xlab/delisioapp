@@ -13,9 +13,17 @@ class RecipeStep {
   });
 
   factory RecipeStep.fromJson(Map<String, dynamic> json) {
-    // Debug output - only in debug mode
+    // Debug output - more verbose
     if (kDebugMode) {
+      print('RecipeStep JSON raw data: $json');
       print('RecipeStep JSON keys: ${json.keys.toList()}');
+
+      if (json.containsKey('image_url')) {
+        print('Found image_url with value: ${json['image_url']}');
+        if (json['image_url'] == null) {
+          print('WARNING: image_url is explicitly null in the API response');
+        }
+      }
     }
 
     // More thorough image URL extraction
@@ -36,6 +44,11 @@ class RecipeStep {
       if (kDebugMode) {
         print('Skipping temporary DALLE URL: $extractedImageUrl');
       }
+      extractedImageUrl = null;
+    }
+
+    // Check if URL is empty string and make it null
+    if (extractedImageUrl != null && extractedImageUrl.isEmpty) {
       extractedImageUrl = null;
     }
 

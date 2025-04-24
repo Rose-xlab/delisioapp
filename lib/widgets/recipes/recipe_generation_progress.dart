@@ -23,8 +23,6 @@ class RecipeGenerationProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Removed the redundant null check for partialRecipe as it's required
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,7 +30,6 @@ class RecipeGenerationProgress extends StatelessWidget {
           // Progress header
           Container(
             padding: const EdgeInsets.all(16),
-            // Kept withOpacity as it's standard practice
             color: theme.primaryColor.withOpacity(0.1),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,8 +37,7 @@ class RecipeGenerationProgress extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // ***** CHANGE APPLIED HERE *****
-                    Expanded( // Wrapped the Text widget below in Expanded
+                    Expanded(
                       child: Text(
                         'Generating Recipe...',
                         style: theme.textTheme.titleLarge?.copyWith(
@@ -49,7 +45,6 @@ class RecipeGenerationProgress extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // ***** END OF CHANGE *****
                     if (!isCancelling)
                       TextButton.icon(
                         onPressed: onCancel,
@@ -142,7 +137,6 @@ class RecipeGenerationProgress extends StatelessWidget {
                     _buildTimeInfo(
                       context,
                       Icons.schedule,
-                      // Fixed: Added missing closing quote
                       '${partialRecipe.totalTimeMinutes} min total',
                     ),
                 ],
@@ -169,7 +163,6 @@ class RecipeGenerationProgress extends StatelessWidget {
           if (partialRecipe.ingredients.isNotEmpty && partialRecipe.steps.isNotEmpty)
             const Divider(height: 1, indent: 16, endIndent: 16),
 
-
           // Steps (if available)
           if (partialRecipe.steps.isNotEmpty)
             Padding(
@@ -185,15 +178,10 @@ class RecipeGenerationProgress extends StatelessWidget {
                     itemCount: partialRecipe.steps.length,
                     itemBuilder: (context, index) {
                       final step = partialRecipe.steps[index];
-                      // Show a loading indicator for steps without images yet
-                      // Assuming image generation happens progressively
-                      final bool showLoadingImage = step.imageUrl == null || step.imageUrl!.isEmpty;
-
+                      // Use the normal StepCard - it will handle loading states
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16.0),
-                        child: showLoadingImage
-                            ? _buildPartialStepCard(step, index + 1, context)
-                            : StepCard(step: step, stepNumber: index + 1),
+                        child: StepCard(step: step, stepNumber: index + 1),
                       );
                     },
                   ),
@@ -221,115 +209,6 @@ class RecipeGenerationProgress extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPartialStepCard(RecipeStep step, int stepNumber, BuildContext context) {
-    final theme = Theme.of(context); // Get theme here for primary color
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.zero, // Ensure card aligns with padding of parent
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Placeholder for image being generated
-          Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-            ),
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: CircularProgressIndicator(),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Generating image...',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Step content padding adjusted
-          Padding(
-            padding: const EdgeInsets.all(16), // Consistent padding
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Step number indicator with improved styling
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Step number indicator
-                    Container(
-                      width: 36,
-                      height: 36,
-                      margin: const EdgeInsets.only(right: 12), // Add spacing
-                      decoration: BoxDecoration(
-                        // Use theme primary color
-                        color: theme.primaryColor,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            // Kept withOpacity as it's standard practice
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          stepNumber.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Step title or just 'Step X'
-                    Expanded(
-                      child: Text(
-                        'Step $stepNumber',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          // Ensure text color contrasts with background
-                          color: theme.textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12), // Spacing before instructions
-
-                // Step instructions with improved styling
-                Text(
-                  step.text,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    height: 1.5, // Line height for readability
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

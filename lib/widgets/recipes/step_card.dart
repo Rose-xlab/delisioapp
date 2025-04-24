@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../models/recipe_step.dart';
 
-class StepCard extends StatelessWidget {
+class StepCard extends StatefulWidget {
   final RecipeStep step;
   final int stepNumber;
 
@@ -13,9 +13,21 @@ class StepCard extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<StepCard> createState() => _StepCardState();
+}
+
+class _StepCardState extends State<StepCard> {
+  bool _isImageError = false;
+  bool _isImageLoading = true;
+
+  @override
   Widget build(BuildContext context) {
+    final hasImage = widget.step.imageUrl != null &&
+        widget.step.imageUrl!.isNotEmpty &&
+        !_isImageError;
+
     // Debug log for image URL
-    print('Building StepCard $stepNumber with image URL: ${step.imageUrl}');
+    print('Building StepCard ${widget.stepNumber} with image URL: ${widget.step.imageUrl}');
 
     return Card(
       elevation: 2,
@@ -26,17 +38,23 @@ class StepCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Step image (if available)
-          if (step.imageUrl != null && step.imageUrl!.isNotEmpty)
+          if (hasImage)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: Image.network(
-                step.imageUrl!,
+                widget.step.imageUrl!,
                 width: double.infinity,
                 height: 200,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) {
-                    print('Image loaded successfully for step $stepNumber');
+                    // Image loaded successfully
+                    if (mounted) {
+                      setState(() {
+                        _isImageLoading = false;
+                      });
+                    }
+                    print('Image loaded successfully for step ${widget.stepNumber}');
                     return child;
                   }
                   return Container(
@@ -64,8 +82,17 @@ class StepCard extends StatelessWidget {
                   );
                 },
                 errorBuilder: (context, error, stackTrace) {
-                  print('Image error for step $stepNumber: $error');
-                  print('Image URL that failed: ${step.imageUrl}');
+                  print('Image error for step ${widget.stepNumber}: $error');
+                  print('Image URL that failed: ${widget.step.imageUrl}');
+
+                  // Mark image as having error
+                  if (mounted && !_isImageError) {
+                    setState(() {
+                      _isImageError = true;
+                      _isImageLoading = false;
+                    });
+                  }
+
                   return Container(
                     width: double.infinity,
                     height: 200,
@@ -90,9 +117,26 @@ class StepCard extends StatelessWidget {
                   );
                 },
               ),
+            )
+          else if (!hasImage && !_isImageLoading)
+          // Show a placeholder if no image
+            Container(
+              width: double.infinity,
+              height: 160,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.restaurant,
+                  size: 60,
+                  color: Colors.grey[400],
+                ),
+              ),
             ),
 
-          // Spacer between image and content - ADDED for better separation
+          // Spacer between image and content
           const SizedBox(height: 16),
 
           // Step content - UPDATED padding for better spacing
@@ -129,7 +173,7 @@ class StepCard extends StatelessWidget {
                         ),
                         child: Center(
                           child: Text(
-                            stepNumber.toString(),
+                            widget.stepNumber.toString(),
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -142,7 +186,7 @@ class StepCard extends StatelessWidget {
                       // Step title or just 'Step X'
                       Expanded(
                         child: Text(
-                          'Step $stepNumber',
+                          'Step ${widget.stepNumber}',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -167,7 +211,7 @@ class StepCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    step.text,
+                    widget.step.text,
                     style: const TextStyle(
                       fontSize: 16,
                       height: 1.6, // Increased line height for readability

@@ -1,5 +1,6 @@
 // lib/models/recipe.dart
 import 'package:flutter/foundation.dart'; // For kDebugMode print
+import 'dart:math';
 
 // Ensure these point to the correct, updated files
 import 'recipe_step.dart';
@@ -158,11 +159,20 @@ class Recipe {
       if (stepsJson == null || stepsJson is! List || stepsJson.isEmpty) {
         return []; // Return empty list if no valid steps data
       }
+
       final List<RecipeStep> results = [];
       for (var stepData in stepsJson) {
         // Ensure each step is a map before passing to RecipeStep.fromJson
         if (stepData is Map<String, dynamic>) {
           try {
+            // Check for image_url key specifically
+            if (kDebugMode) {
+              print('Processing step with keys: ${stepData.keys.toList()}');
+              if (stepData.containsKey('image_url')) {
+                print('Found image_url: ${stepData['image_url']}');
+              }
+            }
+
             results.add(RecipeStep.fromJson(stepData));
           } catch (e, s) {
             if (kDebugMode) {
@@ -183,6 +193,18 @@ class Recipe {
           if (kDebugMode) print('Skipping invalid step format: $stepData');
         }
       }
+
+      // Debug output to verify steps have their images
+      if (kDebugMode && results.isNotEmpty) {
+        print('Parsed ${results.length} steps:');
+        for (int i = 0; i < results.length; i++) {
+          print('Step ${i+1}: ${results[i].text.substring(0, min(20, results[i].text.length))}... - Has image: ${results[i].imageUrl != null}');
+          if (results[i].imageUrl != null) {
+            print('  Image URL: ${results[i].imageUrl}');
+          }
+        }
+      }
+
       return results;
     }
 
