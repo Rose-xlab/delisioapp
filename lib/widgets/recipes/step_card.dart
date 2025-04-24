@@ -21,6 +21,27 @@ class _StepCardState extends State<StepCard> {
   bool _isImageLoading = true;
 
   @override
+  void initState() {
+    super.initState();
+    _isImageLoading = widget.step.imageUrl != null && widget.step.imageUrl!.isNotEmpty;
+  }
+
+  @override
+  void didUpdateWidget(StepCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.step.imageUrl != oldWidget.step.imageUrl) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isImageError = false;
+            _isImageLoading = widget.step.imageUrl != null && widget.step.imageUrl!.isNotEmpty;
+          });
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final hasImage = widget.step.imageUrl != null &&
         widget.step.imageUrl!.isNotEmpty &&
@@ -49,9 +70,13 @@ class _StepCardState extends State<StepCard> {
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) {
                     // Image loaded successfully
-                    if (mounted) {
-                      setState(() {
-                        _isImageLoading = false;
+                    if (_isImageLoading) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          setState(() {
+                            _isImageLoading = false;
+                          });
+                        }
                       });
                     }
                     print('Image loaded successfully for step ${widget.stepNumber}');
@@ -86,10 +111,14 @@ class _StepCardState extends State<StepCard> {
                   print('Image URL that failed: ${widget.step.imageUrl}');
 
                   // Mark image as having error
-                  if (mounted && !_isImageError) {
-                    setState(() {
-                      _isImageError = true;
-                      _isImageLoading = false;
+                  if (!_isImageError) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() {
+                          _isImageError = true;
+                          _isImageLoading = false;
+                        });
+                      }
                     });
                   }
 
