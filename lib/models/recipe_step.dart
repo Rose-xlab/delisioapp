@@ -30,10 +30,19 @@ class RecipeStep {
       extractedImageUrl = json['image'].toString();
     }
 
+    // IMPORTANT: Skip DALLE temporary URLs that will cause 403 errors
+    if (extractedImageUrl != null &&
+        extractedImageUrl.contains('oaidalleapiprodscus.blob.core.windows.net')) {
+      if (kDebugMode) {
+        print('Skipping temporary DALLE URL: $extractedImageUrl');
+      }
+      extractedImageUrl = null;
+    }
+
     // Debug logging for troubleshooting
     if (kDebugMode) {
       if (extractedImageUrl != null) {
-        print('Found image URL in step: $extractedImageUrl');
+        print('Using image URL in step: $extractedImageUrl');
       } else {
         print('No image URL found. Available keys: ${json.keys.toList()}');
       }
