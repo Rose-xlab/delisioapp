@@ -9,7 +9,7 @@ import '../models/subscription.dart';
 import '../widgets/home/trending_recipes.dart';
 import '../widgets/home/recipe_grid.dart';
 import '../widgets/search/search_bar.dart';
-import '../constants/categories.dart'; // Assuming we have predefined categories
+import '../constants/categories.dart';
 import '../models/recipe_category.dart';
 import '../models/recipe.dart';
 
