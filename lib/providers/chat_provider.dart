@@ -1,19 +1,23 @@
 // lib/providers/chat_provider.dart
 import 'dart:async';
-import 'dart:convert'; // Import for jsonEncode
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart'; // Import for generating unique IDs
+
 import '../models/chat_message.dart'; // Updated model
 import '../models/conversation.dart';
+import '../models/recipe.dart'; // Import Recipe model
 import '../services/chat_service.dart';
 import './auth_provider.dart';
 import 'dart:math' as math;
-import '../config/sentry_config.dart'; // Import the Sentry config
+import '../config/sentry_config.dart';
 
 class ChatProvider with ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ChatService _chatService = ChatService();
   AuthProvider? _authProvider; // Already exists
+  final _uuid = const Uuid(); // For generating local IDs
 
   List<Conversation> _conversations = [];
   bool _isLoadingConversations = false;
@@ -169,76 +173,39 @@ class ChatProvider with ChangeNotifier {
     await _loadMessagesForActiveConversation();
   }
 
+  // --- MODIFIED: _loadMessagesForActiveConversation uses new factory ---
   Future<void> _loadMessagesForActiveConversation() async {
     if (_activeConversationId == null) return;
-    if(kDebugMode) print("ChatProvider: Loading messages for conversation $_activeConversationId");
-    // isLoadingMessages already true
+    if (kDebugMode) print("ChatProvider: Loading messages for conversation $_activeConversationId");
+    // isLoadingMessages should already be true from selectConversation
 
-    // Add breadcrumb
-    addBreadcrumb(
-      message: 'Loading messages for conversation',
-      category: 'chat',
-      data: {'conversationId': _activeConversationId},
-    );
+    addBreadcrumb(message: 'Loading messages for conversation', category: 'chat', data: {'conversationId': _activeConversationId});
 
     try {
-      final response = await _supabase.from('messages').select().eq('conversation_id', _activeConversationId!).order('created_at', ascending: true);
+      final response = await _supabase
+          .from('messages')
+          .select() // Select all columns
+          .eq('conversation_id', _activeConversationId!)
+          .order('created_at', ascending: true);
 
       _activeMessages = response.map((data) {
-        final mapData = data;
-        MessageType type = (mapData['role'] == 'assistant') ? MessageType.ai : MessageType.user;
-
-        // --- Original loading logs (Retained) ---
-        final metadata = mapData['metadata'];
-        // Using kDebugMode for conditional printing
-        if (kDebugMode) print("<<< ChatProvider: Loading message ID ${mapData['id']}, Raw metadata from DB: ${metadata?.toString()} (Type: ${metadata?.runtimeType})");
-        List<String>? suggestionsList;
-        if (metadata != null && metadata is Map && metadata['suggestions'] != null && metadata['suggestions'] is List) {
-          try {
-            suggestionsList = (metadata['suggestions'] as List)
-                .whereType<String>()
-                .toList();
-            if (suggestionsList.isEmpty) suggestionsList = null;
-            if (kDebugMode) print("<<< ChatProvider: Parsed suggestions list from DB: ${suggestionsList?.toString()}");
-          } catch (e) {
-            if (kDebugMode) print("<<< ChatProvider: Error casting suggestions metadata from DB for msg ${mapData['id']}: $e");
-            suggestionsList = null;
-
-            // Log to Sentry
-            captureException(e,
-                stackTrace: StackTrace.current,
-                hint: 'Error parsing message suggestions from database'
-            );
-          }
-        } else {
-          if (kDebugMode) print("<<< ChatProvider: No valid suggestions list found in metadata for msg ${mapData['id']}.");
-          suggestionsList = null;
-        }
-        // --- END OF Original loading logs ---
-
-        return ChatMessage(
-          id: mapData['id'] as String,
-          content: mapData['content'] as String,
-          type: type,
-          timestamp: DateTime.parse(mapData['created_at'] as String),
-          suggestions: suggestionsList, // Use parsed list
-        );
+        // Use the updated ChatMessage.fromJson factory which handles metadata/types
+        return ChatMessage.fromJson(data as Map<String, dynamic>);
       }).toList();
-      if(kDebugMode) print("ChatProvider: Loaded ${_activeMessages.length} messages.");
+
+      if (kDebugMode) print("ChatProvider: Loaded ${_activeMessages.length} messages. Last message type: ${_activeMessages.lastOrNull?.type}");
       _messagesError = null;
     } catch (e, stackTrace) {
-      if(kDebugMode) print("ChatProvider: Error loading messages: $e\n$stackTrace");
-      _messagesError = "Failed to load messages."; _activeMessages = [];
-
-      // Log to Sentry
-      captureException(e,
-          stackTrace: stackTrace,
-          hint: 'Error loading messages for conversation'
-      );
+      if (kDebugMode) print("ChatProvider: Error loading messages: $e\n$stackTrace");
+      _messagesError = "Failed to load messages.";
+      _activeMessages = [];
+      captureException(e, stackTrace: stackTrace, hint: 'Error loading messages for conversation');
     } finally {
-      _isLoadingMessages = false; notifyListeners();
+      _isLoadingMessages = false;
+      notifyListeners();
     }
   }
+  // --- END MODIFIED ---
 
   Future<String?> createNewConversation() async {
     final userId = _authProvider?.user?.id;
@@ -284,6 +251,169 @@ class ChatProvider with ChangeNotifier {
     return null; // Return null if try block didn't succeed
   }
 
+  // --- NEW: Add Recipe Placeholder Message ---
+  Future<String> addRecipePlaceholderMessage(String conversationId, String query) async {
+    // Use a UUID for the local ID to ensure uniqueness
+    final localId = 'local_placeholder_${_uuid.v4()}';
+    final placeholderMessage = ChatMessage(
+      id: localId,
+      content: 'Generating recipe for "$query"...', // Placeholder content
+      type: MessageType.recipePlaceholder, // Specific type
+      timestamp: DateTime.now(),
+      generationQuery: query, // Store the query used
+    );
+
+    if (_activeConversationId == conversationId) {
+      _activeMessages.add(placeholderMessage);
+      notifyListeners();
+      if (kDebugMode) print("ChatProvider: Added recipe placeholder message locally (ID: $localId)");
+    } else {
+      if (kDebugMode) print("ChatProvider: Warning - Tried to add placeholder to non-active conversation $conversationId");
+      // Ideally, handle adding to non-active chats, but complex. For now, only adds if active.
+    }
+    // Do NOT save the placeholder to the database yet.
+    return localId; // Return the temporary ID
+  }
+  // --- END NEW ---
+
+  // --- NEW: Update Placeholder to Recipe Result Message ---
+  Future<void> updatePlaceholderToRecipeMessage(String conversationId, String placeholderId, Recipe generatedRecipe) async {
+    if (_activeConversationId != conversationId) {
+      if (kDebugMode) print("ChatProvider: Warning - Tried to update placeholder in non-active conversation $conversationId");
+      // If not active, we might fetch messages, update, save, but that's complex.
+      // Alternative: Just add the result message directly if placeholder update fails.
+      await addRecipeResultMessage(conversationId, generatedRecipe);
+      return;
+    }
+
+    final messageIndex = _activeMessages.indexWhere((msg) => msg.id == placeholderId && msg.type == MessageType.recipePlaceholder);
+
+    if (messageIndex != -1) {
+      // Create the final message
+      final finalMessage = ChatMessage(
+        // Use a real UUID if the placeholder ID was local, otherwise keep DB ID if it exists (though placeholders aren't saved yet)
+        id: placeholderId.startsWith('local_') ? _uuid.v4() : placeholderId,
+        content: 'Generated recipe: ${generatedRecipe.title}', // Indicate recipe generation
+        type: MessageType.recipeResult, // Specific type for recipe result
+        timestamp: DateTime.now(), // Use current time for the result message
+        recipeId: generatedRecipe.id, // Store the recipe ID
+        recipeTitle: generatedRecipe.title, // Store the recipe title
+      );
+
+      // Replace in local list FIRST for immediate UI update
+      _activeMessages[messageIndex] = finalMessage;
+      if (kDebugMode) print("ChatProvider: Replaced placeholder with recipe result locally (New ID: ${finalMessage.id}, RecipeID: ${finalMessage.recipeId})");
+      notifyListeners(); // Notify after local update
+
+      // NOW, save the *final* message to the Database
+      final userId = _authProvider?.user?.id; // Get user ID for saving context if needed
+      try {
+        // Use the new toJsonForDb method which correctly sets role and metadata
+        final dbPayload = finalMessage.toJsonForDb();
+        dbPayload['conversation_id'] = conversationId;
+        // user_id should not be set for assistant messages
+        // dbPayload['user_id'] = userId;
+
+        if (kDebugMode) print("ChatProvider: Saving recipe result message to DB: ${jsonEncode(dbPayload)}");
+
+        // Insert the new message (we didn't save the placeholder)
+        await _supabase.from('messages').insert(dbPayload);
+
+        if (kDebugMode) print("ChatProvider: Recipe result message saved successfully.");
+
+        // Update Conversation Timestamp (Only if user is logged in)
+        if (userId != null) {
+          if(kDebugMode) print("ChatProvider: Updating conversation timestamp for recipe result...");
+          await _supabase.from('conversations')
+              .update({'updated_at': DateTime.now().toIso8601String()})
+              .eq('id', conversationId);
+        }
+
+      } catch (e, stackTrace) {
+        if (kDebugMode) print("ChatProvider: Error saving recipe result message: $e\n$stackTrace");
+        _sendMessageError = "Failed to save generated recipe message."; // Use appropriate error state
+        captureException(e, stackTrace: stackTrace, hint: 'Error saving recipe result message');
+        // Optionally revert the local change if DB save fails? More complex.
+        // _activeMessages[messageIndex] = originalPlaceholder; // Need to store original first
+        notifyListeners(); // Notify about error state
+      }
+      // No final notifyListeners needed here as it's done after local update and in catch block
+
+    } else {
+      if (kDebugMode) print("ChatProvider: Could not find placeholder message with ID $placeholderId to update. Adding result directly.");
+      // If placeholder wasn't found (e.g., app restart during generation), add the result message anyway.
+      await addRecipeResultMessage(conversationId, generatedRecipe);
+    }
+  }
+  // --- END NEW ---
+
+  // --- NEW: Add Recipe Result Message (if placeholder failed or wasn't used) ---
+  Future<void> addRecipeResultMessage(String conversationId, Recipe recipe) async {
+    // Create the message object
+    final message = ChatMessage(
+      id: _uuid.v4(), // Generate a new UUID
+      content: 'Generated recipe: ${recipe.title}',
+      type: MessageType.recipeResult,
+      timestamp: DateTime.now(),
+      recipeId: recipe.id,
+      recipeTitle: recipe.title,
+    );
+
+    // Add optimistically if the conversation is active
+    if (_activeConversationId == conversationId) {
+      _activeMessages.add(message);
+      if(kDebugMode) print("ChatProvider: Added recipe result message directly (ID: ${message.id}, RecipeID: ${message.recipeId})");
+      notifyListeners(); // Notify for optimistic UI update
+    }
+
+    // Save to DB regardless of active state (important for consistency)
+    final userId = _authProvider?.user?.id;
+    try {
+      final dbPayload = message.toJsonForDb();
+      dbPayload['conversation_id'] = conversationId;
+      // user_id not set for assistant messages
+
+      if(kDebugMode) print("ChatProvider: Saving direct recipe result message to DB: ${jsonEncode(dbPayload)}");
+      await _supabase.from('messages').insert(dbPayload);
+      if(kDebugMode) print("ChatProvider: Recipe result message saved successfully (direct add).");
+
+      // Update conversation timestamp if user is logged in
+      if (userId != null) {
+        await _supabase.from('conversations').update({'updated_at': DateTime.now().toIso8601String()}).eq('id', conversationId);
+      }
+    } catch (e, stackTrace) {
+      if(kDebugMode) print("ChatProvider: Error saving direct recipe result message: $e\n$stackTrace");
+      _sendMessageError = "Failed to save generated recipe message.";
+      captureException(e, stackTrace: stackTrace, hint: 'Error saving direct recipe result message');
+      // Remove optimistic add on failure ONLY if it was the active conversation
+      if (_activeConversationId == conversationId) {
+        _activeMessages.removeWhere((m) => m.id == message.id);
+        notifyListeners(); // Notify UI about removal
+      }
+    }
+    // No finally/notify here unless we always want notification after DB attempt
+  }
+  // --- END NEW ---
+
+  // --- NEW: Remove Placeholder Message ---
+  Future<void> removePlaceholderMessage(String conversationId, String placeholderId) async {
+    if (_activeConversationId == conversationId) {
+      final originalLength = _activeMessages.length;
+      _activeMessages.removeWhere((msg) => msg.id == placeholderId && msg.type == MessageType.recipePlaceholder);
+      if (_activeMessages.length < originalLength) {
+        if (kDebugMode) print("ChatProvider: Removed recipe placeholder message locally (ID: $placeholderId)");
+        notifyListeners(); // Update UI after removing
+      } else {
+        if (kDebugMode) print("ChatProvider: Could not find local placeholder message with ID $placeholderId to remove.");
+      }
+    } else {
+      if (kDebugMode) print("ChatProvider: Warning - Tried to remove placeholder from non-active conversation $conversationId");
+      // Placeholder only exists locally for active chat, so no action needed for non-active.
+    }
+    // No DB action needed as the placeholder was never saved.
+  }
+  // --- END NEW ---
+
   Future<void> sendMessage(String content) async {
     if (_isSendingMessage) return;
     if (_activeConversationId == null) { _sendMessageError = "No active chat."; notifyListeners(); return; }
@@ -303,26 +433,42 @@ class ChatProvider with ChangeNotifier {
       },
     );
 
-    final localUserMessage = ChatMessage(id: 'local_${DateTime.now().millisecondsSinceEpoch}', content: content, type: MessageType.user, timestamp: DateTime.now());
+    // Use a real UUID for the local message ID
+    final localUserMessageId = _uuid.v4();
+    final localUserMessage = ChatMessage(id: localUserMessageId, content: content, type: MessageType.user, timestamp: DateTime.now());
     _activeMessages.add(localUserMessage); notifyListeners();
 
     ChatMessage? localAiMessage;
+    String? savedUserMessageDbId; // Store the DB ID if saved
 
     try {
-      // Save User Message (Only if user is logged in)
+      // 1. Save User Message (Only if user is logged in)
       if (userId != null) {
         if(kDebugMode) print("ChatProvider: Saving user message to DB...");
-        await _supabase.from('messages').insert({
-          'conversation_id': _activeConversationId!,
-          'user_id': userId, // Use the actual userId
-          'role': 'user',
-          'content': content
-        });
+        // Use toJsonForDb which correctly sets role and metadata (empty for user msg)
+        final userMsgData = localUserMessage.toJsonForDb();
+        userMsgData['conversation_id'] = _activeConversationId!;
+        userMsgData['user_id'] = userId; // Associate with user
+
+        // Insert and select the 'id' generated by the database
+        final response = await _supabase.from('messages').insert(userMsgData).select('id').single();
+        savedUserMessageDbId = response['id'] as String?; // Get the actual DB ID
+        if (kDebugMode) print("ChatProvider: User message saved with DB ID: $savedUserMessageDbId");
+
+        // OPTIONAL: Update the local message with the DB ID for consistency, though not strictly required
+        // final userMsgIndex = _activeMessages.indexWhere((m) => m.id == localUserMessageId);
+        // if (userMsgIndex != -1 && savedUserMessageDbId != null) {
+        //    _activeMessages[userMsgIndex] = ChatMessage(
+        //        id: savedUserMessageDbId, // Use DB ID
+        //        content: localUserMessage.content, type: localUserMessage.type, timestamp: localUserMessage.timestamp);
+        //    // No need to notifyListeners here, happens later anyway
+        // }
+
       } else {
         if(kDebugMode) print("ChatProvider: User not logged in, skipping saving user message to DB.");
       }
 
-      // Get recent message history for context
+      // 2. Get Context History
       List<ChatMessage> contextMessages = [];
       if (_activeMessages.length > 1) {
         // Get the last N messages (excluding the one we just added)
@@ -331,6 +477,7 @@ class ChatProvider with ChangeNotifier {
         if(kDebugMode) print("ChatProvider: Including ${contextMessages.length} previous messages as context");
       }
 
+      // 3. Call Backend Chat Service
       // --- MODIFIED: Get token and pass it ---
       final token = _authProvider?.token; // Get token
       if(kDebugMode) print("ChatProvider: Calling backend chat service with context history...");
@@ -343,6 +490,7 @@ class ChatProvider with ChangeNotifier {
       // --- END MODIFICATION ---
 
 
+      // 4. Process Backend Response
       // --- Original Sending logs (Retained) ---
       if (kDebugMode) print(">>> ChatProvider: Received from ChatService: ${response.toString()}");
       final String? aiReplyContent = response['reply'] as String?;
@@ -351,7 +499,12 @@ class ChatProvider with ChangeNotifier {
       if (kDebugMode) print(">>> ChatProvider: Raw suggestions data from backend: ${suggestionsData?.toString()} (Type: ${suggestionsData?.runtimeType})");
       if (suggestionsData != null && suggestionsData is List) {
         try {
-          suggestionsList = suggestionsData.whereType<String>().toList();
+          // Filter for non-null strings
+          suggestionsList = suggestionsData
+              .map((item) => item?.toString())
+              .where((item) => item != null)
+              .cast<String>()
+              .toList();
           if (suggestionsList.isEmpty) suggestionsList = null; // Treat empty list as null for consistency
         } catch (e) {
           if (kDebugMode) print(">>> ChatProvider: Error casting suggestions from backend: $e");
@@ -369,9 +522,10 @@ class ChatProvider with ChangeNotifier {
 
       if (aiReplyContent == null || aiReplyContent.isEmpty) throw Exception("Received empty reply from assistant.");
 
-      // Create local AI message
+      // 5. Add Optimistic AI Message (with unique local ID)
+      final localAiMessageId = _uuid.v4(); // Use UUID for AI message too
       localAiMessage = ChatMessage(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch + 1}',
+        id: localAiMessageId,
         content: aiReplyContent,
         type: MessageType.ai,
         timestamp: DateTime.now(),
@@ -380,25 +534,25 @@ class ChatProvider with ChangeNotifier {
       _activeMessages.add(localAiMessage);
       notifyListeners(); // Notify for optimistic UI update
 
-      // Prepare data for saving
-      final metadataToSave = {'suggestions': suggestionsList ?? []}; // Save empty list if null
-      final assistantMessageDataToSave = {
-        'conversation_id': _activeConversationId!,
-        'user_id': null, // AI messages don't have a user_id
-        'role': 'assistant',
-        'content': aiReplyContent,
-        'metadata': metadataToSave, // Save parsed list (or empty)
-      };
+      // 6. Save Assistant Message to DB
+      // Use toJsonForDb, which handles metadata like suggestions
+      final assistantMessageDataToSave = localAiMessage.toJsonForDb();
+      assistantMessageDataToSave['conversation_id'] = _activeConversationId!;
+      // AI messages don't have a user_id
+      // metadata is handled inside toJsonForDb
 
       // --- Original Sending log (Retained) ---
-      if (kDebugMode) print(">>> ChatProvider: Metadata being saved to DB: ${jsonEncode(metadataToSave)}"); // Log JSON being saved
+      if (kDebugMode) print(">>> ChatProvider: Assistant Message Metadata being saved to DB: ${jsonEncode(assistantMessageDataToSave['metadata'])}"); // Log JSON being saved
       // --- END OF Original Sending log ---
 
       // Save Assistant Message (Save regardless of user login status, as AI replied)
       if(kDebugMode) print("ChatProvider: Saving assistant message to DB...");
+      // Insert the assistant message
       await _supabase.from('messages').insert(assistantMessageDataToSave);
+      if(kDebugMode) print("ChatProvider: Assistant message saved successfully.");
 
-      // Update Conversation Timestamp (Only if user is logged in and conversation belongs to them)
+
+      // 7. Update Conversation Timestamp (Only if user is logged in and conversation belongs to them)
       if (userId != null) {
         if(kDebugMode) print("ChatProvider: Updating conversation timestamp...");
         await _supabase.from('conversations').update({'updated_at': DateTime.now().toIso8601String()}).eq('id', _activeConversationId!);
@@ -412,8 +566,9 @@ class ChatProvider with ChangeNotifier {
       if(kDebugMode) print("ChatProvider: Error during sendMessage full process: $e\n$stackTrace");
       // Use the error message from the exception if available
       _sendMessageError = e.toString().replaceFirst("Exception: ", "");
-      _activeMessages.remove(localUserMessage); // Attempt to remove optimistic user msg
-      if (localAiMessage != null) _activeMessages.remove(localAiMessage); // Attempt to remove optimistic AI msg
+      // Remove optimistic messages using their unique local IDs
+      _activeMessages.removeWhere((m) => m.id == localUserMessageId);
+      if (localAiMessage != null) _activeMessages.removeWhere((m) => m.id == localAiMessage!.id);
       notifyListeners(); // Notify UI about the error state and removal
 
       // Log to Sentry
@@ -426,6 +581,7 @@ class ChatProvider with ChangeNotifier {
       notifyListeners(); // Notify about sending state change
     }
   }
+
 
   void resetActiveChat() {
     _activeConversationId = null; _activeMessages = []; _messagesError = null;
@@ -454,6 +610,8 @@ class ChatProvider with ChangeNotifier {
 
     try {
       // Ensure deletion only happens if the conversation belongs to the user
+      // NOTE: Supabase cascade delete should handle deleting related messages automatically
+      // if the foreign key constraint is set up correctly (`messages.conversation_id` -> `conversations.id` with ON DELETE CASCADE)
       await _supabase.from('conversations').delete().match({'id': conversationId, 'user_id': userId});
       int initialLength = _conversations.length;
       _conversations.removeWhere((c) => c.id == conversationId);
@@ -506,8 +664,8 @@ class ChatProvider with ChangeNotifier {
       final userMessageIndex = _activeMessages.indexWhere((m) => m.id == messageId); // Find the original user message
       bool hasResponse = false;
       if (userMessageIndex != -1 && userMessageIndex + 1 < _activeMessages.length) {
-        // Check if the next message exists and is from AI
-        hasResponse = _activeMessages[userMessageIndex + 1].type == MessageType.ai;
+        // Check if the next message exists and is from AI (or Recipe type)
+        hasResponse = _activeMessages[userMessageIndex + 1].type == MessageType.ai || _activeMessages[userMessageIndex + 1].type == MessageType.recipeResult;
       }
 
       if (hasResponse) {
