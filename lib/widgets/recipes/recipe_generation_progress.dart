@@ -181,7 +181,11 @@ class RecipeGenerationProgress extends StatelessWidget {
                       // Use the normal StepCard - it will handle loading states
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16.0),
-                        child: StepCard(step: step, stepNumber: index + 1),
+                        child: StepCard(
+                          step: step,
+                          stepNumber: index + 1,
+                          allSteps: partialRecipe.steps, // Add this line to pass all steps
+                        ),
                       );
                     },
                   ),

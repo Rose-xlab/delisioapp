@@ -5,11 +5,13 @@ import '../../models/recipe_step.dart';
 class StepCard extends StatefulWidget {
   final RecipeStep step;
   final int stepNumber;
+  final List<RecipeStep> allSteps; // Keep this parameter for the Cook Mode functionality
 
   const StepCard({
     Key? key,
     required this.step,
     required this.stepNumber,
+    required this.allSteps,
   }) : super(key: key);
 
   @override
@@ -222,6 +224,7 @@ class _StepCardState extends State<StepCard> {
                           ),
                         ),
                       ),
+                      // Cook Mode Button removed - we're now using a floating button
                     ],
                   ),
                 ),
