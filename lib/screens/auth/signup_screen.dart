@@ -1,4 +1,5 @@
 // lib/screens/auth/signup_screen.dart
+import 'package:delisio/widgets/auth/social_auth_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -19,6 +20,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   String? _errorMessage;
+
+  
 
   @override
   void dispose() {
@@ -60,13 +63,18 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+
+    //screen width
+  final screenWidth = MediaQuery.sizeOf(context).width;
+
+  
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign Up'),
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.symmetric(vertical: 24,horizontal: screenWidth > 600 ? 100 : 24),
           child: Center(
             child: SingleChildScrollView(
               child: Column(
@@ -115,6 +123,57 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ],
                   ),
+
+                  /////////////////////////////////////
+                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+
+                        flex: 1,
+                        child: Divider(thickness: 1,color: Colors.grey[300]),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Text("or continue with",style: TextStyle(color: Colors.grey[500]),),
+                        ),
+                      Expanded(
+                        flex: 1,
+                        child:Divider(thickness: 1,color: Colors.grey[300],)
+                        )
+                      
+                    ],
+                  ),
+
+                  const SizedBox(height: 10,),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SocialAuthButton(
+                        onTap: (){
+                          debugPrint("Social one");
+                        },
+                        image: "assets/google_logo.png",
+                      ),
+                      const SizedBox(width: 10,),
+                      SocialAuthButton(
+                        onTap: (){
+                          debugPrint("Social two");
+                        },
+                        image: "assets/facebook_logo.png",
+                      ),
+
+                      const SizedBox(width: 10,),
+                      SocialAuthButton(
+                        onTap: (){
+                          debugPrint("Social three");
+                        },
+                        image: "assets/apple_logo.png",
+                      ),
+                    ],
+                  )
+
                 ],
               ),
             ),

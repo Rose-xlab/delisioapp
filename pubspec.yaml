@@ -49,6 +49,9 @@ dependencies:
   # Required for Supabase v2 Apple Auth and to fix original build error
   sign_in_with_apple: ^7.0.1 # Using latest stable
 
+  # sign in with google
+  google_sign_in: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -75,6 +78,10 @@ flutter:
     - assets/nodejs_logo.png
     - assets/supabase_logo.png
     - assets/openai_logo.png
+    # social auth
+    - assets/google_logo.png
+    - assets/facebook_logo.png
+    - assets/apple_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.

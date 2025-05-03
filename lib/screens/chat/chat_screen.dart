@@ -137,7 +137,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Only process if we exceed or approach the limit (leaving some margin)
       if (recipeQuery.length > 190) {
-        print("Original query (${recipeQuery.length} chars): '$recipeQuery'");
+        debugPrint("Original query (${recipeQuery.length} chars): '$recipeQuery'");
 
         // Try intelligent extraction first
         String extractedName = _extractRecipeName(suggestion);
@@ -192,7 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Set generating state to prevent multiple clicks
     if (mounted) setState(() => _isGenerating = true);
 
-    print("Attempting to generate recipe for: $recipeQuery from chat context.");
+    debugPrint("Attempting to generate recipe for: $recipeQuery from chat context.");
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -212,11 +212,11 @@ class _ChatScreenState extends State<ChatScreen> {
         token: authProvider.token,
       );
 
-      print("Recipe generation initiated via RecipeProvider...");
+      debugPrint("Recipe generation initiated via RecipeProvider...");
 
       // We don't need to navigate again, as we already did it before generation started
       if (mounted && recipeProvider.error != null) {
-        print("RecipeProvider has error: ${recipeProvider.error}");
+        debugPrint("RecipeProvider has error: ${recipeProvider.error}");
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text('Error generating recipe: ${recipeProvider.error}'),
@@ -225,7 +225,7 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     } catch (e) {
-      print("Error caught in _generateRecipeFromChat: $e");
+      debugPrint("Error caught in _generateRecipeFromChat: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -274,6 +274,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final isLoadingMessages = isActiveConversation ? chatProvider.isLoadingMessages : false;
     final isSendingMessage = chatProvider.isSendingMessage;
     final error = isActiveConversation ? chatProvider.messagesError ?? chatProvider.sendMessageError : null;
+    double screenWidth = MediaQuery.sizeOf(context).width;
 
     if (isActiveConversation && messages.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -343,69 +344,74 @@ class _ChatScreenState extends State<ChatScreen> {
       drawer: ConversationsDrawer(
         currentConversationId: widget.conversationId,
       ),
-      body: Column(
-        children: [
-          // Messages area
-          Expanded(
-            child: Container(
-              color: theme.colorScheme.surface.withOpacity(0.3),
-              child: isLoadingMessages && messages.isEmpty
-                  ? const LoadingIndicator(message: 'Loading messages...')
-                  : error != null && messages.isEmpty
-                  ? ErrorDisplay(message: "Error loading chat: $error")
-                  : messages.isEmpty && !isSendingMessage
-                  ? _buildWelcomePrompt()
-                  : _buildMessagesList(messages, isSendingMessage),
-            ),
-          ),
+      body: Padding(
 
-          // Indicators
-          if (isSendingMessage)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(20)
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                            width: 12, height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 1.5)
-                        ),
-                        SizedBox(width: 8),
-                        Text('Assistant is thinking...', style: TextStyle(color: Colors.black54)),
-                      ],
-                    ),
-                  ),
-                ],
+        padding: EdgeInsets.symmetric(vertical: 8,horizontal:screenWidth > 600 ? 100 : 8),
+        child: Column(
+              
+          children: [
+            // Messages area
+            Expanded(
+              child: Container(
+                color: theme.colorScheme.surface.withOpacity(0.3),
+                child: isLoadingMessages && messages.isEmpty
+                    ? const LoadingIndicator(message: 'Loading messages...')
+                    : error != null && messages.isEmpty
+                    ? ErrorDisplay(message: "Error loading chat: $error")
+                    : messages.isEmpty && !isSendingMessage
+                    ? _buildWelcomePrompt()
+                    : _buildMessagesList(messages, isSendingMessage),
               ),
             ),
-
-          // Error message
-          if (chatProvider.sendMessageError != null && isActiveConversation)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-              child: Text(
-                  chatProvider.sendMessageError!,
-                  style: TextStyle(color: theme.colorScheme.error)
+        
+            // Indicators
+            if (isSendingMessage)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(20)
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                              width: 12, height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 1.5)
+                          ),
+                          SizedBox(width: 8),
+                          Text('Assistant is thinking...', style: TextStyle(color: Colors.black54)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+        
+            // Error message
+            if (chatProvider.sendMessageError != null && isActiveConversation)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                child: Text(
+                    chatProvider.sendMessageError!,
+                    style: TextStyle(color: theme.colorScheme.error)
+                ),
+              ),
+        
+            // Message input
+            MessageInput(
+              controller: _messageController,
+              onSend: _sendMessage,
+              isLoading: isSendingMessage || _isGenerating,
+              hintText: 'Ask about recipes, cooking tips, or meal ideas...',
             ),
-
-          // Message input
-          MessageInput(
-            controller: _messageController,
-            onSend: _sendMessage,
-            isLoading: isSendingMessage || _isGenerating,
-            hintText: 'Ask about recipes, cooking tips, or meal ideas...',
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

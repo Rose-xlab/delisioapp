@@ -446,6 +446,17 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final bool isCancelling = recipeProvider.isCancelling;
     final bool isLoadingMore = recipeProvider.isLoadingMore;
 
+
+    //bottomnav height
+     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
+
+
+
+
+   ////////////////////////////////////////////////////////////////////
+   
+
+
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
@@ -495,13 +506,13 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           const Icon(
                             Icons.lightbulb_outline,
                             size: 16,
                             color: Colors.amber,
                           ),
-                          const SizedBox(width: 6),
                           const Text(
                             'Generate a new recipe:',
                             style: TextStyle(
@@ -509,7 +520,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const Spacer(),
+                          
                           // Generate button
                           isGenerating
                               ? Row(
@@ -536,8 +547,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                               ),
                             ],
                           )
-                              : TextButton.icon(
+                              : FittedBox(
+                                child: TextButton.icon(
                             onPressed: _generateRecipe,
+                            
                             icon: const Icon(Icons.auto_awesome, size: 16),
                             label: const Text('Generate Recipe'),
                             style: TextButton.styleFrom(
@@ -545,6 +558,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                               visualDensity: VisualDensity.compact,
                             ),
                           ),
+                              )
                         ],
                       ),
                     ),
@@ -670,11 +684,15 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                           : discoverRecipes.isEmpty
                           ? _buildEmptyState()
                           : RecipeGrid(
+                        
                         recipes: discoverRecipes,
                         onRecipeTap: _viewRecipe,
                         isLoading: false,
                       ),
                     ),
+
+                    //push box above the bottom navigation
+                    SizedBox(height: navigationBarHeight+10,),
 
                     // Loading more indicator
                     if (isLoadingMore)

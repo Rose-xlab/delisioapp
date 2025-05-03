@@ -76,7 +76,7 @@ class _EnhancedSearchBarState extends State<EnhancedSearchBar> {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Colors.amber,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: _isFocused
@@ -104,7 +104,7 @@ class _EnhancedSearchBarState extends State<EnhancedSearchBar> {
                         ? Theme.of(context).primaryColor
                         : Colors.grey[600],
                   ),
-                  const SizedBox(width: 8),
+                  // const SizedBox(width: 8),
                   // Text field
                   Expanded(
                     child: TextField(

@@ -27,6 +27,8 @@ class RecipeGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
     // Show loading shimmer if specified
     if (isLoading) {
       return _buildLoadingGrid(context);
@@ -63,10 +65,11 @@ class RecipeGrid extends StatelessWidget {
     // Show the grid of recipes
     return GridView.builder(
       controller: scrollController,
+      
       padding: const EdgeInsets.all(8),
-      physics: const BouncingScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
+        crossAxisCount: screenWidth > 600 ? 4 : crossAxisCount,
         childAspectRatio: childAspectRatio,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -158,104 +161,105 @@ class RecipeGridItem extends StatelessWidget {
     // --- MODIFICATION END ---
 
     return Card(
-      clipBehavior: Clip.antiAlias, // Good for rounded corners on images
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Recipe Thumbnail Image
-            Expanded(
-              flex: 3, // Adjust flex as needed
-              child: Hero( // Optional: Add Hero animation
-                // Use a unique tag, including hashCode as fallback if id is null
-                tag: 'recipe_image_${recipe.id ?? recipe.hashCode}',
-                child: Container( // Container for placeholder background
-                  color: Colors.grey[100], // Background color for placeholder area
-                  child: hasThumbnail
-                      ? CachedNetworkImage( // Use CachedNetworkImage
-                    imageUrl: thumbnailUrl!, // Use the correct URL
-                    fit: BoxFit.cover,
-                    width: double.infinity, // Fill width
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    errorWidget: (context, url, error) {
-                      print("Error loading grid image: $url, Error: $error");
-                      return Center( // Error placeholder
-                        child: Icon(
-                          Icons.restaurant_menu, // Icon for error/missing
-                          color: Colors.grey[400],
-                          size: 40,
-                        ),
-                      );
-                    } ,
-                  )
-                      : Center( // Placeholder icon if no thumbnail URL
-                    child: Icon(
-                      Icons.restaurant_menu,
-                      size: 40,
-                      color: Theme.of(context).primaryColor.withOpacity(0.5),
+        clipBehavior: Clip.antiAlias, // Good for rounded corners on images
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Recipe Thumbnail Image
+              Expanded(
+                flex:3, // Adjust flex as needed
+                child: Hero( // Optional: Add Hero animation
+                  // Use a unique tag, including hashCode as fallback if id is null
+                  tag: 'recipe_image_${recipe.id ?? recipe.hashCode}',
+                  child: Container( // Container for placeholder background
+                    color: Colors.grey[100], // Background color for placeholder area
+                    child: hasThumbnail
+                        ? CachedNetworkImage( // Use CachedNetworkImage
+                      imageUrl: thumbnailUrl!, // Use the correct URL
+                      fit: BoxFit.cover,
+                      width: double.infinity, // Fill width
+                      placeholder: (context, url) => const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      errorWidget: (context, url, error) {
+                        print("Error loading grid image: $url, Error: $error");
+                        return Center( // Error placeholder
+                          child: Icon(
+                            Icons.restaurant_menu, // Icon for error/missing
+                            color: Colors.grey[400],
+                            size: 40,
+                          ),
+                        );
+                      } ,
+                    )
+                        : Center( // Placeholder icon if no thumbnail URL
+                      child: Icon(
+                        Icons.restaurant_menu,
+                        size: 40,
+                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            // Recipe info (Unchanged from your original)
-            Expanded(
-              flex: 2, // Adjust flex
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes details to bottom
-                  children: [
-                    Text(
-                      recipe.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${recipe.servings}',
-                              style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
+              // Recipe info (Unchanged from your original)
+              Expanded(
+                flex: 2, // Adjust flex
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes details to bottom
+                    children: [
+                      Text(
+                        recipe.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.timer_outlined, size: 14, color: Colors.grey[600]),
+                              Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
                               const SizedBox(width: 4),
                               Text(
-                                '${recipe.totalTimeMinutes}m',
+                                '${recipe.servings}',
                                 style: TextStyle(color: Colors.grey[700], fontSize: 12),
                               ),
                             ],
                           ),
-                      ],
-                    ),
-                  ],
+                          if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.timer_outlined, size: 14, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${recipe.totalTimeMinutes}m',
+                                  style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    
   }
 
   // Helper to format category name (Unchanged from your original)
