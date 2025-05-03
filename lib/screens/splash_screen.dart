@@ -39,6 +39,8 @@ class _SplashScreenState extends State<SplashScreen> {
     const Color backgroundColor = Color(0xFFFEF9E7); // Cream/beige from logo
     const Color textColor = Color(0xFF0A3C5C); // Dark blue from logo
 
+    debugPrint("SplashScreen: Building UI");
+    // Keep your existing splash screen UI
     return Scaffold(
       // Remove any default padding/margin
       body: Container(
@@ -68,22 +70,22 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
 
             // Loading indicator at bottom
-            Positioned(
+            const Positioned(
               bottom: 40,
               left: 0,
               right: 0,
               child: Column(
                 children: [
                   // Loading spinner
-                  const CircularProgressIndicator(
+                  CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(textColor),
                     strokeWidth: 4.0,
                   ),
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
 
                   // Loading text
-                  const Text(
+                  Text(
                     'Loading...',
                     style: TextStyle(
                       color: textColor,
