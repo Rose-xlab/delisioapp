@@ -20,50 +20,54 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    print("SplashScreen: initState called");
+    debugPrint("SplashScreen: initState called");
     _navigateBasedOnAuthState(); // Renamed function for clarity
   }
 
   Future<void> _navigateBasedOnAuthState() async {
-    print("SplashScreen: Starting navigation check...");
+    debugPrint("SplashScreen: Starting navigation check...");
 
     // IMPORTANT: Wait a short moment to allow AuthProvider's listener
     // (which starts in its constructor) to potentially receive the
     // initial auth state from Supabase. 2 seconds might be more than needed,
     // but keeps the splash visible. A shorter delay or a Future.microtask
     // might work once AuthProvider initialization is confirmed stable.
-    print("SplashScreen: Waiting for initial auth state resolution (2s delay)...");
+    debugPrint("SplashScreen: Waiting for initial auth state resolution (2s delay)...");
     await Future.delayed(const Duration(seconds: 2));
-    print("SplashScreen: Wait finished.");
+    debugPrint("SplashScreen: Wait finished.");
 
     // Check if the widget is still mounted before accessing context/navigating
     if (!mounted) {
-      print("SplashScreen: Widget unmounted after delay, aborting navigation.");
+      debugPrint("SplashScreen: Widget unmounted after delay, aborting navigation.");
       return;
     }
 
+
+    //navigate to Main
+    Navigator.of(context).pushReplacementNamed('/main');
+
     // Access AuthProvider *after* the delay
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     // Now, simply check the state that AuthProvider determined from Supabase
-    print("SplashScreen: Checking AuthProvider state. IsAuthenticated: ${authProvider.isAuthenticated}");
+    // debugPrint("SplashScreen: Checking AuthProvider state. IsAuthenticated: ${authProvider.isAuthenticated}");
 
-    if (authProvider.isAuthenticated) {
-      // User is logged in (token and user object exist in provider)
-      print("SplashScreen: User is authenticated. Navigating to /main.");
-      Navigator.of(context).pushReplacementNamed('/main');
-    } else {
-      // User is not logged in
-      print("SplashScreen: User is NOT authenticated. Navigating to /login.");
-      Navigator.of(context).pushReplacementNamed('/login');
-    }
+    // if (authProvider.isAuthenticated) {
+      
+    //   debugPrint("SplashScreen: User is authenticated. Navigating to /main.");
+    //   Navigator.of(context).pushReplacementNamed('/main');
+    // } else {
+    
+    //   debugPrint("SplashScreen: User is NOT authenticated. Navigating to /login.");
+    //   Navigator.of(context).pushReplacementNamed('/login');
+    // }
     // No complex try-catch needed here anymore for this specific check,
     // as AuthProvider handles its own errors internally when setting state.
   }
 
   @override
   Widget build(BuildContext context) {
-    print("SplashScreen: Building UI");
+    debugPrint("SplashScreen: Building UI");
     // Keep your existing splash screen UI
     return Scaffold(
       body: Center(
