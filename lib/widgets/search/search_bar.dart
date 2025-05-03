@@ -74,10 +74,12 @@ class _EnhancedSearchBarState extends State<EnhancedSearchBar> {
           // Main search field
           Expanded(
             child: Container(
-              height: 48,
+              height:54,
+              padding:const EdgeInsets.all(2.0),
+
               decoration: BoxDecoration(
-                color: Colors.amber,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(10),
+                color: Colors.white,
                 border: Border.all(
                   color: _isFocused
                       ? Theme.of(context).primaryColor
@@ -98,11 +100,18 @@ class _EnhancedSearchBarState extends State<EnhancedSearchBar> {
                 children: [
                   const SizedBox(width: 12),
                   // Leading icon
-                  Icon(
-                    Icons.search,
-                    color: _isFocused
-                        ? Theme.of(context).primaryColor
-                        : Colors.grey[600],
+                  InkWell(
+                    onTap: (){
+                       if (widget.controller.text.isNotEmpty) {
+                          widget.onSubmitted(widget.controller.text);
+                        }
+                    },
+                    child: Icon(
+                      Icons.search,
+                      color: _isFocused
+                          ? Theme.of(context).primaryColor
+                          : Colors.grey[600],
+                    ),
                   ),
                   // const SizedBox(width: 8),
                   // Text field
@@ -110,20 +119,23 @@ class _EnhancedSearchBarState extends State<EnhancedSearchBar> {
                     child: TextField(
                       controller: widget.controller,
                       focusNode: _focusNode,
+
                       onSubmitted: (value) {
                         if (value.isNotEmpty) {
                           widget.onSubmitted(value);
                         }
                       },
+
                       onChanged: widget.onChanged,
                       decoration: InputDecoration(
                         hintText: widget.hintText,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                        enabledBorder:InputBorder.none,
+                        focusedBorder: InputBorder.none,
                         isDense: true,
                       ),
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                       ),
                       textInputAction: TextInputAction.search,
                     ),

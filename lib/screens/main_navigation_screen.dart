@@ -42,7 +42,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ];
       setState(() {}); // Refresh with initial screens
     } catch (e) {
-      print("Error initializing screens: $e");
+      debugPrint("Error initializing screens: $e");
     }
   }
 
@@ -112,7 +112,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         });
       }
     } catch (e) {
-      print("Error initializing chat tab: $e");
+      debugPrint("Error initializing chat tab: $e");
       if (mounted) {
         // Show error state in the chat tab
         setState(() {
@@ -154,7 +154,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print("Building MainNavigationScreen, index: $_currentIndex");
+    debugPrint("Building MainNavigationScreen, index: $_currentIndex");
 
     // If we're showing the chat tab for the first time, initialize it
     if (_currentIndex == 1 && _chatId == null) {
