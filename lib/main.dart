@@ -28,7 +28,7 @@ Future<void> main() async {
 
   try {
     await dotenv.load(fileName: ".env");
-    print('.env file loaded successfully.');
+    debugPrint('.env file loaded successfully.');
     // Read keys immediately after loading
     supabaseUrl = dotenv.env['SUPABASE_URL'];
     supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
@@ -36,7 +36,7 @@ Future<void> main() async {
     // but initSentry reads it internally anyway.
   } catch (e) {
     dotEnvLoadFailed = true;
-    print('CRITICAL: Error loading .env file: $e');
+    debugPrint('CRITICAL: Error loading .env file: $e');
     // Cannot proceed without .env, but try to report if Sentry can init without DSN
     // (though unlikely without DSN loaded here)
   }
@@ -52,11 +52,11 @@ Future<void> main() async {
     // Let's assume initSentry can be called like this IF dotenv is loaded:
     await initSentry((options) {
       // This callback might now be minimal or only run if Sentry init succeeds
-      print('Sentry init callback executed (options: ${options != null})');
+      debugPrint('Sentry init callback executed (options: ${options != null})');
     });
-    print("Sentry initialization process attempted.");
+    debugPrint("Sentry initialization process attempted.");
   } catch (e) {
-    print("Error during Sentry initialization process: $e");
+    debugPrint("Error during Sentry initialization process: $e");
     // Attempt to capture if possible, though Sentry might not be functional
     await captureException(e, stackTrace: StackTrace.current);
   }
@@ -64,7 +64,7 @@ Future<void> main() async {
 
   // 3. Check Supabase keys (that we tried to load earlier) and Initialize Supabase
   if (dotEnvLoadFailed) {
-    print('ERROR: Cannot initialize Supabase because .env file failed to load.');
+    debugPrint('ERROR: Cannot initialize Supabase because .env file failed to load.');
     // Maybe show an error screen or exit?
     await captureException(
       'Supabase init skipped: .env loading failed',
@@ -74,7 +74,7 @@ Future<void> main() async {
   }
 
   if (supabaseUrl == null || supabaseAnonKey == null) {
-    print('ERROR: SUPABASE_URL or SUPABASE_ANON_KEY not found in environment variables after loading .env.');
+    debugPrint('ERROR: SUPABASE_URL or SUPABASE_ANON_KEY not found in environment variables after loading .env.');
     // Log this critical error (Sentry might be working now)
     await captureException(
       'Missing Supabase credentials in environment',
@@ -88,9 +88,9 @@ Future<void> main() async {
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
     );
-    print('Supabase initialized successfully.');
+    debugPrint('Supabase initialized successfully.');
   } catch (e) {
-    print('CRITICAL: Error initializing Supabase: $e');
+    debugPrint('CRITICAL: Error initializing Supabase: $e');
     // Log this critical error
     await captureException(e, stackTrace: StackTrace.current);
     return; // Stop execution if Supabase fails to initialize
@@ -119,7 +119,7 @@ Future<void> main() async {
 
           // Update function is called immediately after create and whenever AuthProvider notifies listeners.
           update: (context, auth, previousChatProvider) {
-            print("ChangeNotifierProxyProvider: Updating ChatProvider. Auth authenticated: ${auth.isAuthenticated}");
+            debugPrint("ChangeNotifierProxyProvider: Updating ChatProvider. Auth authenticated: ${auth.isAuthenticated}");
             // Ensure previousChatProvider is not null before updating
             final chatProvider = previousChatProvider ?? ChatProvider();
             chatProvider.updateAuth(auth); // Pass the whole AuthProvider instance

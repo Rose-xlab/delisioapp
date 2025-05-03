@@ -1,6 +1,7 @@
 // config/api_config.dart
 class ApiConfig {
-  static const String baseUrl = 'http://192.168.1.144:3002';
+  // static const String baseUrl = 'http://192.168.1.144:3002';
+  static const String baseUrl = "https://delisio-production.up.railway.app";
   static const String apiVersion = '/api';
 
   // Auth endpoints

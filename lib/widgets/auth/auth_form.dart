@@ -127,7 +127,7 @@ class _AuthFormState extends State<AuthForm> {
           // Error message
           if (widget.errorMessage != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
+              padding: const EdgeInsets.only(bottom:8.0),
               child: Text(
                 widget.errorMessage!,
                 style: const TextStyle(
@@ -137,6 +137,22 @@ class _AuthFormState extends State<AuthForm> {
                 textAlign: TextAlign.center,
               ),
             ),
+
+             
+             // Forgot password (only for login)
+
+            if (widget.isLogin) ...[
+            const SizedBox(height:6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  // TODO: Implement forgot password
+                },
+                child: const Text('Forgot Password?'),
+              ),
+            ),
+          ],
 
           // Submit button
           ElevatedButton(
@@ -154,19 +170,8 @@ class _AuthFormState extends State<AuthForm> {
                 : Text(widget.isLogin ? 'Login' : 'Sign Up'),
           ),
 
-          // Forgot password (only for login)
-          if (widget.isLogin) ...[
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  // TODO: Implement forgot password
-                },
-                child: const Text('Forgot Password?'),
-              ),
-            ),
-          ],
+         
+          
         ],
       ),
     );

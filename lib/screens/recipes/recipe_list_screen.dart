@@ -314,12 +314,15 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Widget _buildRecipeGrid(List<Recipe> recipes, BuildContext context) {
+
+    double screenWidth = MediaQuery.sizeOf(context).width;
+
     return RefreshIndicator(
       onRefresh: _loadRecipes,
       child: GridView.builder(
         padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // Two recipes per row
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: screenWidth > 600 ? 4 : 2, // Two recipes per row
           childAspectRatio: 0.75, // Card aspect ratio (width/height)
           crossAxisSpacing: 16, // Horizontal space between items
           mainAxisSpacing: 16, // Vertical space between items
