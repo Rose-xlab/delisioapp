@@ -34,6 +34,9 @@ class _ChatScreenState extends State<ChatScreen> {
   // String? _generatedRecipeId; // This seemed unused, commented out. If needed, uncomment.
 
 
+
+  
+
   @override
   void initState() {
     super.initState();
@@ -301,6 +304,35 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
+     // User object from AuthProvider
+    final user = authProvider.user;
+
+
+     // --- Authentication Check ---
+    if (!authProvider.isAuthenticated || user == null) { // Also check if user object is null
+      return Scaffold(
+        appBar: AppBar(title: const Text('Chat')),
+        body: Center(
+          child: Padding(
+            
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Please log in to Chat with AI'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  // Use pushReplacementNamed for login to replace the current screen
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Login / Sign Up'), // More inviting text
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (isActiveConversation && messages.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if(mounted) _scrollToBottom();
@@ -362,6 +394,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
+
+          
         ],
       ),
       drawer: ConversationsDrawer( // Ensure ConversationsDrawer is correctly implemented
