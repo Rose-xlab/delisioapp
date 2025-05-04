@@ -229,45 +229,54 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset(
-            'assets/empty_recipes.png',
-            width: 150,
-            height: 150,
-            errorBuilder: (ctx, error, _) => Icon(
-              Icons.no_food,
-              size: 150,
-              color: Colors.grey[400],
+     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    return Padding(
+      padding: const EdgeInsets.all(15.0),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/empty_recipes.png',
+              width: 150,
+              height: 150,
+              errorBuilder: (ctx, error, _) => Icon(
+                Icons.no_food,
+                size: 150,
+                color: Colors.grey[400],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No recipes saved yet',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 16),
+            const Text(
+              'No recipes saved yet',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Your saved recipes will appear here',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
+            const SizedBox(height: 8),
+            const Text(
+              'Your saved recipes will appear here',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).pushReplacementNamed('/home');
-            },
-            icon: const Icon(Icons.search),
-            label: const Text('Find Recipes'),
-          ),
-        ],
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                
+                if(authProvider.isAuthenticated){
+                     Navigator.of(context).pushReplacementNamed('/home');
+                }else{
+                     Navigator.of(context).pushReplacementNamed('/login');
+                }
+              },
+              icon: const Icon(Icons.search),
+              label: const Text('Find Recipes'),
+            ),
+          ],
+        ),
       ),
     );
   }

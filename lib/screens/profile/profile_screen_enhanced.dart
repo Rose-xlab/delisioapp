@@ -373,17 +373,21 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
       return Scaffold(
         appBar: AppBar(title: const Text('Profile')),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Please log in to view your profile'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                // Use pushReplacementNamed for login to replace the current screen
-                onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                child: const Text('Login / Sign Up'), // More inviting text
-              ),
-            ],
+          child: Padding(
+            
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Please log in to view your profile'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  // Use pushReplacementNamed for login to replace the current screen
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Login / Sign Up'), // More inviting text
+                ),
+              ],
+            ),
           ),
         ),
       );

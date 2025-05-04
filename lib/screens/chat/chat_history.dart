@@ -14,33 +14,28 @@ import '../../widgets/chat/message_input.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
 
-class ChatScreen extends StatefulWidget {
+class ChatHistoryScreen extends StatefulWidget {
   final String conversationId;
 
-  const ChatScreen({
+  const ChatHistoryScreen({
     required this.conversationId,
     Key? key,
   }) : super(key: key);
 
   @override
-  _ChatScreenState createState() => _ChatScreenState();
+  _ChatHistoryScreenState createState() => _ChatHistoryScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
-
+class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isGenerating = false;
-  // String? _generatedRecipeId; // This seemed unused, commented out. If needed, uncomment.
-
-
-
-  
+  String? _generatedRecipeId;
 
   @override
   void initState() {
     super.initState();
-    debugPrint("ChatScreen: Initializing for conversation ID: ${widget.conversationId} ********");
+    debugPrint("ChatScreen: Initializing for conversation ID: ${widget.conversationId}");
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if(mounted) {
         Provider.of<ChatProvider>(context, listen: false).selectConversation(widget.conversationId);
@@ -67,15 +62,12 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // This local _sendMessage is for messages typed by the user in the input field.
-  // These messages SHOULD appear in the UI.
   Future<void> _sendMessage(String message) async {
     final text = message.trim();
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
     if (text.isEmpty || chatProvider.isSendingMessage) return;
     _messageController.clear();
 
-    // Calls ChatProvider.sendMessage with default addToUi: true
     await chatProvider.sendMessage(text);
     _scrollToBottom();
   }
@@ -132,28 +124,32 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onSuggestionSelected(String suggestion, bool generateRecipe) {
     debugPrint("Suggestion selected in ChatScreen: $suggestion, generate: $generateRecipe");
-    final chatProvider = Provider.of<ChatProvider>(context, listen: false); // Get provider
 
     // Special handling for "Something else?" option
     if (suggestion.toLowerCase() == "something else?") {
-      // This is a user-initiated conversational turn, so it should be visible.
-      // Use the local _sendMessage which handles the text controller and calls
-      // chatProvider.sendMessage() with default addToUi: true.
       _sendMessage("Something else?");
       return;
     }
 
     if (generateRecipe) {
-      // --- Your existing recipe generation logic ---
+      // Process the suggestion for recipe generation
       String recipeQuery = suggestion;
+
+      // Only process if we exceed or approach the limit (leaving some margin)
       if (recipeQuery.length > 190) {
         debugPrint("Original query (${recipeQuery.length} chars): '$recipeQuery'");
+
+        // Try intelligent extraction first
         String extractedName = _extractRecipeName(suggestion);
+
+        // If the extracted name is reasonable in length and not too short
         if (extractedName.length >= 3 && extractedName.length <= 50) {
           recipeQuery = extractedName;
           print("Using extracted recipe name: '$recipeQuery'");
         } else {
+          // If extraction failed, use basic truncation but try to cut at a sensible point
           int cutPoint = 190;
+          // Try to cut at a sentence or phrase boundary if possible
           for (int i = 190; i >= 150; i--) {
             if (i < recipeQuery.length && (recipeQuery[i] == '.' || recipeQuery[i] == ',' || recipeQuery[i] == ';')) {
               cutPoint = i + 1;
@@ -164,30 +160,17 @@ class _ChatScreenState extends State<ChatScreen> {
           print("Truncated to ${recipeQuery.length} chars: '$recipeQuery'");
         }
       }
+
       _generateRecipeFromChat(recipeQuery);
-      // --- End of your existing recipe generation logic ---
     } else {
-      // ** MODIFIED PART **
-      // Send the follow-up query in the background WITHOUT adding it to the UI.
-      // The "Assistant is thinking..." indicator will show because ChatProvider's
-      // _isSendingMessage state will be true.
-      final backgroundQuery = "Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it.";
-      debugPrint("Sending background query (will not be shown in UI): $backgroundQuery");
-
-      // Directly call the ChatProvider's sendMessage with addToUi: false
-      chatProvider.sendMessage(backgroundQuery, addToUi: false);
-
-      // _messageController.clear(); // Not strictly needed here as this action doesn't originate from the text field.
-      _scrollToBottom(); // Still good to scroll if messages are long, to see thinking indicator.
+      _sendMessage("Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it.");
     }
   }
 
-  // This seemed unused (_generatedRecipeId was never set), so commented out.
-  // If you need it, ensure _generatedRecipeId is being set appropriately.
-  // void _viewExistingRecipe() {
-  //   if (_generatedRecipeId == null) return;
-  //   Navigator.of(context).pushNamed('/recipe');
-  // }
+  void _viewExistingRecipe() {
+    if (_generatedRecipeId == null) return;
+    Navigator.of(context).pushNamed('/recipe');
+  }
 
   Future<void> _generateRecipeFromChat(String? suggestedQuery) async {
     if (_isGenerating) return;
@@ -206,20 +189,32 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    // Set generating state to prevent multiple clicks
     if (mounted) setState(() => _isGenerating = true);
+
     debugPrint("Attempting to generate recipe for: $recipeQuery from chat context.");
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+
+      // Clear any previous recipe to ensure we start fresh
       recipeProvider.clearCurrentRecipe();
+
+      // Instead of showing a loading indicator, immediately navigate to recipe screen
+      // The recipe screen will handle showing the loading/generation progress
       Navigator.of(context).pushNamed('/recipe');
+
+      // Start the recipe generation after navigation
       await recipeProvider.generateRecipe(
         recipeQuery,
         save: authProvider.isAuthenticated,
         token: authProvider.token,
       );
+
       debugPrint("Recipe generation initiated via RecipeProvider...");
+
+      // We don't need to navigate again, as we already did it before generation started
       if (mounted && recipeProvider.error != null) {
         debugPrint("RecipeProvider has error: ${recipeProvider.error}");
         ScaffoldMessenger.of(context).showSnackBar(
@@ -247,8 +242,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showConversationsDrawer() {
+    // Refresh the conversations list first
     Provider.of<ChatProvider>(context, listen: false).loadConversations();
-    Scaffold.of(context).openDrawer(); // Use Scaffold.of(context) if inside Scaffold's child
+
+    Scaffold.of(context).openDrawer();
   }
 
   void _startNewChat() async {
@@ -256,7 +253,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final newConversationId = await chatProvider.createNewConversation();
 
     if (newConversationId != null && mounted) {
-      // Use pushReplacement to avoid stacking chat screens if already in one
       Navigator.of(context).pushReplacementNamed('/chat', arguments: newConversationId);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -270,68 +266,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
     final chatProvider = Provider.of<ChatProvider>(context);
     final theme = Theme.of(context);
 
     final bool isActiveConversation = chatProvider.activeConversationId == widget.conversationId;
     final messages = isActiveConversation ? chatProvider.activeMessages : <ChatMessage>[];
     final isLoadingMessages = isActiveConversation ? chatProvider.isLoadingMessages : false;
-    final isSendingMessage = chatProvider.isSendingMessage; // This triggers "Assistant is thinking..."
+    final isSendingMessage = chatProvider.isSendingMessage;
     final error = isActiveConversation ? chatProvider.messagesError ?? chatProvider.sendMessageError : null;
     double screenWidth = MediaQuery.sizeOf(context).width;
-    final user = authProvider.user;
-
-    if (!authProvider.isAuthenticated || user == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Chat')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Please log in to Chat with AI'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                  child: const Text('Login / Sign Up'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-     // User object from AuthProvider
-    final user = authProvider.user;
-
-
-     // --- Authentication Check ---
-    if (!authProvider.isAuthenticated || user == null) { // Also check if user object is null
-      return Scaffold(
-        appBar: AppBar(title: const Text('Chat')),
-        body: Center(
-          child: Padding(
-            
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Please log in to Chat with AI'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  // Use pushReplacementNamed for login to replace the current screen
-                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                  child: const Text('Login / Sign Up'), // More inviting text
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
 
     if (isActiveConversation && messages.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -339,36 +282,45 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     }
 
+    // Find the current conversation for the title
     final currentConversation = chatProvider.conversations
         .firstWhere((conv) => conv.id == widget.conversationId,
         orElse: () => Conversation(
             id: widget.conversationId,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            title: 'New Chat' // Default title if not found (e.g., truly new)
+            title: 'New Chat'
         ));
 
-    final String appBarTitle = currentConversation.title ?? 'Chat'; // Use loaded title or default
+    final String appBarTitle = currentConversation.title ?? 'Chat';
 
     return Scaffold(
       appBar: AppBar(
+        leading:IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_sharp),
+            tooltip: 'Back',
+            onPressed: (){
+              Navigator.pop(context);
+            },
+          ),
         title: Text(
           appBarTitle,
-          style: const TextStyle(fontSize: 18),
+          style: const TextStyle(fontSize: 18), // Slightly smaller for longer titles
         ),
         actions: [
+          // New chat button
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'New Chat',
             onPressed: _startNewChat,
           ),
+          // More options
           PopupMenuButton<String>(
             onSelected: (value) {
-              // TODO: Implement rename and delete conversation actions
               if (value == 'rename') {
-                debugPrint('Rename action selected');
+                // TODO: Implement rename conversation
               } else if (value == 'delete') {
-                debugPrint('Delete action selected');
+                // TODO: Implement delete conversation
               }
             },
             itemBuilder: (context) => [
@@ -399,32 +351,31 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       
-      drawer: ConversationsDrawer(
-        currentConversationId: widget.conversationId,
-      ),
+      // drawer: ConversationsDrawer(
+      //   currentConversationId: widget.conversationId,
+      // ),
       body: Padding(
-        padding: EdgeInsets.symmetric(vertical: 8, horizontal: screenWidth > 600 ? 100 : 8),
+
+        padding: EdgeInsets.symmetric(vertical: 8,horizontal:screenWidth > 600 ? 100 : 8),
         child: Column(
+              
           children: [
+            // Messages area
             Expanded(
               child: Container(
-                // Consider a slightly different color or an explicit border
-                // if theme.colorScheme.surface.withOpacity(0.3) is too subtle.
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withOpacity(0.1), // Adjusted opacity for subtlety
-                  borderRadius: BorderRadius.circular(8), // Optional: adds rounded corners
-                  // border: Border.all(color: theme.dividerColor) // Optional: adds a border
-                ),
+                color: theme.colorScheme.surface.withOpacity(0.3),
                 child: isLoadingMessages && messages.isEmpty
                     ? const LoadingIndicator(message: 'Loading messages...')
                     : error != null && messages.isEmpty
                     ? ErrorDisplay(message: "Error loading chat: $error")
-                    : messages.isEmpty && !isSendingMessage // Don't show welcome if currently sending initial message
+                    : messages.isEmpty && !isSendingMessage
                     ? _buildWelcomePrompt()
                     : _buildMessagesList(messages, isSendingMessage),
               ),
             ),
-            if (isSendingMessage) // This is the "Assistant is thinking..." indicator
+        
+            // Indicators
+            if (isSendingMessage)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 child: Row(
@@ -433,24 +384,26 @@ class _ChatScreenState extends State<ChatScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceVariant, // Use theme color
+                          color: Colors.grey[200],
                           borderRadius: BorderRadius.circular(20)
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
                               width: 12, height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 1.5, color: theme.colorScheme.onSurfaceVariant)
+                              child: CircularProgressIndicator(strokeWidth: 1.5)
                           ),
-                          const SizedBox(width: 8),
-                          Text('Assistant is thinking...', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                          SizedBox(width: 8),
+                          Text('Assistant is thinking...', style: TextStyle(color: Colors.black54)),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
+        
+            // Error message
             if (chatProvider.sendMessageError != null && isActiveConversation)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
@@ -459,9 +412,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     style: TextStyle(color: theme.colorScheme.error)
                 ),
               ),
+        
+            // Message input
             MessageInput(
               controller: _messageController,
-              onSend: _sendMessage, // Uses the local _sendMessage for user-typed messages
+              onSend: _sendMessage,
               isLoading: isSendingMessage || _isGenerating,
               hintText: 'Ask about recipes, cooking tips, or meal ideas...',
             ),
@@ -472,13 +427,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildWelcomePrompt() {
-    return SingleChildScrollView( // Ensures content is scrollable if it overflows
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 40), // Pushes content down a bit
+          const SizedBox(height: 40),
           Container(
             width: 80,
             height: 80,
@@ -487,14 +442,14 @@ class _ChatScreenState extends State<ChatScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(
-              Icons.restaurant, // Consider a more specific chat/AI icon if available
+              Icons.restaurant,
               size: 40,
               color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 24),
           Text(
-            'Kitchen Assistant',
+            'Delisio Cooking Assistant',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -504,11 +459,13 @@ class _ChatScreenState extends State<ChatScreen> {
           Text(
             'How can I help with your cooking today?',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.grey[700], // Or use theme.colorScheme.onSurface.withOpacity(0.7)
+              color: Colors.grey[700],
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
+
+          // Example prompts in attractive cards
           ..._buildExamplePrompts(),
         ],
       ),
@@ -517,10 +474,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   List<Widget> _buildExamplePrompts() {
     final prompts = [
-      {'text': 'What can I make with chicken and broccoli?', 'icon': Icons.shopping_basket_outlined},
-      {'text': 'I need a quick dinner idea for tonight', 'icon': Icons.timer_outlined},
-      {'text': 'How do I make pasta from scratch?', 'icon': Icons.menu_book_outlined}, // Changed icon
-      {'text': 'Give me a healthy breakfast recipe', 'icon': Icons.breakfast_dining_outlined}, // Changed icon
+      {'text': 'What can I make with chicken and broccoli?', 'icon': Icons.shopping_basket},
+      {'text': 'I need a quick dinner idea', 'icon': Icons.timer},
+      {'text': 'How do I make pasta from scratch?', 'icon': Icons.restaurant_menu},
+      {'text': 'Give me a healthy breakfast recipe', 'icon': Icons.breakfast_dining},
     ];
 
     return prompts.map((prompt) {
@@ -533,24 +490,24 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildPromptCard(String text, IconData icon) {
     return Card(
-      elevation: 0, // Minimal elevation for a cleaner look
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)), // Theme-aware border
+        side: BorderSide(color: Colors.grey.shade300),
       ),
       child: InkWell(
-        onTap: () => _sendMessage(text), // This will send the prompt text as a user message
+        onTap: () => _sendMessage(text),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary), // Theme color for icon
+              Icon(icon, size: 20, color: Colors.grey[600]),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   text,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface), // Theme color for text
+                  style: TextStyle(color: Colors.grey[800]),
                 ),
               ),
               Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[400]),
@@ -565,13 +522,16 @@ class _ChatScreenState extends State<ChatScreen> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16.0),
-      itemCount: messages.length, // Only active messages
+      itemCount: messages.length,
       itemBuilder: (context, index) {
         final message = messages[index];
+
+        // Check if we should show a timestamp header
         bool showHeader = false;
         if (index == 0) {
-          showHeader = true;
+          showHeader = true; // Always show for first message
         } else {
+          // Check if this message is from a different day than previous
           final previousMessage = messages[index - 1];
           final previousDate = previousMessage.timestamp.toLocal();
           final currentDate = message.timestamp.toLocal();
@@ -584,9 +544,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
         return Column(
           children: [
-            if (showHeader) _buildDateHeader(message.timestamp),
+            // Optional date header
+            if (showHeader)
+              _buildDateHeader(message.timestamp),
+
+            // The actual message bubble
             Padding(
-              padding: const EdgeInsets.only(bottom: 8.0), // Spacing between bubbles
+              padding: const EdgeInsets.only(bottom: 8.0),
               child: ChatBubble(
                 message: message,
                 onSuggestionSelected: _onSuggestionSelected,
@@ -602,20 +566,25 @@ class _ChatScreenState extends State<ChatScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final messageDate = DateTime(timestamp.year, timestamp.month, timestamp.day);
+    final messageDate = DateTime(
+        timestamp.year,
+        timestamp.month,
+        timestamp.day
+    );
 
     String dateText;
     if (messageDate == today) {
       dateText = 'Today';
     } else if (messageDate == yesterday) {
       dateText = 'Yesterday';
-    } else if (now.year == timestamp.year) {
-      // If same year, just show Month Day (e.g. April 15)
-      dateText = DateFormat('MMM d').format(timestamp);
-    }
-    else {
-      // If different year, show Month Day, Year (e.g. April 15, 2023)
-      dateText = DateFormat('MMM d, yyyy').format(timestamp);
+    } else {
+      // Format as Month Day, Year (e.g. April 15, 2023)
+      final month = [
+        'January', 'February', 'March', 'April',
+        'May', 'June', 'July', 'August',
+        'September', 'October', 'November', 'December'
+      ][timestamp.month - 1];
+      dateText = '$month ${timestamp.day}, ${timestamp.year}';
     }
 
     return Padding(
@@ -641,10 +610,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-// Assuming ConversationsDrawer is defined elsewhere or in this file if it's small
-// For this example, I'll include a placeholder for ConversationsDrawer if it's not already.
-// If ConversationsDrawer is large, it should be in its own file.
-// For brevity, I'm assuming ConversationsDrawer is correctly implemented.
 class ConversationsDrawer extends StatelessWidget {
   final String currentConversationId;
 
@@ -668,7 +633,6 @@ class ConversationsDrawer extends StatelessWidget {
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch, // Make content stretch
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -687,17 +651,18 @@ class ConversationsDrawer extends StatelessWidget {
                     ),
                   ],
                 ),
-                const Spacer(), // Pushes button to bottom of header space
+                const SizedBox(height: 20),
+                // New Chat Button
                 ElevatedButton.icon(
                   onPressed: () async {
                     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-                    Navigator.pop(context); // Close drawer first
+                    Navigator.pop(context); // Close drawer
 
                     final newConversationId = await chatProvider.createNewConversation();
                     if (newConversationId != null) {
-                      if (context.mounted) { // Check mount status before navigating
+                      if (context.mounted) {
                         Navigator.of(context).pushReplacementNamed(
-                            '/chat', // Use root /chat for new, not /chat/history
+                            '/chat',
                             arguments: newConversationId
                         );
                       }
@@ -712,25 +677,26 @@ class ConversationsDrawer extends StatelessWidget {
                       }
                     }
                   },
-                  icon: const Icon(Icons.add_comment_outlined), // More specific icon
-                  label: const Text('Start New Chat'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('New Chat'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.onPrimary, // Contrasting bg
-                    foregroundColor: theme.primaryColor,        // Contrasting text/icon
+                    backgroundColor: Colors.white,
+                    foregroundColor: theme.primaryColor,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    // minimumSize: const Size(200, 44), // Ensure it's wide enough
+                    minimumSize: const Size(200, 44),
                   ),
                 ),
-                const SizedBox(height: 8), // Some padding at the bottom
               ],
             ),
           ),
+
+          // Conversations List
           Expanded(
             child: chatProvider.isLoadingConversations
                 ? const Center(child: CircularProgressIndicator())
                 : conversations.isEmpty
-                ? _buildEmptyConversationsState(theme, context)
+                ? _buildEmptyConversationsState(theme)
                 : _buildConversationsList(context, conversations, chatProvider),
           ),
         ],
@@ -738,7 +704,7 @@ class ConversationsDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyConversationsState(ThemeData theme, BuildContext context) {
+  Widget _buildEmptyConversationsState(ThemeData theme) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -754,15 +720,15 @@ class ConversationsDrawer extends StatelessWidget {
             Text(
               'No conversations yet',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.grey[800], // Use theme color
+                color: Colors.grey[800],
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Start a new chat to begin your culinary journey!', // More engaging text
+              'Start a new chat to begin cooking conversations',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600], // Use theme color
+                color: Colors.grey[600],
               ),
               textAlign: TextAlign.center,
             ),
@@ -778,58 +744,80 @@ class ConversationsDrawer extends StatelessWidget {
       ChatProvider chatProvider
       ) {
     return ListView.builder(
-      itemCount: conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
-        final isSelected = conversation.id == currentConversationId;
-        final now = DateTime.now();
-        final difference = now.difference(conversation.updatedAt);
-        String timeText;
+        itemCount: conversations.length,
+        itemBuilder: (context, index) {
+      final conversation = conversations[index];
+      final isSelected = conversation.id == currentConversationId;
 
-        if (difference.inMinutes < 1) timeText = 'Just now';
-        else if (difference.inHours < 1) timeText = '${difference.inMinutes}m ago';
-        else if (difference.inHours < 24) timeText = '${difference.inHours}h ago';
-        else if (difference.inDays < 2) timeText = 'Yesterday';
-        else if (difference.inDays < 7) timeText = '${difference.inDays}d ago';
-        else if (now.year == conversation.updatedAt.year) timeText = DateFormat('MMM d').format(conversation.updatedAt);
-        else timeText = DateFormat('MMM d, yyyy').format(conversation.updatedAt);
+      // Format relative time (e.g. "2h ago", "Yesterday", etc.)
+      final now = DateTime.now();
+      final difference = now.difference(conversation.updatedAt);
+      String timeText;
 
-        return Dismissible(
-          key: Key(conversation.id), // Unique key for each item
+      if (difference.inMinutes < 1) {
+        timeText = 'Just now';
+      } else if (difference.inHours < 1) {
+        timeText = '${difference.inMinutes}m ago';
+      } else if (difference.inHours < 24) {
+        timeText = '${difference.inHours}h ago';
+      } else if (difference.inDays < 2) {
+        timeText = 'Yesterday';
+      } else if (difference.inDays < 7) {
+        timeText = '${difference.inDays}d ago';
+      } else {
+        // Format as Month Day (e.g. Apr 15)
+        final DateFormat formatter = DateFormat('MMM d');
+        timeText = formatter.format(conversation.updatedAt);
+      }
+
+      return Dismissible(
+          key: Key(conversation.id),
           background: Container(
-            color: Colors.redAccent, // Slightly less harsh red
+            color: Colors.red,
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 20.0),
-            child: const Icon(Icons.delete_sweep_outlined, color: Colors.white), // Different icon
+            child: const Icon(
+              Icons.delete,
+              color: Colors.white,
+            ),
           ),
-          direction: DismissDirection.endToStart, // Only allow swipe from right to left
+          direction: DismissDirection.endToStart,
           confirmDismiss: (direction) async {
-            return await showDialog<bool>( // Ensure type safety
+            return await showDialog(
               context: context,
-              builder: (BuildContext dialogContext) { // Use different context name
+              builder: (BuildContext context) {
                 return AlertDialog(
                   title: const Text("Delete Conversation?"),
-                  content: const Text("This action will permanently delete this conversation history."),
+                  content: const Text(
+                      "This will permanently delete this conversation history."
+                  ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      onPressed: () => Navigator.of(context).pop(false),
                       child: const Text("CANCEL"),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: const Text("DELETE", style: TextStyle(color: Colors.red)),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text(
+                        "DELETE",
+                        style: TextStyle(color: Colors.red),
+                      ),
                     ),
                   ],
                 );
               },
-            ) ?? false; // Handle null case from showDialog
+            );
           },
           onDismissed: (direction) async {
             await chatProvider.deleteConversation(conversation.id);
             if (context.mounted && isSelected) {
+              // If the deleted conversation was the active one, create a new chat
               final newConversationId = await chatProvider.createNewConversation();
               if (newConversationId != null && context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/chat', arguments: newConversationId);
+                Navigator.of(context).pushReplacementNamed(
+                    '/chat',
+                    arguments: newConversationId
+                );
               }
             }
           },
@@ -867,8 +855,8 @@ class ConversationsDrawer extends StatelessWidget {
     Navigator.pop(context); // Close drawer
     // Only navigate if selecting a different conversation
     if (!isSelected) {
-    Navigator.of(context).pushNamed(
-    '/chat/history',
+    Navigator.of(context).pushReplacementNamed(
+    '/chat',
     arguments: conversation.id
     );
     }
@@ -942,8 +930,8 @@ class ConversationsDrawer extends StatelessWidget {
     ],
     ),
           ),
-        );
-      },
+      );
+        },
     );
   }
 }

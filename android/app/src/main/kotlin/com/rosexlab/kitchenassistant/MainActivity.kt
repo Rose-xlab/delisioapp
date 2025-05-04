@@ -1,4 +1,4 @@
-package com.example.delisio
+package com.rosexlab.kitchenassistant
 
 import io.flutter.embedding.android.FlutterActivity
 
