@@ -1,4 +1,5 @@
 // lib/screens/main_navigation_screen.dart
+import 'package:delisio/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/bottom_navigation.dart';
 import 'home_screen_enhanced.dart'; // Use new enhanced home screen
@@ -50,6 +51,49 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget _buildChatPlaceholder() {
     return Builder(
       builder: (context) {
+
+         final authProvider = Provider.of<AuthProvider>(context);
+
+            // User object from AuthProvider
+         final user = authProvider.user;
+
+         //////////////////////////////////////////////
+         if (!authProvider.isAuthenticated || user == null) { // Also check if user object is null
+      return Scaffold(
+        appBar: AppBar(title: const Text('Chat')),
+        body: Center(
+          child: Padding(
+            
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Please log in to Chat with AI'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  // Use pushReplacementNamed for login to replace the current screen
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Login / Sign Up'), // More inviting text
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+         //////////////////////////////////////////////////////
         return const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

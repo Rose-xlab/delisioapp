@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.delisio">
+    package="com.rosexlab.kitchenassistant">
 
     <application
-        android:label="delisio"
+        android:label="kitchen assistant"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

@@ -14,32 +14,28 @@ import '../../widgets/chat/message_input.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
 
-class ChatScreen extends StatefulWidget {
+class ChatHistoryScreen extends StatefulWidget {
   final String conversationId;
 
-  const ChatScreen({
+  const ChatHistoryScreen({
     required this.conversationId,
     Key? key,
   }) : super(key: key);
 
   @override
-  _ChatScreenState createState() => _ChatScreenState();
+  _ChatHistoryScreenState createState() => _ChatHistoryScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
-
+class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isGenerating = false;
   String? _generatedRecipeId;
 
-
-  
-
   @override
   void initState() {
     super.initState();
-    debugPrint("ChatScreen: Initializing for conversation ID: ${widget.conversationId} ********");
+    debugPrint("ChatScreen: Initializing for conversation ID: ${widget.conversationId}");
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if(mounted) {
         Provider.of<ChatProvider>(context, listen: false).selectConversation(widget.conversationId);
@@ -270,7 +266,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
     final chatProvider = Provider.of<ChatProvider>(context);
     final theme = Theme.of(context);
 
@@ -280,35 +275,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final isSendingMessage = chatProvider.isSendingMessage;
     final error = isActiveConversation ? chatProvider.messagesError ?? chatProvider.sendMessageError : null;
     double screenWidth = MediaQuery.sizeOf(context).width;
-
-     // User object from AuthProvider
-    final user = authProvider.user;
-
-
-     // --- Authentication Check ---
-    if (!authProvider.isAuthenticated || user == null) { // Also check if user object is null
-      return Scaffold(
-        appBar: AppBar(title: const Text('Chat')),
-        body: Center(
-          child: Padding(
-            
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Please log in to Chat with AI'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  // Use pushReplacementNamed for login to replace the current screen
-                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                  child: const Text('Login / Sign Up'), // More inviting text
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
 
     if (isActiveConversation && messages.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -330,6 +296,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading:IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_sharp),
+            tooltip: 'Back',
+            onPressed: (){
+              Navigator.pop(context);
+            },
+          ),
         title: Text(
           appBarTitle,
           style: const TextStyle(fontSize: 18), // Slightly smaller for longer titles
@@ -378,9 +351,9 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       
-      drawer: ConversationsDrawer(
-        currentConversationId: widget.conversationId,
-      ),
+      // drawer: ConversationsDrawer(
+      //   currentConversationId: widget.conversationId,
+      // ),
       body: Padding(
 
         padding: EdgeInsets.symmetric(vertical: 8,horizontal:screenWidth > 600 ? 100 : 8),
@@ -882,8 +855,8 @@ class ConversationsDrawer extends StatelessWidget {
     Navigator.pop(context); // Close drawer
     // Only navigate if selecting a different conversation
     if (!isSelected) {
-    Navigator.of(context).pushNamed(
-    '/chat/history',
+    Navigator.of(context).pushReplacementNamed(
+    '/chat',
     arguments: conversation.id
     );
     }
