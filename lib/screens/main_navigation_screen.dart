@@ -1,5 +1,5 @@
 // lib/screens/main_navigation_screen.dart
-import 'package:delisio/providers/auth_provider.dart';
+import 'package:kitchenassistant/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/bottom_navigation.dart';
 import 'home_screen_enhanced.dart'; // Use new enhanced home screen
