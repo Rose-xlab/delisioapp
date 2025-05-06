@@ -1,5 +1,5 @@
 // lib/screens/auth/login_screen.dart
-import 'package:delisio/widgets/auth/social_auth_button.dart';
+import 'package:kitchenassistant/widgets/auth/social_auth_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -60,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<AuthResponse> signInWithGoogle() async {
 
-  const webClientId = '567474968044-fik1jee479m54tulpklkkhiv5pb2hnk7.apps.googleusercontent.com';
+  const webClientId = '601707002682-2gna6etmp9k6jak25v5m7n3mrar683t4.apps.googleusercontent.com';
 
   final GoogleSignIn googleSignIn = GoogleSignIn(
     clientId: webClientId,
@@ -89,6 +89,9 @@ class _LoginScreenState extends State<LoginScreen> {
   return response;
 }
 
+
+
+//////////////// FACEBOOK LOGIN //////////////
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) {

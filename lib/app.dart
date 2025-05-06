@@ -1,5 +1,5 @@
 // lib/app.dart
-import 'package:delisio/screens/chat/chat_history.dart';
+import 'package:kitchenassistant/screens/chat/chat_history.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -61,7 +61,7 @@ class DelisioApp extends StatelessWidget {
 
       // Use onGenerateRoute for routes that need arguments (like /chat)
       onGenerateRoute: (settings) {
-        print("onGenerateRoute: Handling route '${settings.name}'");
+        debugPrint("onGenerateRoute: Handling route '${settings.name}'");
         WidgetBuilder builder;
 
         switch (settings.name) {
@@ -187,7 +187,7 @@ class DelisioApp extends StatelessWidget {
 
       // Handles any route not defined in 'routes' or 'onGenerateRoute'
       onUnknownRoute: (settings) {
-        print("Warning: Navigated to unknown route: ${settings.name}");
+        debugPrint("Warning: Navigated to unknown route: ${settings.name}");
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('Error - Page Not Found')),

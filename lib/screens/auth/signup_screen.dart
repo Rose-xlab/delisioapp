@@ -1,5 +1,5 @@
 // lib/screens/auth/signup_screen.dart
-import 'package:delisio/widgets/auth/social_auth_button.dart';
+import 'package:kitchenassistant/widgets/auth/social_auth_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
