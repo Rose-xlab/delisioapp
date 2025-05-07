@@ -7,6 +7,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/auth/auth_form.dart';
 
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -92,6 +94,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
 
 //////////////// FACEBOOK LOGIN //////////////
+
+  Future<void> signInWithFacebook() async {
+     try{
+       final LoginResult result = await FacebookAuth.instance.login(); // by default we request the email and the public profile
+      // or FacebookAuth.i.login()
+      if (result.status == LoginStatus.success) {
+          // you are logged
+          final AccessToken accessToken = result.accessToken!;
+           debugPrint("====================TOKEN:$accessToken");
+      } else {
+          debugPrint(result.status.toString());
+          debugPrint(result.message);
+      }
+     }
+     catch(e){
+        debugPrint(e.toString());
+     }
+  }
+
+
+
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) {
@@ -229,6 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       SocialAuthButton(
                         onTap: (){
                           debugPrint("Social two");
+                          signInWithFacebook();
                         },
                         image: "assets/facebook_logo.png",
                       ),
