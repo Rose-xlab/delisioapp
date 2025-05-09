@@ -449,7 +449,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Delisio Cooking Assistant',
+            'Kitchen Assistant',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),

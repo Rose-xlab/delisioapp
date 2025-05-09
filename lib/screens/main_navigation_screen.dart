@@ -186,8 +186,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void _onTabTapped(int index) async {
     if (index == 1) {
       // If switching to Chat tab, ensure chat is initialized
-      if (_chatId == null) {
+      if (_chatId == null ) {
         await _initializeChatTab();
+      }
+    }
+
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  dynamic _unAuthTapped(int index) {
+
+        if (index == 1) {
+      // If switching to Chat tab, ensure chat is initialized
+      if (_chatId == null ) {
+        // await _initializeChatTab();
       }
     }
 
@@ -198,10 +212,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     debugPrint("Building MainNavigationScreen, index: $_currentIndex");
+    final authProvider = Provider.of<AuthProvider>(context);
 
     // If we're showing the chat tab for the first time, initialize it
-    if (_currentIndex == 1 && _chatId == null) {
+    if (_currentIndex == 1 && _chatId == null && authProvider.isAuthenticated) {
       _initializeChatTab();
     }
 
@@ -214,7 +230,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // Your custom bottom navigation bar widget
       bottomNavigationBar: BottomNavigation(
         currentIndex: _currentIndex,
-        onTap: _onTabTapped,
+        onTap:authProvider.isAuthenticated ? _onTabTapped : _unAuthTapped,
       ),
     );
   }
