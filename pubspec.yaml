@@ -54,6 +54,7 @@ dependencies:
   google_sign_in: ^6.3.0
   # facebook auth
   flutter_facebook_auth: ^7.1.2
+  purchases_flutter: ^8.8.0
   
 
 dev_dependencies:
