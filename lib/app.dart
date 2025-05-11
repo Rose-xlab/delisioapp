@@ -2,6 +2,7 @@
 import 'package:kitchenassistant/screens/chat/chat_history.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart'; // Add this import
 
 // --- Screen Imports ---
 import 'screens/splash_screen.dart';
@@ -30,6 +31,9 @@ class DelisioApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Remove the native splash screen now that app is ready
+    FlutterNativeSplash.remove();
+
     // Use the ThemeProvider to get the current theme
     final themeProvider = Provider.of<ThemeProvider>(context);
 
@@ -59,7 +63,7 @@ class DelisioApp extends StatelessWidget {
         '/subscription': (context) => const SubscriptionScreen(), // Add subscription screen route
       },
 
-      // Use onGenerateRoute for routes that need arguments (like /chat)
+      // Rest of your existing code remains unchanged
       onGenerateRoute: (settings) {
         debugPrint("onGenerateRoute: Handling route '${settings.name}'");
         WidgetBuilder builder;
