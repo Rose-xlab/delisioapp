@@ -147,7 +147,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         query: _searchQuery,
       );
       await recipeProvider.getTrendingRecipes(token: token);
-      return;
+      return; // Explicitly return to match Future<void>
     } catch (e) {
       print('Error refreshing data: $e');
       rethrow;
@@ -258,18 +258,16 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
     if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
       // Show cancellation in progress
-      setState(() => _isGenerating = true);
+      setState(() => _isGenerating = true); // _isGenerating should reflect recipeProvider.isLoading usually
 
-      // Display cancellation feedback
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Cancelling recipe generation...'),
           backgroundColor: Colors.blue,
-          duration: Duration(seconds: 1),
+          duration: Duration(seconds: 1), // Short duration for quick feedback
         ),
       );
 
-      // Call the cancellation method
       try {
         await recipeProvider.cancelRecipeGeneration();
         if (mounted) {
@@ -291,6 +289,9 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           );
         }
       }
+      // _isGenerating should be updated based on recipeProvider.isLoading in the build method
+      // or explicitly set to false here if appropriate after cancellation.
+      // However, the main build method already uses recipeProvider.isLoading for "isGenerating"
     }
   }
 
@@ -307,12 +308,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Widget _buildSubscriptionBanner(BuildContext context) {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final subscriptionInfo = subscriptionProvider.subscriptionInfo;
-    debugPrint(subscriptionInfo.toString());
+
     if (subscriptionInfo == null) {
       return const SizedBox.shrink();
     }
 
-    // Premium tier banner
     if (subscriptionInfo.tier == SubscriptionTier.premium) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -334,18 +334,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.star,
-              color: Colors.white,
-            ),
+            const Icon(Icons.star, color: Colors.white),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
                 'Premium Plan - Unlimited Recipes',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
             TextButton(
@@ -361,13 +355,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       );
     }
 
-    // Basic or Free tier
-    Color color = subscriptionInfo.tier == SubscriptionTier.basic
-        ? Colors.blue
-        : Colors.green;
-    String tierName = subscriptionInfo.tier == SubscriptionTier.basic
-        ? 'Basic'
-        : 'Free';
+    Color color = subscriptionInfo.tier == SubscriptionTier.basic ? Colors.blue : Colors.green;
+    String tierName = subscriptionInfo.tier == SubscriptionTier.basic ? 'Basic' : 'Free';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -380,9 +369,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       child: Row(
         children: [
           Icon(
-            subscriptionInfo.tier == SubscriptionTier.basic
-                ? Icons.verified_user
-                : Icons.restaurant_menu,
+            subscriptionInfo.tier == SubscriptionTier.basic ? Icons.verified_user : Icons.restaurant_menu,
             color: color,
           ),
           const SizedBox(width: 8),
@@ -392,18 +379,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               children: [
                 Text(
                   '$tierName Plan - ${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: color, fontWeight: FontWeight.bold),
                 ),
                 if (subscriptionInfo.cancelAtPeriodEnd)
                   Text(
                     'Will cancel on ${_formatDate(subscriptionInfo.currentPeriodEnd)}',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.orange, fontSize: 12),
                   ),
               ],
             ),
@@ -414,11 +395,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               backgroundColor: color,
               foregroundColor: Colors.white,
             ),
-            child: Text(
-              subscriptionInfo.tier == SubscriptionTier.basic
-                  ? 'Manage'
-                  : 'Upgrade',
-            ),
+            child: Text(subscriptionInfo.tier == SubscriptionTier.basic ? 'Manage' : 'Upgrade'),
           ),
         ],
       ),
@@ -426,7 +403,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   String _formatDate(DateTime date) {
-    // Format: "Jan 1, 2025"
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -435,42 +411,34 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
-    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+    // final subscriptionProvider = Provider.of<SubscriptionProvider>(context); // Already available via _buildSubscriptionBanner
     final theme = Theme.of(context);
 
     final categories = recipeProvider.categories;
     final trendingRecipes = recipeProvider.trendingRecipes;
     final discoverRecipes = recipeProvider.discoverRecipes;
 
-    final bool isGenerating = recipeProvider.isLoading;
+    // Use recipeProvider.isLoading for generate button state, as it's more specific
+    final bool isGeneratingRecipe = recipeProvider.isLoading; // More accurate name
     final bool isCancelling = recipeProvider.isCancelling;
     final bool isLoadingMore = recipeProvider.isLoadingMore;
 
-
-    //bottomnav height
-     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
-
-
-
-
-   ////////////////////////////////////////////////////////////////////
-   
-
+    final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshData,
-          child: Column(
+          child: Column( // Main Column for the screen
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // App Bar with Search
+              // This Column contains elements that should always be visible at the top
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Row(
                   children: [
                     Text(
-                      'Delisio',
+                      'Kitchen Assistant',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).primaryColor,
@@ -486,8 +454,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   ],
                 ),
               ),
-
-              // Search Bar
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Column(
@@ -497,46 +463,28 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       controller: _searchController,
                       onSubmitted: _onSearch,
                       onCancel: _onCancelSearch,
-                      isLoading: isGenerating,
+                      isLoading: isGeneratingRecipe, // Use specific loading state
                       hintText: 'Search or generate recipes...',
                     ),
                     const SizedBox(height: 6),
-
-                    // Generate Button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          const Icon(
-                            Icons.lightbulb_outline,
-                            size: 16,
-                            color: Colors.amber,
-                          ),
+                          const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
                           const Text(
                             'Generate a new recipe:',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                           ),
-                          
-                          // Generate button
-                          isGenerating
+                          isGeneratingRecipe // Use specific loading state
                               ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Cancel button
                               TextButton.icon(
                                 onPressed: isCancelling ? null : _cancelRecipeGeneration,
                                 icon: isCancelling
-                                    ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                     : const Icon(Icons.close, size: 16),
                                 label: const Text('Cancel'),
                                 style: TextButton.styleFrom(
@@ -548,119 +496,78 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                             ],
                           )
                               : FittedBox(
-                                child: TextButton.icon(
-                            onPressed: _generateRecipe,
-                            
-                            icon: const Icon(Icons.auto_awesome, size: 16),
-                            label: const Text('Generate Recipe'),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              visualDensity: VisualDensity.compact,
+                            child: TextButton.icon(
+                              onPressed: _generateRecipe,
+                              icon: const Icon(Icons.auto_awesome, size: 16),
+                              label: const Text('Generate Recipe'),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                visualDensity: VisualDensity.compact,
+                              ),
                             ),
-                          ),
-                              )
+                          )
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-
-              // Show subscription banner for logged in users
               if (authProvider.isAuthenticated)
                 _buildSubscriptionBanner(context),
 
-              // Main Content
+              // This Expanded widget will contain the scrollable content
               Expanded(
-                child: ListView(
+                child: ListView( // This is the main scrollable list
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    // Categories Section
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Categories',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          const Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           if (_isLoadingCategories)
                             SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).primaryColor,
-                                ),
-                              ),
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor)),
                             ),
                         ],
                       ),
                     ),
-
-                    // Categories Horizontal List
                     SizedBox(
                       height: 110,
                       child: _isLoadingCategories
                           ? _buildCategoriesLoadingList()
                           : _buildCategoriesList(categories, _activeCategory),
                     ),
-
-                    // Trending Section
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Trending Now',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          const Text('Trending Now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           if (_isLoadingTrending)
                             SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).primaryColor,
-                                ),
-                              ),
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor)),
                             ),
                         ],
                       ),
                     ),
-
-                    // Trending Recipes
                     TrendingRecipes(
                       recipes: trendingRecipes,
                       onRecipeTap: _viewRecipe,
                       isLoading: _isLoadingTrending,
                     ),
-
-                    // Discover Recipes Section
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            _activeCategory == null
-                                ? 'Discover Recipes'
-                                : _getCategoryTitle(_activeCategory!),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            _activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           if (_activeCategory != null)
                             TextButton(
@@ -676,33 +583,34 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       ),
                     ),
 
-                    // Discover Grid
-                    SizedBox(
-                      height: 600, // Large enough to fill remaining space
-                      child: _isLoadingRecipes
-                          ? const Center(child: CircularProgressIndicator())
-                          : discoverRecipes.isEmpty
-                          ? _buildEmptyState()
-                          : RecipeGrid(
-                        
-                        recipes: discoverRecipes,
-                        onRecipeTap: _viewRecipe,
-                        isLoading: false,
-                      ),
+                    // --- MODIFICATION HERE ---
+                    // Remove the SizedBox with fixed height around RecipeGrid.
+                    // Pass the correct _isLoadingRecipes state.
+                    _isLoadingRecipes && discoverRecipes.isEmpty // Show main loading only if recipes are empty
+                        ? const Center(child: Padding(
+                      padding: EdgeInsets.all(16.0), // Added padding
+                      child: CircularProgressIndicator(),
+                    ))
+                        : discoverRecipes.isEmpty && !_isLoadingRecipes // Show empty state only if not loading and recipes are empty
+                        ? _buildEmptyState()
+                        : RecipeGrid(
+                      recipes: discoverRecipes,
+                      onRecipeTap: _viewRecipe,
+                      // isLoading should be used by RecipeGrid for its internal shimmer/placeholders
+                      // However, the parent now handles the main loading indicator / empty state.
+                      // If RecipeGrid's isLoading is purely for shimmer, pass false or a different flag.
+                      // For now, passing _isLoadingRecipes to be consistent with its prop.
+                      isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty, // Show shimmer if loading more but some recipes exist
                     ),
+                    // --- END OF MODIFICATION ---
 
-                    //push box above the bottom navigation
-                    SizedBox(height: navigationBarHeight+10,),
-
-                    // Loading more indicator
+                    SizedBox(height: navigationBarHeight + 10),
                     if (isLoadingMore)
                       Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(context).primaryColor,
-                            ),
+                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
                           ),
                         ),
                       ),
@@ -720,28 +628,17 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     if (categories.isEmpty) {
       return const Center(child: Text('No categories available'));
     }
-
-    // Add 'All' category at the beginning
     final allCategories = [
-      RecipeCategory(
-        id: 'all',
-        name: 'All',
-        description: 'All recipes',
-        icon: Icons.apps,
-        color: Colors.blueGrey,
-      ),
+      RecipeCategory(id: 'all', name: 'All', description: 'All recipes', icon: Icons.apps, color: Colors.blueGrey),
       ...categories,
     ];
-
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       itemCount: allCategories.length,
       itemBuilder: (context, index) {
         final category = allCategories[index];
-        final isActive = (activeCategory == category.id) ||
-            (activeCategory == null && category.id == 'all');
-
+        final isActive = (activeCategory == category.id) || (activeCategory == null && category.id == 'all');
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: GestureDetector(
@@ -749,36 +646,20 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon with circle background
                 Container(
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: isActive
-                        ? category.color
-                        : category.color.withOpacity(0.1),
+                    color: isActive ? category.color : category.color.withOpacity(0.1),
                     shape: BoxShape.circle,
-                    border: isActive
-                        ? Border.all(color: category.color, width: 2)
-                        : null,
+                    border: isActive ? Border.all(color: category.color, width: 2) : null,
                     boxShadow: isActive
-                        ? [
-                      BoxShadow(
-                        color: category.color.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
+                        ? [BoxShadow(color: category.color.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))]
                         : null,
                   ),
-                  child: Icon(
-                    category.icon,
-                    color: isActive ? Colors.white : category.color,
-                    size: 28,
-                  ),
+                  child: Icon(category.icon, color: isActive ? Colors.white : category.color, size: 28),
                 ),
                 const SizedBox(height: 8),
-                // Category name
                 Text(
                   category.name,
                   style: TextStyle(
@@ -798,29 +679,16 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      itemCount: 5, // Show 5 loading placeholders
+      itemCount: 5,
       itemBuilder: (context, index) {
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Circle placeholder
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  shape: BoxShape.circle,
-                ),
-              ),
+              Container(width: 60, height: 60, decoration: BoxDecoration(color: Colors.grey[300], shape: BoxShape.circle)),
               const SizedBox(height: 8),
-              // Text placeholder
-              Container(
-                width: 60,
-                height: 12,
-                color: Colors.grey[300],
-              ),
+              Container(width: 60, height: 12, color: Colors.grey[300]),
             ],
           ),
         );
@@ -830,49 +698,27 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
   Widget _buildEmptyState() {
     String message = 'No recipes found';
-
     if (_searchQuery.isNotEmpty) {
       message = 'No recipes found for "$_searchQuery"';
     } else if (_activeCategory != null) {
       message = 'No recipes found in ${_getCategoryTitle(_activeCategory!)}';
     }
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.restaurant_menu,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.restaurant_menu, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text(
-              'Try a different search or category',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
+            Text('Try a different search or category', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
             if (_searchQuery.isNotEmpty) ...[
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _generateRecipe,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
                 child: const Text('Generate This Recipe'),
               ),
             ],

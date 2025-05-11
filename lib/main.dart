@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart'; // Add this import
 import 'app.dart'; // Assuming DelisioApp is here
 import 'providers/auth_provider.dart';
 import 'providers/recipe_provider.dart';
@@ -16,7 +17,11 @@ import 'config/sentry_config.dart'; // Import the Sentry config (includes initSe
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // This is needed for the splash screen
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+
+  // Keep the splash screen visible until app is fully loaded
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   // --- CORRECTED INITIALIZATION ORDER ---
 
