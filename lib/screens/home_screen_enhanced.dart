@@ -308,7 +308,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Widget _buildSubscriptionBanner(BuildContext context) {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final subscriptionInfo = subscriptionProvider.subscriptionInfo;
-    debugPrint(subscriptionInfo.toString());
+
     if (subscriptionInfo == null) {
       return const SizedBox.shrink();
     }

@@ -239,37 +239,24 @@ class RecipeGridItem extends StatelessWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
+                              Icon(Icons.timer_outlined, size: 14, color: Colors.grey[600]),
                               const SizedBox(width: 4),
                               Text(
-                                '${recipe.servings}',
+                                '${recipe.totalTimeMinutes}m',
                                 style: TextStyle(color: Colors.grey[700], fontSize: 12),
                               ),
                             ],
                           ),
-                          if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.timer_outlined, size: 14, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${recipe.totalTimeMinutes}m',
-                                  style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    
+      ),
+    );
   }
 
   // _formatCategory helper is not used in RecipeGridItem, so it can be removed

@@ -399,7 +399,6 @@ class ChatProvider with ChangeNotifier {
   }
   // END OF MODIFIED sendMessage
 
-
   void resetActiveChat() {
     _activeConversationId = null; _activeMessages = []; _messagesError = null;
     _sendMessageError = null; _isSendingMessage = false;
