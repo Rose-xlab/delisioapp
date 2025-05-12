@@ -1,15 +1,15 @@
 // lib/screens/recipes/recipe_detail_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode print
+import 'package:flutter/rendering.dart'; // For ScrollDirection
 
 import '../../providers/recipe_provider.dart';
 import '../../providers/chat_provider.dart'; // Added for chat functionality
 import '../../providers/auth_provider.dart'; // Added for authentication
 import '../../models/recipe.dart'; // Ensure updated model is imported
-// Ensure updated NutritionInfo model is imported
+// Ensure updated NutritionInfo model is imported if NutritionCard uses it explicitly
 import '../../models/chat_message.dart'; // Added for chat messages
 import '../../widgets/recipes/ingredient_list.dart';
 import '../../widgets/recipes/step_card.dart';
@@ -19,837 +19,612 @@ import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
 import '../../widgets/chat/message_input.dart'; // Added for chat input
 import '../../widgets/chat/chat_bubble.dart'; // Added for chat bubbles
+import '../../widgets/recipes/floating_cook_mode_button.dart'; // Import for floating Cook Mode button
+import '../../widgets/recipes/cook_mode_view.dart'; // Import for CookModeView
 
 class RecipeDetailScreen extends StatefulWidget {
-  const RecipeDetailScreen({Key? key}) : super(key: key);
+  // Accept optional initialRecipe (less critical now, but useful fallback)
+  final Recipe? initialRecipe;
+
+  // --- ADDED: Optional originating conversation ID ---
+  // This is passed via arguments, not constructor for this implementation
+  // final String? originatingConversationId;
+
+  const RecipeDetailScreen({
+    Key? key,
+    this.initialRecipe,
+    // this.originatingConversationId, // Not using constructor arg here
+  }) : super(key: key);
 
   @override
   _RecipeDetailScreenState createState() => _RecipeDetailScreenState();
 }
 
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
-  // Added state variables for chat functionality
-  bool _showChat = false;
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  String? _conversationId;
-  bool _creatingConversation = false;
+  // State variables for chat functionality
+  // bool _showChat = false; // Not used for bottom sheet anymore // REMOVED
+  final TextEditingController _messageController = TextEditingController(); // Kept for potential future use if chat expands here
+  final ScrollController _scrollController = ScrollController(); // Use for floating button visibility
+  bool _showFloatingButton = true; // Control floating button visibility
 
-  // Add state for action buttons
+  // --- MODIFIED: Changed conversationId name and added boolean flag ---
+  String? _originatingConversationId; // Store conversation ID IF passed via arguments
+  bool _creatingConversation = false; // Track NEW chat creation status
+
+  // State for action buttons (like delete, favorite)
   bool _isPerformingAction = false;
 
-  // Helper widget to build the Icon + Text display for time info - Unchanged
-  Widget _buildTimeInfo(BuildContext context, IconData icon, String text) {
-    if (text.trim().isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18, color: Colors.grey[700]),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[700]),
-        ),
-      ],
-    );
+  // Flag to track if initial recipe was processed
+  bool _isInitialRecipeSet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add scroll listener to control Cook Mode button visibility
+    _scrollController.addListener(() {
+      final isScrollingUp = _scrollController.position.userScrollDirection == ScrollDirection.reverse;
+      if (isScrollingUp != _showFloatingButton) {
+        setState(() {
+          _showFloatingButton = !isScrollingUp;
+        });
+      }
+    });
+
+    // Use post-frame callback for safe provider access
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Check if mounted and if initial recipe hasn't been processed yet
+      if (mounted && !_isInitialRecipeSet && widget.initialRecipe != null) {
+        final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+
+        // Set the initial recipe in the provider ONLY if the provider doesn't
+        // already have a recipe or if the initialRecipe is different.
+        // This acts as a fallback if navigation happens without provider being set.
+        if (recipeProvider.currentRecipe == null || recipeProvider.currentRecipe?.id != widget.initialRecipe!.id) {
+          if (kDebugMode) print("RecipeDetailScreen: Setting initial recipe from arguments: ${widget.initialRecipe!.title}");
+          // This method should update the provider's state and notify listeners
+          recipeProvider.setCurrentRecipe(widget.initialRecipe!);
+        } else {
+          if (kDebugMode) print("RecipeDetailScreen: Provider already has this recipe or a different one, not overriding with initialRecipe argument.");
+        }
+        _isInitialRecipeSet = true; // Mark as processed
+
+      } else if (!_isInitialRecipeSet) { // Handle case where no initialRecipe is passed
+        if (kDebugMode) print("RecipeDetailScreen: No initial recipe provided, relying on provider state.");
+        // Ensure provider has a recipe, otherwise show error/pop?
+        final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+        if (recipeProvider.currentRecipe == null && !recipeProvider.isLoading) {
+          print("RecipeDetailScreen Error: Reached detail screen but no recipe in provider and not loading.");
+          // Optionally pop or show an error immediately
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Recipe details not available.'), backgroundColor: Colors.red));
+              Navigator.of(context).pop();
+            }
+          });
+        }
+        _isInitialRecipeSet = true; // Mark as processed even if no initial recipe was passed.
+      }
+    });
   }
 
-  // Helper function to show the styled Nutrition Dialog - Only title removed
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  // --- ADDED: Extract navigation arguments ---
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Extract originatingConversationId from arguments only once
+    if (_originatingConversationId == null) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is Map && arguments.containsKey('originatingConversationId')) {
+        setState(() { // Use setState here if needed elsewhere in build, otherwise direct assignment is fine
+          _originatingConversationId = arguments['originatingConversationId'] as String?;
+          if (kDebugMode) print("RecipeDetailScreen: Received originatingConversationId: $_originatingConversationId");
+        });
+      } else {
+        if (kDebugMode) print("RecipeDetailScreen: No originatingConversationId found in arguments.");
+      }
+    }
+  }
+  // --- END ADDED ---
+
+
+  // Helper widget for time info
+  Widget _buildTimeInfo(BuildContext context, IconData icon, String text) {
+    if (text.trim().isEmpty) return const SizedBox.shrink();
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 18, color: Colors.grey[700]),
+      const SizedBox(width: 4),
+      Text(text, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[700])),
+    ]);
+  }
+
+  // Helper function for Nutrition Dialog
   void _showStyledNutritionDialog(BuildContext context, Recipe recipe) {
     final nutritionInfo = recipe.nutrition;
     showDialog(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          // title: const Text("Nutrition Info"),  // <-- removed
-          content: SingleChildScrollView(
-            child: NutritionCard(nutrition: nutritionInfo),
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 0.0),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-          ],
-        );
-      },
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Nutrition Info (Per Serving)'), // Add title
+        content: SingleChildScrollView(child: NutritionCard(nutrition: nutritionInfo)),
+        contentPadding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 0.0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        actions: <Widget>[
+          TextButton(child: const Text('Close'), onPressed: () => Navigator.of(dialogContext).pop()),
+        ],
+      ),
     );
   }
 
   // Handle deleting a recipe
   Future<void> _deleteRecipe(Recipe recipe) async {
-    // Confirm deletion first
     final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Recipe?'),
-        content: Text('Are you sure you want to delete "${recipe.title}"? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+        context: context,
+        builder: (context) => AlertDialog(
+            title: const Text('Delete Recipe?'),
+            content: Text('Are you sure you want to delete "${recipe.title}"? This action cannot be undone.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.of(context).pop(true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete'))
+            ]
+        )
     ) ?? false;
 
-    if (!confirmed) return;
+    if (!confirmed || !mounted) return;
 
-    setState(() {
-      _isPerformingAction = true;
-    });
-
+    setState(() => _isPerformingAction = true);
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-
       if (!authProvider.isAuthenticated || recipe.id == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cannot delete: You must be logged in and the recipe must have an ID')),
-        );
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot delete recipe: Not logged in or recipe has no ID.'), backgroundColor: Colors.orange));
         return;
       }
-
       final success = await recipeProvider.deleteRecipe(recipe.id!, authProvider.token!);
-
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Recipe deleted successfully')),
-        );
-        Navigator.of(context).pop(); // Go back after deletion
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipe deleted successfully'), backgroundColor: Colors.green));
+        // Pop back to the previous screen (likely recipe list or home)
+        Navigator.of(context).pop();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete recipe: ${recipeProvider.error ?? "Unknown error"}')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete recipe: ${recipeProvider.error ?? "Unknown error"}'), backgroundColor: Colors.red));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting recipe: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting recipe: $e'), backgroundColor: Colors.red));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPerformingAction = false;
-        });
-      }
+      if (mounted) setState(() => _isPerformingAction = false);
     }
   }
 
   // Handle toggling favorite status
   Future<void> _toggleFavorite(Recipe recipe) async {
     if (recipe.id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot favorite: Recipe must have an ID')),
-      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot favorite recipe: Recipe has no ID.'), backgroundColor: Colors.orange));
       return;
     }
+    if (_isPerformingAction) return; // Prevent double taps
 
-    setState(() {
-      _isPerformingAction = true;
-    });
+    setState(() => _isPerformingAction = true);
+    final bool wasFavorite = recipe.isFavorite; // Check state before action
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-
       if (!authProvider.isAuthenticated) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You must be logged in to favorite recipes')),
-        );
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to manage favorites.'), backgroundColor: Colors.orange));
         return;
       }
-
       final success = await recipeProvider.toggleFavorite(recipe.id!, authProvider.token!);
 
       if (success && mounted) {
-        final message = recipe.isFavorite
-            ? 'Recipe removed from favorites'
-            : 'Recipe added to favorites';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        // The provider state (_currentRecipe.isFavorite) will be updated by toggleFavorite,
+        // so the button icon will rebuild correctly. Show confirmation.
+        final message = wasFavorite ? 'Removed from favorites' : 'Added to favorites';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update favorites: ${recipeProvider.error ?? "Unknown error"}')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update favorites: ${recipeProvider.error ?? "Unknown error"}'), backgroundColor: Colors.red));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating favorites: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating favorites: $e'), backgroundColor: Colors.red));
     } finally {
+      // Check mounted again before setting state in finally block
       if (mounted) {
-        setState(() {
-          _isPerformingAction = false;
-        });
+        setState(() => _isPerformingAction = false);
       }
     }
   }
 
   // Handle sharing a recipe
   Future<void> _shareRecipe(Recipe recipe) async {
+    // Prevent action if already performing one
+    if (_isPerformingAction) return;
+    setState(() => _isPerformingAction = true); // Indicate action started
+
     try {
-      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-      await recipeProvider.shareRecipe();
+      // Use provider's share method which uses the current recipe state
+      await Provider.of<RecipeProvider>(context, listen: false).shareRecipe();
+      // Optional: Show confirmation
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipe ready to share!'), backgroundColor: Colors.blue));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sharing recipe: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error sharing recipe: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isPerformingAction = false); // Indicate action finished
     }
   }
 
-  // New function to create a chat conversation about the current recipe
-  Future<void> _createChatConversation(Recipe recipe) async {
-    if (_creatingConversation) return;
+  // --- MODIFIED: Navigate back to origin chat or create new chat ---
+  Future<void> _handleAskAboutRecipe(Recipe recipe) async {
+    // Check if we have an originating conversation ID
+    if (_originatingConversationId != null && _originatingConversationId!.isNotEmpty) {
+      // --- Navigate back to the existing chat ---
+      if (kDebugMode) print("RecipeDetailScreen: Navigating back to originating chat: $_originatingConversationId");
+      // Simply pop the current screen, assuming ChatScreen is the previous one
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } else {
+      // --- Original behavior: Start a NEW chat conversation ---
+      if (kDebugMode) print("RecipeDetailScreen: No originating chat ID found, starting a new chat.");
+      await _startNewChatAboutRecipe(recipe);
+    }
+  }
+
+
+  // --- RENAMED & KEPT: Function to create a *new* chat ---
+  Future<void> _startNewChatAboutRecipe(Recipe recipe) async {
+    if (_creatingConversation || _isPerformingAction) return; // Prevent double taps
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (!authProvider.isAuthenticated) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to start a chat.'), backgroundColor: Colors.orange));
+      return;
+    }
+
     setState(() {
       _creatingConversation = true;
+      _isPerformingAction = true; // Also block other actions
     });
+    final snackBar = ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Starting chat...'), duration: Duration(seconds: 5))
+    );
 
     try {
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      final newConversationId = await chatProvider.createNewConversation(); // Creates and selects
 
-      // Create a new conversation
-      final newConversationId = await chatProvider.createNewConversation();
       if (newConversationId != null) {
-        setState(() {
-          _conversationId = newConversationId;
-          _showChat = true;
-          _creatingConversation = false;
-        });
+        // _conversationId = newConversationId; // No longer need to store locally in this screen state
 
-        // Send initial message about the recipe to create context
-        await chatProvider.sendMessage(
-            "I'd like to learn more about this ${recipe.title} recipe. Can you help me with any questions I might have?"
-        );
+        // Send initial message about the recipe
+        await chatProvider.sendMessage("I'd like to discuss this recipe: ${recipe.title}");
 
-        // Scroll to the bottom of the chat
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      } else {
-        // Handle error creating conversation
-        setState(() {
-          _creatingConversation = false;
-        });
+        snackBar.close(); // Close loading indicator
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Could not create chat conversation'), backgroundColor: Colors.red)
-          );
+          // Navigate to the newly created and selected chat screen
+          // Replace current screen if desired, or push
+          Navigator.of(context).pushReplacementNamed('/chat', arguments: newConversationId);
+          // Alternative: Navigator.of(context).pushNamed('/chat', arguments: newConversationId);
         }
+      } else {
+        snackBar.close();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create chat conversation'), backgroundColor: Colors.red));
       }
     } catch (e) {
-      setState(() {
-        _creatingConversation = false;
-      });
+      snackBar.close();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: ${e.toString()}'), backgroundColor: Colors.red));
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red)
-        );
+        setState(() {
+          _creatingConversation = false;
+          _isPerformingAction = false;
+        });
       }
     }
   }
+  // --- END CHAT FUNCTION ---
 
-  // New function to send a chat message
-  Future<void> _sendMessage(String message) async {
-    if (_conversationId == null) return;
-
-    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    if (chatProvider.isSendingMessage) return;
-
-    _messageController.clear();
-    await chatProvider.sendMessage(message);
-
-    // Scroll to the bottom of the chat
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  // Updated function to handle suggestion selection with the new signature
-  void _onSuggestionSelected(String suggestion, bool generateRecipe) {
-    print("Suggestion selected in Recipe Detail: $suggestion, generate: $generateRecipe");
-
-    // Special handling for "Something else?" option
-    if (suggestion.toLowerCase() == "something else?") {
-      // Send this exact message to get more suggestions
-      _sendMessage("Something else?");
-      return;
-    }
-
-    if (generateRecipe) {
-      // Close the chat modal first
-      Navigator.of(context).pop();
-
-      // Get required providers
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-
-      // Clear any existing recipe to start fresh
-      recipeProvider.clearCurrentRecipe();
-
-      // Start the generation process - will display in the current screen
-      recipeProvider.generateRecipe(
-        suggestion,
-        save: authProvider.isAuthenticated,
-        token: authProvider.token,
-      ).catchError((error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error generating recipe: $error'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      });
-
-      // No need to navigate since we're already on the recipe screen
-
-    } else {
-      _sendMessage("Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it");
-    }
-  }
-
-  // New function to toggle chat visibility and show as a bottom sheet
-  void _toggleChat(Recipe recipe) {
-    if (_showChat) {
-      // If chat is already showing, just hide it
-      setState(() {
-        _showChat = false;
-      });
-      return;
-    }
-
-    // Create conversation if needed
-    if (_conversationId == null) {
-      _createChatConversation(recipe);
-    }
-
-    // Show chat as a modal bottom sheet
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // Full height possible
-      backgroundColor: Colors.transparent, // Transparent background for custom shape
-      builder: (context) {
-        return StatefulBuilder(
-            builder: (context, setSheetState) {
-              // Get the required data for chat
-              final chatProvider = Provider.of<ChatProvider>(context);
-              final bool isActiveConversation = chatProvider.activeConversationId == _conversationId;
-              final messages = isActiveConversation ? chatProvider.activeMessages : <ChatMessage>[];
-              final isLoadingMessages = isActiveConversation ? chatProvider.isLoadingMessages : false;
-              final isSendingMessage = chatProvider.isSendingMessage;
-              final error = isActiveConversation ? chatProvider.messagesError ?? chatProvider.sendMessageError : null;
-
-              // Calculate height - give enough space for typing and messages
-              // Use approximately 75% of screen height
-              return FractionallySizedBox(
-                heightFactor: 0.75, // Use 75% of screen height
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Chat header with recipe title
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(16),
-                            topRight: Radius.circular(16),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.chat_bubble_outline, color: Colors.white),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Chat about ${recipe.title}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, color: Colors.white),
-                              onPressed: () => Navigator.of(context).pop(),
-                              tooltip: 'Close chat',
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Messages area - Takes all available space
-                      Expanded(
-                        child: _creatingConversation || isLoadingMessages
-                            ? const Center(child: CircularProgressIndicator())
-                            : error != null && messages.isEmpty
-                            ? Center(child: Text("Error: $error", style: const TextStyle(color: Colors.red)))
-                            : messages.isEmpty
-                            ? const Center(child: Text('Starting conversation...'))
-                            : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: messages.length,
-                          itemBuilder: (context, index) {
-                            final message = messages[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: ChatBubble(
-                                message: message,
-                                onSuggestionSelected: _onSuggestionSelected,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      // Sending indicator
-                      if (isSendingMessage)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 12,
-                                      height: 12,
-                                      child: CircularProgressIndicator(strokeWidth: 1.5),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Assistant is thinking...',
-                                      style: TextStyle(color: Colors.black54),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      // Message input - Add padding to avoid keyboard overlap
-                      Padding(
-                        padding: EdgeInsets.only(
-                            left: 8, right: 8, top: 8,
-                            // Add bottom padding to handle keyboard
-                            bottom: MediaQuery.of(context).viewInsets.bottom + 8
-                        ),
-                        child: MessageInput(
-                          controller: _messageController,
-                          onSend: (message) {
-                            _sendMessage(message);
-                            // Update bottom sheet state after sending
-                            setSheetState(() {});
-                          },
-                          isLoading: isSendingMessage,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-        );
-      },
-    ).then((_) {
-      // Update state after bottom sheet is closed
-      setState(() {
-        _showChat = false;
-      });
-    });
-
-    // Update state
-    setState(() {
-      _showChat = true;
-    });
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final recipeProvider = Provider.of<RecipeProvider>(context);
-    final authProvider = Provider.of<AuthProvider>(context);
-    final recipe = recipeProvider.currentRecipe;
-    final partialRecipe = recipeProvider.partialRecipe; // Get partial recipe
-    final isLoading = recipeProvider.isLoading;
-    final error = recipeProvider.error;
-    final progress = recipeProvider.generationProgress;
-    final isCancelling = recipeProvider.isCancelling;
+    // Use Consumer for RecipeProvider to react to its changes (e.g., favorite status)
+    return Consumer<RecipeProvider>(
+        builder: (context, recipeProvider, child) {
 
-    // Whether user is logged in
-    final bool isAuthenticated = authProvider.isAuthenticated;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false); // Read once
 
-    // Debug logs - Unchanged
-    if (kDebugMode && recipe != null) {
-      print("Recipe Detail Debug Info:");
-      print("- Recipe ID: ${recipe.id}");
-      // ... other debug prints ...
-    }
+      // --- Determine Recipe to Display ---
+      // This screen should ONLY be reached if recipeProvider.currentRecipe is set.
+      // The initState logic tries to ensure this or pops the screen.
+      final Recipe? recipeToDisplay = recipeProvider.currentRecipe;
+      final partialRecipe = recipeProvider.partialRecipe; // Still needed for generation progress view
 
-    // --- Handle Loading/Error/Null ---
-    if (isLoading && recipe == null) {
-      // Check if we have a partial recipe to display
-      if (partialRecipe != null) {
+      final isLoading = recipeProvider.isLoading;
+      final error = recipeProvider.error;
+      final progress = recipeProvider.generationProgress;
+      final isCancelling = recipeProvider.isCancelling;
+      final wasCancelled = recipeProvider.wasCancelled; // Get cancellation status
+      final bool isAuthenticated = authProvider.isAuthenticated;
+
+
+      // --- Handle Generation State (if user lands here while generating) ---
+      if (isLoading && recipeToDisplay == null && !wasCancelled) {
+        // Show generation progress UI instead of recipe details
+        if (partialRecipe != null) { // Show progress with partial recipe
+          return Scaffold(
+            appBar: AppBar(title: Text(partialRecipe.title.isNotEmpty ? partialRecipe.title : 'Generating Recipe...'), actions: [ if (isLoading && !isCancelling) IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: ()=> recipeProvider.cancelRecipeGeneration(), tooltip: "Cancel Generation") ]),
+            body: RecipeGenerationProgress(
+              partialRecipe: partialRecipe, progress: progress,
+              onCancel: () => recipeProvider.cancelRecipeGeneration(), isCancelling: isCancelling,
+            ),
+          );
+        } else { // Show generic loading/polling indicator
+          return Scaffold(
+            appBar: AppBar(title: const Text('Loading Recipe...'), actions: [ if (isLoading && !isCancelling) IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: ()=> recipeProvider.cancelRecipeGeneration(), tooltip: "Cancel Generation") ]),
+            body: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 24),
+              if (recipeProvider.isQueueActive) Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(children: [
+                    LinearProgressIndicator(value: progress > 0 ? progress : null, backgroundColor: Colors.grey[300], valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor)),
+                    const SizedBox(height: 16),
+                    if (progress > 0) Text('${(progress * 100).toInt()}% complete', style: TextStyle(color: Theme.of(context).primaryColor)),
+                    const SizedBox(height: 24),
+                  ])
+              ) else const Text("Generating your recipe..."),
+            ]),
+          );
+        }
+      }
+
+
+      // --- Handle Cancellation State ---
+      if (wasCancelled) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Generating Recipe...')),
-          body: RecipeGenerationProgress(
-            partialRecipe: partialRecipe,
-            progress: progress,
-            onCancel: () => recipeProvider.cancelRecipeGeneration(),
-            isCancelling: isCancelling,
-          ),
+            appBar: AppBar(title: const Text('Generation Cancelled'), leading: IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))),
+          body: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.cancel_outlined, size: 60, color: Colors.orange), const SizedBox(height: 16),
+            Text('Recipe Generation Cancelled', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center,),
+            if (recipeProvider.error != null && recipeProvider.error != 'Recipe generation cancelled') Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(recipeProvider.error!, style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center,)),
+            const SizedBox(height: 20), ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Go Back'))
+          ]))),
         );
       }
 
-      // No partial recipe yet, show loading indicator
+
+      // --- Handle Error State ---
+      // If error is present AND we still don't have a recipe to display
+      if (error != null && recipeToDisplay == null) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Recipe Error'), leading: IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))),
+          body: ErrorDisplay(message: error), // Use your standard error widget
+        );
+      }
+
+      // --- Handle Recipe Not Found State ---
+      // If not loading, no error, not cancelled, but recipe is still null
+      if (recipeToDisplay == null && !isLoading && error == null && !wasCancelled) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Recipe Not Found'), leading: IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))),
+          body: const Center(child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('Could not load the recipe details. Please try again later.', textAlign: TextAlign.center,),
+          )),
+        );
+      }
+
+      // --- Recipe Loaded UI ---
+      // At this point, recipeToDisplay MUST be non-null
+      final recipe = recipeToDisplay!;
+
+      // Determine if any time info is available to adjust padding
+      bool hasTimeInfo = (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0) ||
+          (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0) ||
+          (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0);
+
+      // --- ADDED: Determine button text based on context ---
+      final askButtonLabel = (_originatingConversationId != null && _originatingConversationId!.isNotEmpty)
+          ? 'Return to Chat'
+          : 'Ask about this recipe';
+      // --- END ADDED ---
+
+
       return Scaffold(
-        appBar: AppBar(title: const Text('Loading Recipe...')),
-        body: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const LoadingIndicator(message: 'Preparing your recipe...'),
-            const SizedBox(height: 24),
-            if (recipeProvider.isQueueActive)
+        appBar: AppBar(
+          title: Text(recipe.title, overflow: TextOverflow.ellipsis), // Use loaded recipe
+          actions: [ // Use loaded recipe for actions
+            // Favorite Button
+            if (isAuthenticated && recipe.id != null)
+              IconButton(
+                  icon: Icon(recipe.isFavorite ? Icons.favorite : Icons.favorite_border, color: recipe.isFavorite ? Colors.redAccent : null),
+                  tooltip: recipe.isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                  onPressed: _isPerformingAction ? null : () => _toggleFavorite(recipe) // Disable while action is running
+              ),
+            // Share Button
+            IconButton(
+                icon: const Icon(Icons.share_outlined), // Use outlined icon
+                tooltip: 'Share recipe',
+                onPressed: _isPerformingAction ? null : () => _shareRecipe(recipe)
+            ),
+            // Delete Button (only if authenticated and recipe has an ID)
+            if (isAuthenticated && recipe.id != null)
+              IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete recipe',
+                  onPressed: _isPerformingAction ? null : () => _deleteRecipe(recipe)
+              ),
+            // Nutrition Button
+            IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Nutrition Info',
+                onPressed: () => _showStyledNutritionDialog(context, recipe)
+            ),
+          ],
+        ),
+        // --- Updated Body Structure ---
+        body: SingleChildScrollView(
+          controller: _scrollController, // Add scroll controller for floating button
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Optional: Display Thumbnail if available
+              if (recipe.thumbnailUrl != null)
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    recipe.thumbnailUrl!,
+                    fit: BoxFit.cover,
+                    // Add loading/error builders for network image
+                    loadingBuilder: (context, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator()),
+                    errorBuilder: (context, error, stack) => Container(color: Colors.grey[200], child: const Icon(Icons.broken_image, color: Colors.grey, size: 50)),
+                  ),
+                )
+              else // Show placeholder if no thumbnail
+                Container(
+                  height: 150,
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  child: Center(child: Icon(Icons.restaurant_menu, size: 60, color: Theme.of(context).primaryColor.withOpacity(0.4))),
+                ),
+
+
+              // Recipe Title and Meta Info
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  children: [
-                    LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: Colors.grey[300],
-                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '${(progress * 100).toInt()}% complete',
-                      style: TextStyle(color: Theme.of(context).primaryColor),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: isCancelling
-                          ? null
-                          : () => recipeProvider.cancelRecipeGeneration(),
-                      icon: const Icon(Icons.cancel, color: Colors.red),
-                      label: Text(
-                        isCancelling ? 'Cancelling...' : 'Cancel Generation',
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-    if (error != null && recipe == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Recipe Error')),
-        body: ErrorDisplay(message: error),
-      );
-    }
-    if (recipe == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Recipe Not Found')),
-        body: const Center(child: Text('Could not load the recipe details.')),
-      );
-    }
-
-    // --- Recipe Loaded UI --- (same as before)
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(recipe.title),
-        // Keep the AppBar action button for Nutrition Info
-        actions: [
-          // Add favorite action
-          if (isAuthenticated && recipe.id != null)
-            IconButton(
-              icon: Icon(
-                recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: recipe.isFavorite ? Colors.red : null,
-              ),
-              tooltip: recipe.isFavorite ? 'Remove from favorites' : 'Add to favorites',
-              onPressed: _isPerformingAction
-                  ? null
-                  : () => _toggleFavorite(recipe),
-            ),
-
-          // Add share action
-          IconButton(
-            icon: const Icon(Icons.share),
-            tooltip: 'Share recipe',
-            onPressed: () => _shareRecipe(recipe),
-          ),
-
-          // Add delete action if user is authenticated
-          if (isAuthenticated && recipe.id != null)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete recipe',
-              onPressed: _isPerformingAction
-                  ? null
-                  : () => _deleteRecipe(recipe),
-            ),
-
-          // Nutrition info button
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Nutrition Info',
-            onPressed: () {
-              _showStyledNutritionDialog(context, recipe);
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Recipe Header ---
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    recipe.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // --- Servings & Steps Row (original structure, now with flex) ---
-                  Row(
-                    children: [
-                      Icon(Icons.people_outline, size: 18, color: Colors.grey[700]),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          'Serves ${recipe.servings}',
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyLarge
-                              ?.copyWith(color: Colors.grey[700]),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(recipe.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)), // Larger title
+                        const SizedBox(height: 12),
+                        // Meta info row (Servings, Steps)
+                        Row(
+                            children: [
+                              Icon(Icons.people_outline, size: 18, color: Colors.grey[700]), const SizedBox(width: 4),
+                              Text('Serves ${recipe.servings}', style: Theme.of(context).textTheme.titleSmall),
+                              const SizedBox(width: 16),
+                              Icon(Icons.list_alt_outlined, size: 18, color: Colors.grey[700]), const SizedBox(width: 4),
+                              Text('${recipe.steps.length} step${recipe.steps.length != 1 ? 's' : ''}', style: Theme.of(context).textTheme.titleSmall) // Pluralize steps
+                            ]
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(Icons.list_alt, size: 18, color: Colors.grey[700]),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          '${recipe.steps.length} steps',
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyLarge
-                              ?.copyWith(color: Colors.grey[700]),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // --- Time Info Row --- Unchanged
-                  Wrap(
-                    spacing: 12,
-                    children: [
-                      if (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0)
-                        _buildTimeInfo(
-                            context, Icons.timer_outlined, '${recipe.prepTimeMinutes} min prep'),
-                      if (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0)
-                        _buildTimeInfo(
-                            context, Icons.whatshot_outlined, '${recipe.cookTimeMinutes} min cook'),
-                      if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
-                        _buildTimeInfo(
-                            context, Icons.schedule, '${recipe.totalTimeMinutes} min total'),
-                    ],
-                  ),
-                ],
+                        // Time info row (only if available)
+                        if (hasTimeInfo) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                              spacing: 16, // Increased spacing
+                              runSpacing: 4,
+                              children: [
+                                if (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0) _buildTimeInfo(context, Icons.timer_outlined, '${recipe.prepTimeMinutes} min prep'),
+                                if (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0) _buildTimeInfo(context, Icons.whatshot_outlined, '${recipe.cookTimeMinutes} min cook'),
+                                if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0) _buildTimeInfo(context, Icons.schedule_outlined, '${recipe.totalTimeMinutes} min total')
+                              ]
+                          )
+                        ]
+                      ]
+                  )
               ),
-            ),
 
-            const Divider(height: 1, indent: 16, endIndent: 16),
+              const Divider(height: 1, indent: 16, endIndent: 16),
 
-            // --- Ingredients --- Unchanged
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Ingredients', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  IngredientList(ingredients: recipe.ingredients),
-                ],
+              // Ingredients Section
+              Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Ingredients', style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 12),
+                        IngredientList(ingredients: recipe.ingredients) // Use dedicated widget
+                      ]
+                  )
               ),
-            ),
 
-            const Divider(height: 1, indent: 16, endIndent: 16),
+              const Divider(height: 1, indent: 16, endIndent: 16),
 
-            // --- Steps --- Unchanged
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Instructions', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  if (recipe.steps.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32.0),
-                        child: Text(
-                          'No steps available for this recipe.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                            fontStyle: FontStyle.italic,
+              // Instructions Section
+              Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Instructions', style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 16),
+                        if (recipe.steps.isEmpty)
+                          Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 32.0), child: Text('No steps available...', style: TextStyle(fontSize: 16, color: Colors.grey[600], fontStyle: FontStyle.italic))))
+                        else
+                          ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: recipe.steps.length,
+                              itemBuilder: (context, index) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 16.0),
+                                  child: StepCard(
+                                    step: recipe.steps[index],
+                                    stepNumber: index + 1,
+                                    allSteps: recipe.steps, // Add all steps parameter
+                                  )
+                              )
+                          )
+                      ]
+                  )
+              ),
+
+              // Divider before chat button
+              const Divider(height: 1, indent: 16, endIndent: 16),
+
+              // --- MODIFIED: Chat Button uses new handler and dynamic label ---
+              Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24), // Add more bottom padding
+                  child: Center(
+                      child: ElevatedButton.icon(
+                        // --- Use dynamic icon based on context ---
+                          icon: Icon(
+                              (_originatingConversationId != null && _originatingConversationId!.isNotEmpty)
+                                  ? Icons.arrow_back_ios_new // Icon for returning
+                                  : Icons.chat_bubble_outline // Icon for asking/new chat
                           ),
-                        ),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: recipe.steps.length,
-                      itemBuilder: (context, index) {
-                        final step = recipe.steps[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: StepCard(step: step, stepNumber: index + 1),
-                        );
-                      },
-                    ),
-                ],
+                          label: Text(askButtonLabel), // --- Use dynamic label ---
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            textStyle: const TextStyle(fontSize: 16),
+                            // Disable button while creating chat or performing other actions
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                          ),
+                          // --- Use the new handler function ---
+                          onPressed: (_creatingConversation || _isPerformingAction) ? null : () => _handleAskAboutRecipe(recipe) // Disable if busy
+                      )
+                  )
               ),
-            ),
+              // --- END MODIFIED ---
 
-            const Divider(height: 1, indent: 16, endIndent: 16),
-
-            // --- Action Buttons Row ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Like button
-                  if (isAuthenticated && recipe.id != null)
-                    ActionButton(
-                      icon: recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      label: recipe.isFavorite ? 'Favorited' : 'Favorite',
-                      color: recipe.isFavorite ? Colors.red : null,
-                      onPressed: _isPerformingAction ? null : () => _toggleFavorite(recipe),
-                    ),
-
-                  // Share button
-                  ActionButton(
-                    icon: Icons.share,
-                    label: 'Share',
-                    onPressed: () => _shareRecipe(recipe),
-                  ),
-
-                  // Delete button
-                  if (isAuthenticated && recipe.id != null)
-                    ActionButton(
-                      icon: Icons.delete_outline,
-                      label: 'Delete',
-                      onPressed: _isPerformingAction ? null : () => _deleteRecipe(recipe),
-                    ),
-                ],
-              ),
-            ),
-
-            // --- Chat Button ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Center(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Ask about this recipe'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    textStyle: const TextStyle(fontSize: 16),
-                  ),
-                  onPressed: () => _toggleChat(recipe),
-                ),
-              ),
-            ),
-          ],
+              // Additional bottom space for floating button
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-}
+        // Add floating Cook Mode button
+        floatingActionButton: FloatingCookModeButton(
+          steps: recipe.steps,
+          visible: _showFloatingButton,
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      );
+        }, // End Consumer builder
+    ); // End Consumer
+  } // End build method
+} // End _RecipeDetailScreenState class
 
-// Helper widget for action buttons
+
+// Helper widget for action buttons (remains the same)
 class ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
-  final Color? color;
+  final Color? color; // Optional color override
 
   const ActionButton({
     Key? key,
@@ -861,12 +636,17 @@ class ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Determine the color to use for icon and text
+    final effectiveColor = color ?? Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+
     return TextButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, color: color),
-      label: Text(label, style: TextStyle(color: color)),
+      icon: Icon(icon, color: effectiveColor, size: 20), // Slightly smaller icon
+      label: Text(label, style: TextStyle(color: effectiveColor)),
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        // Add visual density for tighter spacing if needed
+        // visualDensity: VisualDensity.compact,
       ),
     );
   }

@@ -138,30 +138,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
             const SizedBox(height: 32),
 
-            // Credits Section
-            const Text(
-              'Powered By',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
 
-            // Technology stack credits
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _buildTechLogo('Flutter', 'assets/flutter_logo.png', Icons.flutter_dash),
-                _buildTechLogo('Node.js', 'assets/nodejs_logo.png', Icons.code),
-                _buildTechLogo('Supabase', 'assets/supabase_logo.png', Icons.storage),
-                _buildTechLogo('OpenAI', 'assets/openai_logo.png', Icons.psychology),
-              ],
-            ),
-
-            const SizedBox(height: 32),
 
             // Legal links
             Wrap(
