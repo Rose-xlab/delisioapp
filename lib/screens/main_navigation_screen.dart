@@ -1,4 +1,5 @@
 // lib/screens/main_navigation_screen.dart
+import 'package:kitchenassistant/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/bottom_navigation.dart';
 import 'home_screen_enhanced.dart'; // Use new enhanced home screen
@@ -42,7 +43,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ];
       setState(() {}); // Refresh with initial screens
     } catch (e) {
-      print("Error initializing screens: $e");
+      debugPrint("Error initializing screens: $e");
     }
   }
 
@@ -50,6 +51,49 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget _buildChatPlaceholder() {
     return Builder(
       builder: (context) {
+
+         final authProvider = Provider.of<AuthProvider>(context);
+
+            // User object from AuthProvider
+         final user = authProvider.user;
+
+         //////////////////////////////////////////////
+         if (!authProvider.isAuthenticated || user == null) { // Also check if user object is null
+      return Scaffold(
+        appBar: AppBar(title: const Text('Chat')),
+        body: Center(
+          child: Padding(
+            
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Please log in to Chat with AI'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  // Use pushReplacementNamed for login to replace the current screen
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Login / Sign Up'), // More inviting text
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+         //////////////////////////////////////////////////////
         return const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -112,7 +156,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         });
       }
     } catch (e) {
-      print("Error initializing chat tab: $e");
+      debugPrint("Error initializing chat tab: $e");
       if (mounted) {
         // Show error state in the chat tab
         setState(() {
@@ -142,8 +186,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void _onTabTapped(int index) async {
     if (index == 1) {
       // If switching to Chat tab, ensure chat is initialized
-      if (_chatId == null) {
+      if (_chatId == null ) {
         await _initializeChatTab();
+      }
+    }
+
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  dynamic _unAuthTapped(int index) {
+
+        if (index == 1) {
+      // If switching to Chat tab, ensure chat is initialized
+      if (_chatId == null ) {
+        // await _initializeChatTab();
       }
     }
 
@@ -154,10 +212,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print("Building MainNavigationScreen, index: $_currentIndex");
+
+    debugPrint("Building MainNavigationScreen, index: $_currentIndex");
+    final authProvider = Provider.of<AuthProvider>(context);
 
     // If we're showing the chat tab for the first time, initialize it
-    if (_currentIndex == 1 && _chatId == null) {
+    if (_currentIndex == 1 && _chatId == null && authProvider.isAuthenticated) {
       _initializeChatTab();
     }
 
@@ -170,7 +230,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // Your custom bottom navigation bar widget
       bottomNavigationBar: BottomNavigation(
         currentIndex: _currentIndex,
-        onTap: _onTabTapped,
+        onTap:authProvider.isAuthenticated ? _onTabTapped : _unAuthTapped,
       ),
     );
   }

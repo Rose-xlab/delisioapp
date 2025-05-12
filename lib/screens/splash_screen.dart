@@ -1,18 +1,11 @@
-// lib/screens/splash_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
-import 'dart:async'; // For Future.delayed
-// No longer importing these here if not used:
-// import '../widgets/common/loading_indicator.dart';
-// import '../widgets/common/error_display.dart';
+import 'dart:async';
+import 'package:flutter/services.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
 
   @override
-  // Ignore this specific private type warning for createState, it's standard practice
-  // ignore: library_private_types_in_public_api
   _SplashScreenState createState() => _SplashScreenState();
 }
 
@@ -20,71 +13,89 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    print("SplashScreen: initState called");
-    _navigateBasedOnAuthState(); // Renamed function for clarity
+    // Set full screen mode immediately
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _navigateBasedOnAuthState();
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
   }
 
   Future<void> _navigateBasedOnAuthState() async {
-    print("SplashScreen: Starting navigation check...");
-
-    // IMPORTANT: Wait a short moment to allow AuthProvider's listener
-    // (which starts in its constructor) to potentially receive the
-    // initial auth state from Supabase. 2 seconds might be more than needed,
-    // but keeps the splash visible. A shorter delay or a Future.microtask
-    // might work once AuthProvider initialization is confirmed stable.
-    print("SplashScreen: Waiting for initial auth state resolution (2s delay)...");
-    await Future.delayed(const Duration(seconds: 2));
-    print("SplashScreen: Wait finished.");
-
-    // Check if the widget is still mounted before accessing context/navigating
-    if (!mounted) {
-      print("SplashScreen: Widget unmounted after delay, aborting navigation.");
-      return;
-    }
-
-    // Access AuthProvider *after* the delay
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    // Now, simply check the state that AuthProvider determined from Supabase
-    print("SplashScreen: Checking AuthProvider state. IsAuthenticated: ${authProvider.isAuthenticated}");
-
-    if (authProvider.isAuthenticated) {
-      // User is logged in (token and user object exist in provider)
-      print("SplashScreen: User is authenticated. Navigating to /main.");
-      Navigator.of(context).pushReplacementNamed('/main');
-    } else {
-      // User is not logged in
-      print("SplashScreen: User is NOT authenticated. Navigating to /login.");
-      Navigator.of(context).pushReplacementNamed('/login');
-    }
-    // No complex try-catch needed here anymore for this specific check,
-    // as AuthProvider handles its own errors internally when setting state.
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/main');
   }
 
   @override
   Widget build(BuildContext context) {
-    print("SplashScreen: Building UI");
+    // Get full screen dimensions
+    final Size screenSize = MediaQuery.of(context).size;
+
+    // Use exact colors from your logo
+    const Color backgroundColor = Color(0xFFFEF9E7); // Cream/beige from logo
+    const Color textColor = Color(0xFF0A3C5C); // Dark blue from logo
+
+    debugPrint("SplashScreen: Building UI");
     // Keep your existing splash screen UI
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      // Remove any default padding/margin
+      body: Container(
+        // Force container to fill entire screen
+        width: screenSize.width,
+        height: screenSize.height,
+        color: backgroundColor,
+        child: Stack(
+          // Stack allows overlapping elements
           children: [
-            Image.asset(
-              'assets/logo.png', // Make sure this path is correct
-              width: 150,
-              height: 150,
-              errorBuilder: (ctx, err, stack) => const Icon(Icons.food_bank_outlined, size: 100, color: Colors.grey),
+            // Background layer with logo
+            Positioned.fill(
+              child: FractionallySizedBox(
+                // Make logo fill almost entire screen
+                widthFactor: 1.0,
+                heightFactor: 1.0,
+                child: Center(
+                  child: Image.asset(
+                    'assets/logo.png',
+                    // Use width of full screen to make logo as large as possible
+                    width: screenSize.width,
+                    height: screenSize.width, // Maintain square aspect for logo
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 24),
-            const Text(
-              'Cooking Assistant',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+
+            // Loading indicator at bottom
+            const Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: Column(
+                children: [
+                  // Loading spinner
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(textColor),
+                    strokeWidth: 4.0,
+                  ),
+
+                  SizedBox(height: 16),
+
+                  // Loading text
+                  Text(
+                    'Loading...',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            const CircularProgressIndicator(),
-            const SizedBox(height: 10),
-            const Text('Loading...'), // Updated text
           ],
         ),
       ),

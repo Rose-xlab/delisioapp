@@ -1,5 +1,4 @@
 // lib/widgets/home/recipe_grid.dart
-
 import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
 // Import CachedNetworkImage package (ensure it's added to pubspec.yaml)
@@ -7,10 +6,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 class RecipeGrid extends StatelessWidget {
   final List<Recipe> recipes;
-  final ScrollController? scrollController;
+  final ScrollController? scrollController; // Retained as it's part of the original API
   final String emptyMessage;
   final Function(Recipe)? onRecipeTap;
-  final bool isLoading;
+  final bool isLoading; // This will now be _isLoadingRecipes from the parent
   final int crossAxisCount;
   final double childAspectRatio;
 
@@ -27,13 +26,16 @@ class RecipeGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Show loading shimmer if specified
-    if (isLoading) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+
+    // Show loading shimmer if specified by the parent AND recipes list is not empty
+    // If recipes IS empty, the parent HomeScreenEnhanced will show a centered CircularProgressIndicator.
+    if (isLoading && recipes.isNotEmpty) { // Only show shimmer if loading more on existing items
       return _buildLoadingGrid(context);
     }
 
-    // Show empty state if no recipes
-    if (recipes.isEmpty) {
+    // Show empty state if no recipes (and not loading initial set - parent handles that)
+    if (recipes.isEmpty && !isLoading) { // Ensure not to show empty if parent is still loading initial
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -59,14 +61,18 @@ class RecipeGrid extends StatelessWidget {
         ),
       );
     }
+    // If recipes is empty and isLoading is true, parent HomeScreenEnhanced shows the primary loader.
+    // So we only reach here if recipes has items OR if recipes is empty and not loading.
 
     // Show the grid of recipes
     return GridView.builder(
-      controller: scrollController,
+      controller: scrollController, // Parent passes its own scrollController if needed for other logic
+      // but this GridView itself won't scroll.
       padding: const EdgeInsets.all(8),
-      physics: const BouncingScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(), // Ensures this grid doesn't scroll independently
+      shrinkWrap: true, // Important when inside another scrollable and not scrolling itself
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
+        crossAxisCount: screenWidth > 600 ? 4 : crossAxisCount,
         childAspectRatio: childAspectRatio,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -74,7 +80,6 @@ class RecipeGrid extends StatelessWidget {
       itemCount: recipes.length,
       itemBuilder: (context, index) {
         final recipe = recipes[index];
-        // Use the updated RecipeGridItem
         return RecipeGridItem(
           recipe: recipe,
           onTap: onRecipeTap != null ? () => onRecipeTap!(recipe) : null,
@@ -83,22 +88,26 @@ class RecipeGrid extends StatelessWidget {
     );
   }
 
-  // --- Loading Grid Methods (Unchanged from your original) ---
   Widget _buildLoadingGrid(BuildContext context) {
+    // This builds shimmer/placeholder items
+    final screenWidth = MediaQuery.sizeOf(context).width;
     return GridView.builder(
       padding: const EdgeInsets.all(8),
+      physics: const NeverScrollableScrollPhysics(), // Should not scroll
+      shrinkWrap: true, // Important
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
+        crossAxisCount: screenWidth > 600 ? 4 : crossAxisCount,
         childAspectRatio: childAspectRatio,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      itemCount: 6, // Show 6 loading placeholders
+      itemCount: recipes.isNotEmpty ? recipes.length : 6, // Show placeholders matching current items or a default
       itemBuilder: (context, index) {
         return _buildLoadingItem(context);
       },
     );
   }
+
   Widget _buildLoadingItem(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -135,11 +144,8 @@ class RecipeGrid extends StatelessWidget {
       ),
     );
   }
-// --- End Loading Grid Methods ---
 }
 
-
-// *** RecipeGridItem MODIFIED to use thumbnailUrl ***
 class RecipeGridItem extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback? onTap;
@@ -152,13 +158,11 @@ class RecipeGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- MODIFICATION START: Use thumbnailUrl ---
-    final String? thumbnailUrl = recipe.thumbnailUrl; // Get the correct URL
+    final String? thumbnailUrl = recipe.thumbnailUrl;
     final bool hasThumbnail = thumbnailUrl != null && thumbnailUrl.isNotEmpty;
-    // --- MODIFICATION END ---
 
     return Card(
-      clipBehavior: Clip.antiAlias, // Good for rounded corners on images
+      clipBehavior: Clip.antiAlias,
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -168,34 +172,32 @@ class RecipeGridItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Recipe Thumbnail Image
             Expanded(
-              flex: 3, // Adjust flex as needed
-              child: Hero( // Optional: Add Hero animation
-                // Use a unique tag, including hashCode as fallback if id is null
+              flex:3,
+              child: Hero(
                 tag: 'recipe_image_${recipe.id ?? recipe.hashCode}',
-                child: Container( // Container for placeholder background
-                  color: Colors.grey[100], // Background color for placeholder area
+                child: Container(
+                  color: Colors.grey[100],
                   child: hasThumbnail
-                      ? CachedNetworkImage( // Use CachedNetworkImage
-                    imageUrl: thumbnailUrl!, // Use the correct URL
+                      ? CachedNetworkImage(
+                    imageUrl: thumbnailUrl!,
                     fit: BoxFit.cover,
-                    width: double.infinity, // Fill width
+                    width: double.infinity,
                     placeholder: (context, url) => const Center(
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     errorWidget: (context, url, error) {
                       print("Error loading grid image: $url, Error: $error");
-                      return Center( // Error placeholder
+                      return Center(
                         child: Icon(
-                          Icons.restaurant_menu, // Icon for error/missing
+                          Icons.restaurant_menu,
                           color: Colors.grey[400],
                           size: 40,
                         ),
                       );
                     } ,
                   )
-                      : Center( // Placeholder icon if no thumbnail URL
+                      : Center(
                     child: Icon(
                       Icons.restaurant_menu,
                       size: 40,
@@ -205,14 +207,13 @@ class RecipeGridItem extends StatelessWidget {
                 ),
               ),
             ),
-            // Recipe info (Unchanged from your original)
             Expanded(
-              flex: 2, // Adjust flex
+              flex: 2,
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes details to bottom
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       recipe.title,
@@ -258,7 +259,9 @@ class RecipeGridItem extends StatelessWidget {
     );
   }
 
-  // Helper to format category name (Unchanged from your original)
+  // _formatCategory helper is not used in RecipeGridItem, so it can be removed
+  // if it's not used elsewhere or was just part of an older version.
+  // For now, I'll keep it as it was in your provided code.
   String _formatCategory(String category) {
     return category.replaceAll('-', ' ').split(' ').map((word) {
       if (word.isEmpty) return '';

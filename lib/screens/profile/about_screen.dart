@@ -58,7 +58,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('About Delisio'),
+        title: const Text('About Kitchen Assistant'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -93,7 +93,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
             // App Name
             Text(
-              'Delisio',
+              'Kitchen Assistant',
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: theme.primaryColor,
@@ -127,7 +127,7 @@ class _AboutScreenState extends State<AboutScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'Delisio combines the power of artificial intelligence with your culinary needs to create an unparalleled cooking experience. Generate custom recipes, get cooking advice, and explore new dishes tailored to your preferences.',
+                'Kitchen Assistant combines the power of artificial intelligence with your culinary needs to create an unparalleled cooking experience. Generate custom recipes, get cooking advice, and explore new dishes tailored to your preferences.',
                 style: TextStyle(
                   fontSize: 16,
                   height: 1.5,
@@ -140,23 +140,21 @@ class _AboutScreenState extends State<AboutScreen> {
 
 
 
+
             // Legal links
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 24,
               children: [
                 TextButton(
-                  onPressed: () => _launchUrl('https://delisio.app/terms'),
+                  onPressed: () => _launchUrl('https://delso.vercel.app/terms'),
                   child: const Text('Terms of Service'),
                 ),
                 TextButton(
-                  onPressed: () => _launchUrl('https://delisio.app/privacy'),
+                  onPressed: () => _launchUrl('https://delso.vercel.app/privacy'),
                   child: const Text('Privacy Policy'),
                 ),
-                TextButton(
-                  onPressed: () => _launchUrl('https://delisio.app/licenses'),
-                  child: const Text('Licenses'),
-                ),
+
               ],
             ),
 
@@ -164,7 +162,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
             // Copyright
             Text(
-              '© ${DateTime.now().year} Delisio. All rights reserved.',
+              '© ${DateTime.now().year} Kitchen Assistant. All rights reserved.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.5),
               ),

@@ -373,17 +373,21 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
       return Scaffold(
         appBar: AppBar(title: const Text('Profile')),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Please log in to view your profile'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                // Use pushReplacementNamed for login to replace the current screen
-                onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                child: const Text('Login / Sign Up'), // More inviting text
-              ),
-            ],
+          child: Padding(
+            
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Please log in to view your profile'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  // Use pushReplacementNamed for login to replace the current screen
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Login / Sign Up'), // More inviting text
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -691,29 +695,10 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
               title: 'Contact Support',
               onTap: () => Navigator.of(context).pushNamed('/contact'),
             ),
-            SettingsItem(
-              icon: Icons.star_outline,
-              title: 'Rate App',
-              onTap: () async {
-                // Keep original URL for now
-                final url = Uri.parse('https://play.google.com/store/apps/details?id=com.delisio.app');
-                // Use launchUrl from url_launcher
-                if (await canLaunchUrl(url)) {
-                  // Consider launch mode (in-app browser vs external)
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                } else {
-                  print('Could not launch $url');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not open app store page')),
-                    );
-                  }
-                }
-              },
-            ),
+
             SettingsItem(
               icon: Icons.info_outline,
-              title: 'About Delisio', // App name
+              title: 'About Kitchen Assistant', // App name
               onTap: () => Navigator.of(context).pushNamed('/about'),
             ),
           ],

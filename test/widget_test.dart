@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Import the file where your root widget 'DelisioApp' is defined.
 // Assuming it's in 'lib/app.dart' based on your main.dart's import.
-import 'package:delisio/app.dart'; // Typo suggestion here is likely ignorable if 'delisio' is your package name
+import 'package:kitchenassistant/app.dart'; // Typo suggestion here is likely ignorable if 'delisio' is your package name
 
 // You generally don't need to import main.dart itself in widget tests.
 // The test setup handles initializing the Flutter binding environment.

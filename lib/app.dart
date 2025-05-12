@@ -1,6 +1,8 @@
 // lib/app.dart
+import 'package:kitchenassistant/screens/chat/chat_history.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart'; // Add this import
 
 // --- Screen Imports ---
 import 'screens/splash_screen.dart';
@@ -29,6 +31,9 @@ class DelisioApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Remove the native splash screen now that app is ready
+    FlutterNativeSplash.remove();
+
     // Use the ThemeProvider to get the current theme
     final themeProvider = Provider.of<ThemeProvider>(context);
 
@@ -58,9 +63,9 @@ class DelisioApp extends StatelessWidget {
         '/subscription': (context) => const SubscriptionScreen(), // Add subscription screen route
       },
 
-      // Use onGenerateRoute for routes that need arguments (like /chat)
+      // Rest of your existing code remains unchanged
       onGenerateRoute: (settings) {
-        print("onGenerateRoute: Handling route '${settings.name}'");
+        debugPrint("onGenerateRoute: Handling route '${settings.name}'");
         WidgetBuilder builder;
 
         switch (settings.name) {
@@ -119,7 +124,61 @@ class DelisioApp extends StatelessWidget {
               );
             }
             break;
-
+          case "/chat/history":
+            final conversationId = settings.arguments as String?;
+            if (conversationId != null) {
+              // If we have a valid conversation ID, go to that chat
+              builder = (_) => ChatHistoryScreen(conversationId: conversationId);
+            }else{
+              //
+              builder = (_) => FutureBuilder<String?>(
+                future: Provider.of<ChatProvider>(context, listen: false).createNewConversation(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Creating new chat...'),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else if (snapshot.hasError || snapshot.data == null) {
+                    return Scaffold(
+                      appBar: AppBar(title: const Text('Error')),
+                      body: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const SizedBox(height: 16),
+                            const Text('Failed to create new chat'),
+                            const SizedBox(height: 8),
+                            Text(
+                              snapshot.error?.toString() ?? 'Unknown error',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Go Back'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else {
+                    // Success - we have a new conversation ID
+                    return ChatScreen(conversationId: snapshot.data!);
+                  }
+                },
+              );
+            }
+            break;
         // Add cases for other routes requiring arguments if any
           default:
           // If route not handled by 'routes' or here, go to unknown route handler
@@ -132,7 +191,7 @@ class DelisioApp extends StatelessWidget {
 
       // Handles any route not defined in 'routes' or 'onGenerateRoute'
       onUnknownRoute: (settings) {
-        print("Warning: Navigated to unknown route: ${settings.name}");
+        debugPrint("Warning: Navigated to unknown route: ${settings.name}");
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('Error - Page Not Found')),
