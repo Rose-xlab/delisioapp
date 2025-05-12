@@ -302,7 +302,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
      // User object from AuthProvider
-    final user = authProvider.user;
+    // final user = authProvider.user;
 
     if (!authProvider.isAuthenticated || user == null) {
       return Scaffold(
