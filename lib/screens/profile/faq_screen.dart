@@ -15,7 +15,7 @@ class FAQScreen extends StatelessWidget {
         children: const [
           _FAQItem(
             question: 'How do I generate a recipe?',
-            answer: 'You can generate a recipe by typing an ingredient or dish name in the search box on the home screen and tapping the search button. Delisio will create a complete recipe with ingredients, steps, and images for you.',
+            answer: 'You can generate a recipe by typing an ingredient or dish name in the search box on the home screen and tapping the search button. Kitchen Assistant will create a complete recipe with ingredients, steps, and images for you.',
           ),
           _FAQItem(
             question: 'Can I save recipes for later?',
@@ -39,11 +39,11 @@ class FAQScreen extends StatelessWidget {
           ),
           _FAQItem(
             question: 'What if I have an allergy?',
-            answer: 'You can set your allergies in your profile preferences. Delisio will try to avoid suggesting recipes with those allergens, but always double-check ingredients for your safety.',
+            answer: 'You can set your allergies in your profile preferences. Kitchen Assistant will try to avoid suggesting recipes with those allergens, but always double-check ingredients for your safety.',
           ),
           _FAQItem(
             question: 'How do I contact support?',
-            answer: 'You can contact our support team by clicking on "Contact Support" in the Profile tab under Help & Support, or by emailing support@delisio.com.',
+            answer: 'You can contact our support team by clicking on "Contact Support" in the Profile tab under Help & Support, or by emailing support@Kitchenassistant.com.',
           ),
         ],
       ),

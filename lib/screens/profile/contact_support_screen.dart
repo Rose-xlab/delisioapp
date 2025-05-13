@@ -1,8 +1,9 @@
 // lib/screens/profile/contact_support_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // Needed for Clipboard
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Import FontAwesome
 import '../../providers/auth_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -14,37 +15,44 @@ class ContactSupportScreen extends StatefulWidget {
 }
 
 class _ContactSupportScreenState extends State<ContactSupportScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _subjectController = TextEditingController();
-  final _messageController = TextEditingController();
-  bool _isLoading = false;
+  String _appVersion = 'Loading...';
+  // Note: Getting actual device info requires 'device_info_plus' package
+  // Keeping the structure but with a placeholder for now.
+  final String _deviceInfo = 'Device Info Unavailable'; // Placeholder or implement device_info_plus
 
-  String _appVersion = '';
-  final String _deviceInfo = 'Unknown Device';
-  final List<String> _supportCategories = [
-    'Technical Issue',
-    'Account Problem',
-    'Recipe Generation',
-    'Feature Request',
-    'Billing Question',
-    'Other',
-  ];
-  String _selectedCategory = 'Technical Issue';
+  // --- Removed Form related variables ---
+  // final _formKey = GlobalKey<FormState>();
+  // final _subjectController = TextEditingController();
+  // final _messageController = TextEditingController();
+  // bool _isLoading = false;
+  // final List<String> _supportCategories = [...];
+  // String _selectedCategory = 'Technical Issue';
+  // --- End Removed ---
+
+  final String supportEmail = 'support@kitchenassistant.com';
+  final String facebookUrl = 'https://facebook.com/yourpage'; // TODO: Replace with your actual URL
+  final String instagramUrl = 'https://instagram.com/yourprofile'; // TODO: Replace with your actual URL
+  final String tiktokUrl = 'https://tiktok.com/@youraccount'; // TODO: Replace with your actual URL
+
 
   @override
   void initState() {
     super.initState();
     _loadAppInfo();
+    // Optionally load device info here if using device_info_plus
   }
 
   @override
   void dispose() {
-    _subjectController.dispose();
-    _messageController.dispose();
+    // --- Removed Controller disposals ---
+    // _subjectController.dispose();
+    // _messageController.dispose();
+    // --- End Removed ---
     super.dispose();
   }
 
   Future<void> _loadAppInfo() async {
+    if (!mounted) return;
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       setState(() {
@@ -52,294 +60,224 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
       });
     } catch (e) {
       print('Error loading app info: $e');
+      if (mounted) {
+        setState(() {
+          _appVersion = 'Error loading version';
+        });
+      }
     }
   }
 
-  Future<void> _launchEmail() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final user = authProvider.user;
-    final userEmail = user?.email ?? 'Not logged in';
-    final userInfo = user != null ? 'User ID: ${user.id}' : 'Not logged in';
-
-    final subject = Uri.encodeComponent('[$_selectedCategory] ${_subjectController.text}');
-    final body = Uri.encodeComponent('''
-${_messageController.text}
-
----
-App Version: $_appVersion
-Device: $_deviceInfo
-$userInfo
-Email: $userEmail
----
-''');
-
-    final emailUri = Uri.parse('mailto:support@delisio.com?subject=$subject&body=$body');
-
-    if (await canLaunchUrl(emailUri)) {
-      await launchUrl(emailUri);
-    } else {
-      // Fallback - show manual instructions
-      _showManualEmailInstructions(subject, body);
+  // Helper function to launch URLs safely
+  Future<void> _launchSocialUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      // Optionally show an error message if launch fails
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch $urlString')),
+        );
+      }
+      print('Could not launch $urlString');
     }
   }
 
-  void _showManualEmailInstructions(String subject, String body) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unable to open email app'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Please send an email manually to:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: () {
-                Clipboard.setData(const ClipboardData(text: 'support@delisio.com'));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Email address copied to clipboard')),
-                );
-              },
-              child: Row(
-                children: [
-                  const Text(
-                    'support@delisio.com',
-                    style: TextStyle(color: Colors.blue),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.copy,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(
-                  text: Uri.decodeFull(body),
-                ));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Message details copied to clipboard')),
-                );
-              },
-              child: const Text('Copy message details'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // Launch email app
-      await _launchEmail();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sending email: $e')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
+  // --- Removed _launchEmail, _showManualEmailInstructions, _submitForm ---
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false); // Get auth provider
+    final user = authProvider.user; // Get user info
+    final userEmail = user?.email ?? 'Not logged in'; // Get user email if available
+    final userInfo = user != null ? 'User ID: ${user.id}' : 'User: Not logged in'; // Get user ID if available
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contact Support'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'We\'re here to help! Fill out the form below and our support team will get back to you as soon as possible.',
-                style: TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 24),
+        padding: const EdgeInsets.all(20), // Increased padding slightly
+        child: Column( // Removed Form widget
+          crossAxisAlignment: CrossAxisAlignment.center, // Center content
+          children: [
+            Icon(
+              Icons.support_agent, // Or Icons.contact_support
+              size: 60,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Get in Touch',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Have questions or need help? Reach out to us!',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32), // Spacing before email
 
-              // Category Dropdown
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                ),
-                value: _selectedCategory,
-                items: _supportCategories.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value!;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Subject Field
-              TextFormField(
-                controller: _subjectController,
-                decoration: const InputDecoration(
-                  labelText: 'Subject',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a subject';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Message Field
-              TextFormField(
-                controller: _messageController,
-                decoration: const InputDecoration(
-                  labelText: 'Message',
-                  hintText: 'Please describe your issue in detail',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                maxLines: 8,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a message';
-                  }
-                  if (value.length < 10) {
-                    return 'Message is too short';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Device & App Info
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Additional Information',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('App Version: $_appVersion'),
-                    Text('Device: $_deviceInfo'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitForm,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: _isLoading
-                        ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                        : const Text(
-                      'Send Message',
-                      style: TextStyle(fontSize: 16),
-                    ),
+            // --- Email Section ---
+            const Text(
+              'Contact Us Via Email:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                Clipboard.setData(
+                  ClipboardData(text: supportEmail),
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Email address copied to clipboard'),
+                    duration: Duration(seconds: 2),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Alternative Contact Methods
-              Center(
-                child: Column(
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'You can also contact us directly:',
+                    Icon(Icons.email_outlined, color: theme.colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      supportEmail,
                       style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
+                        color: theme.colorScheme.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        // decoration: TextDecoration.underline, // Optional underline
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () {
-                        Clipboard.setData(
-                          const ClipboardData(text: 'support@delisio.com'),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Email copied to clipboard'),
-                          ),
-                        );
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'support@delisio.com',
-                            style: TextStyle(
-                              color: Theme.of(context).primaryColor,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.copy,
-                            size: 14,
-                            color: Theme.of(context).primaryColor,
-                          ),
-                        ],
-                      ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.copy,
+                      size: 16,
+                      color: Colors.grey[600],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40), // Spacing before social icons
+
+            // --- Social Media Section ---
+            const Text(
+              'Follow Us:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildSocialButton(
+                  icon: FontAwesomeIcons.facebook,
+                  url: facebookUrl,
+                  color: const Color(0xFF1877F2), // Facebook blue
+                ),
+                const SizedBox(width: 24),
+                _buildSocialButton(
+                  icon: FontAwesomeIcons.instagram,
+                  url: instagramUrl,
+                  color: const Color(0xFFE4405F), // Instagram pink/purple
+                ),
+                const SizedBox(width: 24),
+                _buildSocialButton(
+                  icon: FontAwesomeIcons.tiktok,
+                  url: tiktokUrl,
+                  color: Colors.black, // TikTok black (or add alternating colors)
+                ),
+              ],
+            ),
+            const SizedBox(height: 40), // Spacing before app info
+
+            // --- Device & App Info ---
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+                // border: Border.all(color: theme.dividerColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Diagnostic Information',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoRow('App Version:', _appVersion),
+                  _buildInfoRow('Device:', _deviceInfo), // Add actual device info if needed
+                  _buildInfoRow('User Info:', userInfo),
+                  _buildInfoRow('User Email:', userEmail),
+                  const SizedBox(height: 4),
+                  Text(
+                    '(This info helps us diagnose issues faster)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20), // Padding at the bottom
+          ],
         ),
+      ),
+    );
+  }
+
+  // Helper Widget for Social Media Icons
+  Widget _buildSocialButton({required IconData icon, required String url, required Color color}) {
+    return IconButton(
+      icon: FaIcon(icon), // Use FaIcon for FontAwesome icons
+      iconSize: 30,
+      color: color,
+      tooltip: 'Visit our ${icon.toString().split('.').last} page', // Basic tooltip
+      onPressed: () => _launchSocialUrl(url),
+    );
+    // Alternative using InkWell for custom shape/background:
+    // return InkWell(
+    //   onTap: () => _launchSocialUrl(url),
+    //   borderRadius: BorderRadius.circular(50), // Make it circular
+    //   child: Padding(
+    //     padding: const EdgeInsets.all(12.0),
+    //     child: FaIcon(icon, size: 30, color: color),
+    //   ),
+    // );
+  }
+
+  // Helper Widget for info rows
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[700]),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

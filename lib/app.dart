@@ -60,22 +60,39 @@ class DelisioApp extends StatelessWidget {
         '/faq': (context) => const FAQScreen(),
         '/about': (context) => const AboutScreen(),
         '/contact': (context) => const ContactSupportScreen(),
-        '/subscription': (context) => const SubscriptionScreen(), // Add subscription screen route
+        '/subscription': (context) => const SubscriptionScreen(),
       },
 
-      // Rest of your existing code remains unchanged
       onGenerateRoute: (settings) {
-        debugPrint("onGenerateRoute: Handling route '${settings.name}'");
+        debugPrint("onGenerateRoute: Handling route '${settings.name}' with args: ${settings.arguments}");
         WidgetBuilder builder;
 
         switch (settings.name) {
+        // --- MODIFICATION START for /chat route ---
           case '/chat':
-            final conversationId = settings.arguments as String?;
-            if (conversationId != null) {
-              // If we have a valid conversation ID, go to that chat
+            final args = settings.arguments;
+            debugPrint("onGenerateRoute: /chat, args type: ${args.runtimeType}, value: $args");
+
+            if (args is Map<String, dynamic>) {
+              // Case: Navigating from "Chat for Recipe Ideas" button in HomeScreenEnhanced
+              final String? initialQuery = args['initialQuery'] as String?;
+              final String? purpose = args['purpose'] as String?; // e.g., 'generateRecipe'
+
+              // ChatScreen will receive initialQuery and purpose.
+              // It needs to handle creating/selecting a conversation internally
+              // and then sending the initialQuery if present.
+              builder = (_) => ChatScreen(
+                initialQuery: initialQuery,
+                purpose: purpose,
+                // conversationId will be null here, ChatScreen needs to manage this.
+              );
+            } else if (args is String) {
+              // Case: Navigating with a specific conversation_id (e.g., from chat list)
+              final conversationId = args;
               builder = (_) => ChatScreen(conversationId: conversationId);
             } else {
-              // If no ID provided, create a new chat
+              // Case: Navigating to /chat without arguments (e.g., generic "new chat" action)
+              // This creates a new conversation and then navigates to ChatScreen with its ID.
               builder = (_) => FutureBuilder<String?>(
                 future: Provider.of<ChatProvider>(context, listen: false).createNewConversation(),
                 builder: (context, snapshot) {
@@ -109,7 +126,7 @@ class DelisioApp extends StatelessWidget {
                             ),
                             const SizedBox(height: 24),
                             ElevatedButton(
-                              onPressed: () => Navigator.pop(context),
+                              onPressed: () => Navigator.pop(context), // Or navigate to a safe place
                               child: const Text('Go Back'),
                             ),
                           ],
@@ -124,72 +141,37 @@ class DelisioApp extends StatelessWidget {
               );
             }
             break;
+        // --- MODIFICATION END for /chat route ---
+
           case "/chat/history":
             final conversationId = settings.arguments as String?;
             if (conversationId != null) {
-              // If we have a valid conversation ID, go to that chat
               builder = (_) => ChatHistoryScreen(conversationId: conversationId);
-            }else{
-              //
-              builder = (_) => FutureBuilder<String?>(
-                future: Provider.of<ChatProvider>(context, listen: false).createNewConversation(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text('Creating new chat...'),
-                          ],
-                        ),
-                      ),
-                    );
-                  } else if (snapshot.hasError || snapshot.data == null) {
-                    return Scaffold(
-                      appBar: AppBar(title: const Text('Error')),
-                      body: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                            const SizedBox(height: 16),
-                            const Text('Failed to create new chat'),
-                            const SizedBox(height: 8),
-                            Text(
-                              snapshot.error?.toString() ?? 'Unknown error',
-                              style: const TextStyle(color: Colors.grey),
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Go Back'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  } else {
-                    // Success - we have a new conversation ID
-                    return ChatScreen(conversationId: snapshot.data!);
-                  }
-                },
+            } else {
+              // Fallback or error for chat history without ID
+              builder = (_) => Scaffold(
+                appBar: AppBar(title: const Text('Error')),
+                body: const Center(child: Text('Conversation ID missing for chat history.')),
               );
             }
             break;
         // Add cases for other routes requiring arguments if any
           default:
-          // If route not handled by 'routes' or here, go to unknown route handler
-            return null;
+          // If route not handled by 'routes' or here, onUnknownRoute will be called.
+          // However, to prevent MaterialPageRoute from being called with a null builder:
+            return MaterialPageRoute(
+              builder: (_) => Scaffold(
+                appBar: AppBar(title: const Text('Page Not Found')),
+                body: Center(
+                  child: Text('No specific route defined for ${settings.name} in onGenerateRoute.'),
+                ),
+              ),
+            );
         }
 
-        // Use MaterialPageRoute for standard transitions
         return MaterialPageRoute(builder: builder, settings: settings);
       },
 
-      // Handles any route not defined in 'routes' or 'onGenerateRoute'
       onUnknownRoute: (settings) {
         debugPrint("Warning: Navigated to unknown route: ${settings.name}");
         return MaterialPageRoute(

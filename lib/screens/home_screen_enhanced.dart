@@ -27,7 +27,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   bool _isLoadingTrending = false;
   bool _isLoadingRecipes = false;
   bool _isLoadingCategories = false;
-  bool _isGenerating = false;
+
   String? _activeCategory;
   String _searchQuery = '';
 
@@ -67,25 +67,21 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
 
-      // Load subscription status if user is authenticated
       if (authProvider.isAuthenticated && token != null) {
         await Provider.of<SubscriptionProvider>(context, listen: false)
             .loadSubscriptionStatus(token);
       }
 
-      // Load trending recipes
       await recipeProvider.getTrendingRecipes(token: token);
       setState(() {
         _isLoadingTrending = false;
       });
 
-      // Load recipe categories
       await recipeProvider.getAllCategories();
       setState(() {
         _isLoadingCategories = false;
       });
 
-      // Load discover recipes (all categories initially)
       await recipeProvider.getDiscoverRecipes(
         category: _activeCategory,
         token: token,
@@ -135,7 +131,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
 
-      // Also refresh subscription data
       if (authProvider.isAuthenticated && token != null) {
         await Provider.of<SubscriptionProvider>(context, listen: false)
             .loadSubscriptionStatus(token);
@@ -147,7 +142,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         query: _searchQuery,
       );
       await recipeProvider.getTrendingRecipes(token: token);
-      return; // Explicitly return to match Future<void>
+      return;
     } catch (e) {
       print('Error refreshing data: $e');
       rethrow;
@@ -203,24 +198,19 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     );
   }
 
-  Future<void> _generateRecipe() async {
+  Future<void> _generateRecipeViaRecipeProvider() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a recipe name or ingredients')),
+          const SnackBar(content: Text('Please enter a recipe name or ingredients to generate.')),
         );
       }
       return;
     }
-
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-
-    // If we're already loading, don't start another generation
     if (recipeProvider.isLoading) return;
-
-    setState(() => _isGenerating = true);
-    print("Attempting to generate recipe for query: $query");
+    print("Attempting to generate recipe for query (via RecipeProvider): $query");
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await recipeProvider.generateRecipe(
@@ -228,71 +218,61 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         save: authProvider.token != null,
         token: authProvider.token,
       );
-
-      // Only navigate if generation was successful and not cancelled
       if (!recipeProvider.wasCancelled && recipeProvider.error == null && mounted) {
-        print("Recipe generation successful, navigating...");
+        print("Recipe generation successful (via RecipeProvider), navigating...");
         Navigator.of(context).pushNamed('/recipe');
       } else if (recipeProvider.wasCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recipe generation cancelled'),
-            backgroundColor: Colors.orange,
-          ),
+          const SnackBar(content: Text('Recipe generation cancelled'), backgroundColor: Colors.orange),
         );
       }
     } catch (e) {
-      print('Error generating recipe: ${e.toString()}');
+      print('Error generating recipe (via RecipeProvider): ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isGenerating = false);
     }
   }
 
-  Future<void> _cancelRecipeGeneration() async {
+  Future<void> _cancelRecipeGenerationViaRecipeProvider() async {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-
     if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
-      // Show cancellation in progress
-      setState(() => _isGenerating = true); // _isGenerating should reflect recipeProvider.isLoading usually
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cancelling recipe generation...'),
-          backgroundColor: Colors.blue,
-          duration: Duration(seconds: 1), // Short duration for quick feedback
-        ),
+        const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
       );
-
       try {
         await recipeProvider.cancelRecipeGeneration();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Recipe generation cancelled'),
-              backgroundColor: Colors.orange,
-            ),
+            const SnackBar(content: Text('Recipe generation cancelled by user.'), backgroundColor: Colors.orange),
           );
         }
       } catch (e) {
-        print('Error during cancellation: $e');
+        print('Error during cancellation (via RecipeProvider): $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error during cancellation: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Error during cancellation: $e'), backgroundColor: Colors.red),
           );
         }
       }
-      // _isGenerating should be updated based on recipeProvider.isLoading in the build method
-      // or explicitly set to false here if appropriate after cancellation.
-      // However, the main build method already uses recipeProvider.isLoading for "isGenerating"
     }
+  }
+
+  void _navigateToChatScreenWithQuery() {
+    final query = _searchController.text.trim();
+    Navigator.of(context).pushNamed('/chat', arguments: {
+      'initialQuery': query.isNotEmpty ? query : null,
+      'purpose': 'generateRecipe'
+    });
+  }
+
+  void _navigateToNewChatScreen() {
+    Navigator.of(context).pushNamed('/chat', arguments: {
+      'initialQuery': null,
+      'purpose': 'newChatFromHomeFab'
+    });
   }
 
   void _viewRecipe(Recipe recipe) {
@@ -411,214 +391,198 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
-    // final subscriptionProvider = Provider.of<SubscriptionProvider>(context); // Already available via _buildSubscriptionBanner
     final theme = Theme.of(context);
 
     final categories = recipeProvider.categories;
     final trendingRecipes = recipeProvider.trendingRecipes;
     final discoverRecipes = recipeProvider.discoverRecipes;
 
-    // Use recipeProvider.isLoading for generate button state, as it's more specific
-    final bool isGeneratingRecipe = recipeProvider.isLoading; // More accurate name
-    final bool isCancelling = recipeProvider.isCancelling;
+    final bool isSearchBarLoading = recipeProvider.isLoading;
     final bool isLoadingMore = recipeProvider.isLoadingMore;
+
+    final double screenHeight = MediaQuery.of(context).size.height;
+    // MODIFICATION: Use standard FAB size for calculation
+    final double fabSize = 56.0; // Standard FAB diameter
+    // Adjust top position to center the FAB vertically considering SafeArea padding
+    final double fabTopPosition = (screenHeight / 2) - (fabSize / 2) - (MediaQuery.of(context).padding.top / 2);
 
     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshData,
-          child: Column( // Main Column for the screen
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // This Column contains elements that should always be visible at the top
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      'Kitchen Assistant',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none),
-                      onPressed: () {
-                        // Navigate to notifications
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    EnhancedSearchBar(
-                      controller: _searchController,
-                      onSubmitted: _onSearch,
-                      onCancel: _onCancelSearch,
-                      isLoading: isGeneratingRecipe, // Use specific loading state
-                      hintText: 'Search or generate recipes...',
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
-                          const Text(
-                            'Generate a new recipe:',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                          ),
-                          isGeneratingRecipe // Use specific loading state
-                              ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextButton.icon(
-                                onPressed: isCancelling ? null : _cancelRecipeGeneration,
-                                icon: isCancelling
-                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : const Icon(Icons.close, size: 16),
-                                label: const Text('Cancel'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.red,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ),
-                            ],
-                          )
-                              : FittedBox(
-                            child: TextButton.icon(
-                              onPressed: _generateRecipe,
-                              icon: const Icon(Icons.auto_awesome, size: 16),
-                              label: const Text('Generate Recipe'),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (authProvider.isAuthenticated)
-                _buildSubscriptionBanner(context),
-
-              // This Expanded widget will contain the scrollable content
-              Expanded(
-                child: ListView( // This is the main scrollable list
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          if (_isLoadingCategories)
-                            SizedBox(
-                              width: 16, height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor)),
-                            ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      height: 110,
-                      child: _isLoadingCategories
-                          ? _buildCategoriesLoadingList()
-                          : _buildCategoriesList(categories, _activeCategory),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Trending Now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          if (_isLoadingTrending)
-                            SizedBox(
-                              width: 16, height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor)),
-                            ),
-                        ],
-                      ),
-                    ),
-                    TrendingRecipes(
-                      recipes: trendingRecipes,
-                      onRecipeTap: _viewRecipe,
-                      isLoading: _isLoadingTrending,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!),
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          if (_activeCategory != null)
-                            TextButton(
-                              onPressed: () => _onCategorySelected(null),
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(50, 30),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: const Text('See All'),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    // --- MODIFICATION HERE ---
-                    // Remove the SizedBox with fixed height around RecipeGrid.
-                    // Pass the correct _isLoadingRecipes state.
-                    _isLoadingRecipes && discoverRecipes.isEmpty // Show main loading only if recipes are empty
-                        ? const Center(child: Padding(
-                      padding: EdgeInsets.all(16.0), // Added padding
-                      child: CircularProgressIndicator(),
-                    ))
-                        : discoverRecipes.isEmpty && !_isLoadingRecipes // Show empty state only if not loading and recipes are empty
-                        ? _buildEmptyState()
-                        : RecipeGrid(
-                      recipes: discoverRecipes,
-                      onRecipeTap: _viewRecipe,
-                      // isLoading should be used by RecipeGrid for its internal shimmer/placeholders
-                      // However, the parent now handles the main loading indicator / empty state.
-                      // If RecipeGrid's isLoading is purely for shimmer, pass false or a different flag.
-                      // For now, passing _isLoadingRecipes to be consistent with its prop.
-                      isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty, // Show shimmer if loading more but some recipes exist
-                    ),
-                    // --- END OF MODIFICATION ---
-
-                    SizedBox(height: navigationBarHeight + 10),
-                    if (isLoadingMore)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+        child: Stack(
+          children: [
+            RefreshIndicator(
+              onRefresh: _refreshData,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Kitchen Assistant',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
                           ),
                         ),
-                      ),
-                  ],
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.notifications_none),
+                          onPressed: () {
+                            // Navigate to notifications
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        EnhancedSearchBar(
+                          controller: _searchController,
+                          onSubmitted: _onSearch,
+                          onCancel: _onCancelSearch,
+                          isLoading: isSearchBarLoading,
+                          hintText: 'Search recipes or start a chat...',
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+                          child: Center(
+                            child: ElevatedButton( // MODIFIED: Was ElevatedButton.icon
+                              onPressed: _navigateToChatScreenWithQuery,
+                              // MODIFIED: Icon removed
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                ),
+                              ),
+                              child: const Text('Generate Recipe'), // MODIFIED: Text changed
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              if (_isLoadingCategories)
+                                SizedBox(
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor)),
+                                ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          height: 110,
+                          child: _isLoadingCategories
+                              ? _buildCategoriesLoadingList()
+                              : _buildCategoriesList(categories, _activeCategory),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Trending Now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              if (_isLoadingTrending)
+                                SizedBox(
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor)),
+                                ),
+                            ],
+                          ),
+                        ),
+                        TrendingRecipes(
+                          recipes: trendingRecipes,
+                          onRecipeTap: _viewRecipe,
+                          isLoading: _isLoadingTrending,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!),
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              if (_activeCategory != null)
+                                TextButton(
+                                  onPressed: () => _onCategorySelected(null),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(50, 30),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text('See All'),
+                                ),
+                            ],
+                          ),
+                        ),
+                        _isLoadingRecipes && discoverRecipes.isEmpty
+                            ? const Center(child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ))
+                            : discoverRecipes.isEmpty && !_isLoadingRecipes
+                            ? _buildEmptyState()
+                            : RecipeGrid(
+                          recipes: discoverRecipes,
+                          onRecipeTap: _viewRecipe,
+                          isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
+                        ),
+                        SizedBox(height: navigationBarHeight + 10),
+                        if (isLoadingMore)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (authProvider.isAuthenticated)
+              Positioned(
+                // MODIFICATION: Positioned to the right
+                right: 16.0,
+                top: fabTopPosition,
+                child: FloatingActionButton(
+                  // MODIFICATION: Removed mini: true for standard size
+                  heroTag: 'homeScreenNewChatFab',
+                  onPressed: _navigateToNewChatScreen,
+                  // MODIFICATION: Using theme.colorScheme.secondary for more prominence
+                  backgroundColor: theme.colorScheme.secondary,
+                  foregroundColor: theme.colorScheme.onSecondary,
+                  elevation: 6.0, // Slightly increased elevation
+                  child: const Icon(Icons.add_comment_outlined), // Icon for new chat
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -713,13 +677,22 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Try a different search or category', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            Text('Try a different search or category, or chat with our AI for new ideas!', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
             if (_searchQuery.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _generateRecipe,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
-                child: const Text('Generate This Recipe'),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _generateRecipeViaRecipeProvider,
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('Generate This Recipe'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.secondary,
+                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
               ),
             ],
           ],
