@@ -288,8 +288,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatProviderListener = () {
       if (!mounted) return;
       final providerActiveId = chatProvider.activeConversationId;
-      if (providerActiveId != null && providerActiveId != _activeLocalConversationId) {
-        debugPrint("ChatScreen (${widget.hashCode}): Detected activeConversationId change in provider: $providerActiveId. Re-initializing screen for new ID.");
+      if (providerActiveId != null &&
+          providerActiveId != _activeLocalConversationId) {
+        debugPrint("ChatScreen (${widget
+            .hashCode}): Detected activeConversationId change in provider: $providerActiveId. Re-initializing screen for new ID.");
         // If the active ID in provider changes, and it's different from what this screen currently shows,
         // it means MainNavigationScreen likely wants this tab to display the new active chat.
         // We can re-initialize this screen instance to load the new conversation.
@@ -314,24 +316,34 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
 
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    String? resolvedConversationId = forceIdFromProvider ?? widget.conversationId;
+    String? resolvedConversationId = forceIdFromProvider ??
+        widget.conversationId;
 
     if (resolvedConversationId != null) {
-      debugPrint("ChatScreen (${widget.hashCode}): Initializing/Re-initializing with explicit/forced conversation ID: $resolvedConversationId");
+      debugPrint("ChatScreen (${widget
+          .hashCode}): Initializing/Re-initializing with explicit/forced conversation ID: $resolvedConversationId");
       await chatProvider.selectConversation(resolvedConversationId);
     } else {
-      debugPrint("ChatScreen (${widget.hashCode}): No explicit conversation ID. Purpose: ${widget.purpose}. Creating new.");
+      debugPrint("ChatScreen (${widget
+          .hashCode}): No explicit conversation ID. Purpose: ${widget
+          .purpose}. Creating new.");
       resolvedConversationId = await chatProvider.createNewConversation();
       if (resolvedConversationId != null) {
-        debugPrint("ChatScreen (${widget.hashCode}): New conversation created: $resolvedConversationId. Selecting it.");
+        debugPrint("ChatScreen (${widget
+            .hashCode}): New conversation created: $resolvedConversationId. Selecting it.");
         await chatProvider.selectConversation(resolvedConversationId);
       } else {
-        debugPrint("ChatScreen (${widget.hashCode}): CRITICAL - Failed to create new conversation.");
+        debugPrint("ChatScreen (${widget
+            .hashCode}): CRITICAL - Failed to create new conversation.");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Error: Could not start a new chat session.'))
+              const SnackBar(
+                  content: Text('Error: Could not start a new chat session.'))
           );
-          setState(() { _activeLocalConversationId = null; _isChatInitialized = true; });
+          setState(() {
+            _activeLocalConversationId = null;
+            _isChatInitialized = true;
+          });
         }
         return;
       }
@@ -340,16 +352,25 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) {
       bool hadInitialQueryToSend = false;
       if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty &&
-          resolvedConversationId != null && forceIdFromProvider == null) { // Only send initialQuery on first load with it
-        debugPrint("ChatScreen (${widget.hashCode}): Sending initial query: '${widget.initialQuery}' to conversation $resolvedConversationId");
+          resolvedConversationId != null && forceIdFromProvider ==
+          null) { // Only send initialQuery on first load with it
+        debugPrint(
+            "ChatScreen (${widget.hashCode}): Sending initial query: '${widget
+                .initialQuery}' to conversation $resolvedConversationId");
         // Basic duplicate check for initial query
         final existingMessages = chatProvider.activeMessages;
         bool alreadySent = false;
-        if (resolvedConversationId == chatProvider.activeConversationId && existingMessages.isNotEmpty) {
+        if (resolvedConversationId == chatProvider.activeConversationId &&
+            existingMessages.isNotEmpty) {
           final lastMessage = existingMessages.last;
-          if (lastMessage.type == MessageType.user && lastMessage.content == widget.initialQuery &&
-              DateTime.now().difference(lastMessage.timestamp).inSeconds < 10) {
-            debugPrint("ChatScreen (${widget.hashCode}): Initial query seems to be a duplicate. Skipping send.");
+          if (lastMessage.type == MessageType.user &&
+              lastMessage.content == widget.initialQuery &&
+              DateTime
+                  .now()
+                  .difference(lastMessage.timestamp)
+                  .inSeconds < 10) {
+            debugPrint("ChatScreen (${widget
+                .hashCode}): Initial query seems to be a duplicate. Skipping send.");
             alreadySent = true;
           }
         }
@@ -364,7 +385,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _isChatInitialized = true;
       });
 
-      if (resolvedConversationId != null && (hadInitialQueryToSend || chatProvider.activeMessages.isNotEmpty)) {
+      if (resolvedConversationId != null &&
+          (hadInitialQueryToSend || chatProvider.activeMessages.isNotEmpty)) {
         _scrollToBottom();
       }
     }
@@ -396,7 +418,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage(String message) async {
     final text = message.trim();
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    if (text.isEmpty || chatProvider.isSendingMessage || _activeLocalConversationId == null) return;
+    if (text.isEmpty || chatProvider.isSendingMessage ||
+        _activeLocalConversationId == null) return;
     _messageController.clear();
 
     if (chatProvider.activeConversationId != _activeLocalConversationId) {
@@ -411,8 +434,10 @@ class _ChatScreenState extends State<ChatScreen> {
     // ... (your existing _extractRecipeName method remains unchanged)
     if (text.length <= 190) return text;
     List<RegExp> recipePatterns = [
-      RegExp(r"^([A-Z][A-Za-z\s''-]+(?:Bread|Cake|Soup|Pasta|Stew|Salad|Curry|Pie|Roll|Dish|Bowl|Meal))\b"),
-      RegExp(r"^((?:Traditional|Classic|Authentic|Homemade|Easy|Quick|Simple|Healthy)\s+[A-Za-z\s''-]+)\b"),
+      RegExp(
+          r"^([A-Z][A-Za-z\s''-]+(?:Bread|Cake|Soup|Pasta|Stew|Salad|Curry|Pie|Roll|Dish|Bowl|Meal))\b"),
+      RegExp(
+          r"^((?:Traditional|Classic|Authentic|Homemade|Easy|Quick|Simple|Healthy)\s+[A-Za-z\s''-]+)\b"),
       RegExp(r"^([A-Za-z]+(?:-style)\s+[A-Za-z\s''-]+)\b"),
     ];
     for (var pattern in recipePatterns) {
@@ -423,9 +448,11 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
     int colonIndex = text.indexOf(':');
-    if (colonIndex > 3 && colonIndex < 100) return text.substring(0, colonIndex).trim();
+    if (colonIndex > 3 && colonIndex < 100)
+      return text.substring(0, colonIndex).trim();
     int periodIndex = text.indexOf('.');
-    if (periodIndex > 3 && periodIndex < 100) return text.substring(0, periodIndex).trim();
+    if (periodIndex > 3 && periodIndex < 100)
+      return text.substring(0, periodIndex).trim();
     List<String> words = text.split(' ');
     if (words.length > 3) {
       int wordCount = words.length <= 12 ? words.length : 12;
@@ -436,7 +463,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onSuggestionSelected(String suggestion, bool generateRecipe) {
     // ... (your existing _onSuggestionSelected method, ensure it uses _activeLocalConversationId)
-    debugPrint("Suggestion selected: $suggestion, generate: $generateRecipe, current convo: $_activeLocalConversationId");
+    debugPrint(
+        "Suggestion selected: $suggestion, generate: $generateRecipe, current convo: $_activeLocalConversationId");
     if (_activeLocalConversationId == null) return;
 
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
@@ -452,7 +480,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (generateRecipe) {
       String recipeQuery = suggestion;
       if (recipeQuery.length > 190) {
-        debugPrint("Original query (${recipeQuery.length} chars): '$recipeQuery'");
+        debugPrint(
+            "Original query (${recipeQuery.length} chars): '$recipeQuery'");
         String extractedName = _extractRecipeName(suggestion);
         if (extractedName.length >= 3 && extractedName.length <= 50) {
           recipeQuery = extractedName;
@@ -460,7 +489,9 @@ class _ChatScreenState extends State<ChatScreen> {
         } else {
           int cutPoint = 190;
           for (int i = 190; i >= 150; i--) {
-            if (i < recipeQuery.length && (recipeQuery[i] == '.' || recipeQuery[i] == ',' || recipeQuery[i] == ';')) {
+            if (i < recipeQuery.length &&
+                (recipeQuery[i] == '.' || recipeQuery[i] == ',' ||
+                    recipeQuery[i] == ';')) {
               cutPoint = i + 1;
               break;
             }
@@ -472,7 +503,8 @@ class _ChatScreenState extends State<ChatScreen> {
       _generateRecipeFromChat(recipeQuery);
     } else {
       final backgroundQuery = "Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it.";
-      debugPrint("Sending background query (will not be shown in UI): $backgroundQuery");
+      debugPrint(
+          "Sending background query (will not be shown in UI): $backgroundQuery");
       chatProvider.sendMessage(backgroundQuery, addToUi: false);
       _scrollToBottom();
     }
@@ -485,7 +517,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (recipeQuery.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not determine which recipe to generate.'), backgroundColor: Colors.orange )
+            const SnackBar(
+                content: Text('Could not determine which recipe to generate.'),
+                backgroundColor: Colors.orange)
         );
       }
       return;
@@ -493,14 +527,20 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() => _isGeneratingRecipeFromChat = true);
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+      final recipeProvider = Provider.of<RecipeProvider>(
+          context, listen: false);
       recipeProvider.clearCurrentRecipe();
       Navigator.of(context).pushNamed('/recipe');
       await recipeProvider.generateRecipe(
-        recipeQuery, save: authProvider.isAuthenticated, token: authProvider.token,
+        recipeQuery, save: authProvider.isAuthenticated,
+        token: authProvider.token,
       );
-    } catch (e) { /* ... */ }
-    finally { if (mounted) setState(() => _isGeneratingRecipeFromChat = false); }
+    } catch (e) {
+      /* ... */
+    }
+    finally {
+      if (mounted) setState(() => _isGeneratingRecipeFromChat = false);
+    }
   }
 
   // MODIFIED: _handleStartNewChat for use within the tab.
@@ -513,7 +553,8 @@ class _ChatScreenState extends State<ChatScreen> {
       // MainNavigationScreen should ideally react to this change in ChatProvider's
       // activeConversationId and update its _screens[1] to a new ChatScreen instance
       // or this ChatScreen instance should re-initialize based on provider change (added listener for this).
-      debugPrint("ChatScreen: New chat initiated from AppBar. ID: $newConversationId. Provider's active ID updated.");
+      debugPrint(
+          "ChatScreen: New chat initiated from AppBar. ID: $newConversationId. Provider's active ID updated.");
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not start new chat.'))
@@ -525,9 +566,12 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final chatProvider = Provider.of<ChatProvider>(context); // Listen for UI updates
+    final chatProvider = Provider.of<ChatProvider>(
+        context); // Listen for UI updates
     final theme = Theme.of(context);
-    double screenWidth = MediaQuery.sizeOf(context).width;
+    double screenWidth = MediaQuery
+        .sizeOf(context)
+        .width;
 
     if (!authProvider.isAuthenticated || authProvider.user == null) {
       return Scaffold(
@@ -541,7 +585,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 const Text('Please log in to Chat with AI'),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  onPressed: () =>
+                      Navigator.of(context).pushReplacementNamed('/login'),
                   child: const Text('Login / Sign Up'),
                 ),
               ],
@@ -551,6 +596,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
+    // ---- RESOLVED CONFLICT BLOCK ----
     if (!_isChatInitialized || _activeLocalConversationId == null) {
       String appBarText = "Chat";
       if (widget.purpose == 'generateRecipe' && widget.conversationId == null) {
@@ -564,6 +610,7 @@ class _ChatScreenState extends State<ChatScreen> {
         drawer: ConversationsDrawer(currentConversationId: _activeLocalConversationId),
       );
     }
+    // ---- END OF RESOLVED CONFLICT BLOCK ----
 
     final bool isEffectivelyActive = chatProvider.activeConversationId == _activeLocalConversationId;
     final messages = isEffectivelyActive ? chatProvider.activeMessages : <ChatMessage>[];
