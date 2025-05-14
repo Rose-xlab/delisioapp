@@ -396,7 +396,7 @@ class RecipeProvider with ChangeNotifier {
           await subscriptionProvider.loadSubscriptionStatus(token);
           final subscriptionInfo = subscriptionProvider.subscriptionInfo;
           if (subscriptionInfo != null &&
-              subscriptionInfo.tier != SubscriptionTier.premium &&
+              subscriptionInfo.tier != SubscriptionTier.pro &&
               subscriptionInfo.recipeGenerationsRemaining <= 0) {
             if (context.mounted) { // Check mounted again before showing dialog
               showDialog(

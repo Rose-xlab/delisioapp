@@ -20,34 +20,20 @@ class SubscriptionProvider with ChangeNotifier {
       description: 'Basic access to Delisio',
       price: 0,
       currency: 'USD',
-      interval: 'month',
+      interval: 'month', // Or appropriate interval for free if it matters
       features: [
         '1 recipe generation per month',
         'Standard image quality',
         'Access to recipe library',
         'Basic chat assistance',
       ],
+      planIdentifier: 'free', // Or null if not needed for checkout
     ),
     SubscriptionPlan(
-      tier: SubscriptionTier.basic,
-      name: 'Basic',
-      description: 'Enhanced cooking experience',
-      price: 4.99,
-      currency: 'USD',
-      interval: 'month',
-      features: [
-        '5 recipe generations per month',
-        'HD image quality',
-        'Full access to recipe library',
-        'Priority chat assistance',
-        'Save unlimited favorite recipes',
-      ],
-    ),
-    SubscriptionPlan(
-      tier: SubscriptionTier.premium,
-      name: 'Premium',
-      description: 'Ultimate culinary companion',
-      price: 9.99,
+      tier: SubscriptionTier.pro,
+      name: 'Pro Monthly',
+      description: 'Unlock all features with Pro monthly',
+      price: 20.00,
       currency: 'USD',
       interval: 'month',
       features: [
@@ -56,9 +42,31 @@ class SubscriptionProvider with ChangeNotifier {
         'Full access to recipe library',
         'Priority chat assistance',
         'Save unlimited favorite recipes',
-        'Exclusive premium recipes',
+        'Exclusive premium recipes (now Pro)',
         'Custom recipe modifications',
+        'All features unlimited',
       ],
+      planIdentifier: 'pro-monthly',
+    ),
+    SubscriptionPlan(
+      tier: SubscriptionTier.pro,
+      name: 'Pro Annual',
+      description: 'Get the best value with Pro annually',
+      price: 180.00, // MODIFIED: Annual price updated from $200 to $180
+      currency: 'USD',
+      interval: 'year',
+      features: [
+        'Unlimited recipe generations',
+        'HD image quality',
+        'Full access to recipe library',
+        'Priority chat assistance',
+        'Save unlimited favorite recipes',
+        'Exclusive premium recipes (now Pro)',
+        'Custom recipe modifications',
+        'All features unlimited',
+        'Discounted annual rate (save \$60/year)', // Updated feature to reflect new savings
+      ],
+      planIdentifier: 'pro-annual',
     ),
   ];
 
@@ -72,8 +80,7 @@ class SubscriptionProvider with ChangeNotifier {
   bool get isFreeTier => _subscriptionInfo?.tier == SubscriptionTier.free;
 
   // Check if user is on paid plan
-  bool get isPaidTier => _subscriptionInfo?.tier == SubscriptionTier.basic ||
-      _subscriptionInfo?.tier == SubscriptionTier.premium;
+  bool get isPaidTier => _subscriptionInfo?.tier == SubscriptionTier.pro;
 
   // Load subscription status
   Future<void> loadSubscriptionStatus(String token) async {
@@ -81,7 +88,6 @@ class SubscriptionProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    // Add breadcrumb for loading subscription status
     addBreadcrumb(
       message: 'Loading subscription status',
       category: 'subscription',
@@ -91,7 +97,6 @@ class SubscriptionProvider with ChangeNotifier {
       final info = await _subscriptionService.getSubscriptionStatus(token);
       _subscriptionInfo = info;
 
-      // Add breadcrumb with subscription details
       addBreadcrumb(
         message: 'Subscription status loaded',
         category: 'subscription',
@@ -104,56 +109,51 @@ class SubscriptionProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       print('Error loading subscription: $_error');
-
-      // Log to Sentry
       captureException(e,
           stackTrace: StackTrace.current,
-          hint: 'Error loading subscription status'
-      );
+          hint: 'Error loading subscription status');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Subscribe to a plan
-  Future<bool> subscribeToPlan(String token, SubscriptionTier tier) async {
+  Future<bool> subscribeToPlan(String token, SubscriptionPlan plan) async {
+    if (plan.planIdentifier == null || plan.planIdentifier == 'free') {
+      _error = 'Cannot subscribe to this plan type via checkout.';
+      notifyListeners();
+      return false;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    // Add breadcrumb for subscription attempt
     addBreadcrumb(
       message: 'Subscribing to plan',
       category: 'subscription',
-      data: {'tier': tier.toString()},
+      data: {'planIdentifier': plan.planIdentifier!},
     );
 
     try {
-      // Create dynamic success and cancel URLs
-      // In a real app, you might want to handle these with deep links
       final successUrl = 'https://delisio.app/subscription/success';
       final cancelUrl = 'https://delisio.app/subscription/cancel';
 
       final checkoutUrl = await _subscriptionService.createCheckoutSession(
         token,
-        tier,
+        plan.planIdentifier!,
         successUrl,
         cancelUrl,
       );
 
-      // Launch URL in browser
       final url = Uri.parse(checkoutUrl);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
-
-        // Add breadcrumb for successful checkout launch
         addBreadcrumb(
           message: 'Launched checkout URL',
           category: 'subscription',
-          data: {'tier': tier.toString()},
+          data: {'planIdentifier': plan.planIdentifier!},
         );
-
         return true;
       } else {
         throw Exception('Could not launch checkout URL');
@@ -161,13 +161,8 @@ class SubscriptionProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       print('Error subscribing to plan: $_error');
-
-      // Log to Sentry
       captureException(e,
-          stackTrace: StackTrace.current,
-          hint: 'Error subscribing to plan'
-      );
-
+          stackTrace: StackTrace.current, hint: 'Error subscribing to plan');
       return false;
     } finally {
       _isLoading = false;
@@ -175,13 +170,11 @@ class SubscriptionProvider with ChangeNotifier {
     }
   }
 
-  // Manage subscription
   Future<bool> manageSubscription(String token) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    // Add breadcrumb for managing subscription
     addBreadcrumb(
       message: 'Opening subscription management portal',
       category: 'subscription',
@@ -189,23 +182,19 @@ class SubscriptionProvider with ChangeNotifier {
 
     try {
       final returnUrl = 'https://delisio.app/subscription/return';
-
-      final portalUrl = await _subscriptionService.createCustomerPortalSession(
+      final portalUrl =
+      await _subscriptionService.createCustomerPortalSession(
         token,
         returnUrl,
       );
 
-      // Launch URL in browser
       final url = Uri.parse(portalUrl);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
-
-        // Add breadcrumb for successful portal launch
         addBreadcrumb(
           message: 'Launched customer portal',
           category: 'subscription',
         );
-
         return true;
       } else {
         throw Exception('Could not launch customer portal URL');
@@ -213,13 +202,8 @@ class SubscriptionProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       print('Error managing subscription: $_error');
-
-      // Log to Sentry
       captureException(e,
-          stackTrace: StackTrace.current,
-          hint: 'Error managing subscription'
-      );
-
+          stackTrace: StackTrace.current, hint: 'Error managing subscription');
       return false;
     } finally {
       _isLoading = false;
@@ -227,13 +211,11 @@ class SubscriptionProvider with ChangeNotifier {
     }
   }
 
-  // Cancel subscription
   Future<bool> cancelSubscription(String token) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    // Add breadcrumb for cancellation attempt
     addBreadcrumb(
       message: 'Cancelling subscription',
       category: 'subscription',
@@ -243,36 +225,28 @@ class SubscriptionProvider with ChangeNotifier {
       final success = await _subscriptionService.cancelSubscription(token);
 
       if (success && _subscriptionInfo != null) {
-        // Update local subscription info to reflect cancellation
         _subscriptionInfo = SubscriptionInfo(
           tier: _subscriptionInfo!.tier,
-          status: _subscriptionInfo!.status, // Status might not change immediately
+          status: _subscriptionInfo!.status,
           currentPeriodEnd: _subscriptionInfo!.currentPeriodEnd,
           recipeGenerationsLimit: _subscriptionInfo!.recipeGenerationsLimit,
           recipeGenerationsUsed: _subscriptionInfo!.recipeGenerationsUsed,
           recipeGenerationsRemaining: _subscriptionInfo!.recipeGenerationsRemaining,
-          cancelAtPeriodEnd: true, // Set this to true
+          cancelAtPeriodEnd: true,
         );
-
-        // Add breadcrumb for successful cancellation
         addBreadcrumb(
           message: 'Subscription cancelled successfully',
           category: 'subscription',
           data: {'tier': _subscriptionInfo!.tier.toString()},
         );
       }
-
       return success;
     } catch (e) {
       _error = e.toString();
       print('Error canceling subscription: $_error');
-
-      // Log to Sentry
       captureException(e,
           stackTrace: StackTrace.current,
-          hint: 'Error cancelling subscription'
-      );
-
+          hint: 'Error cancelling subscription');
       return false;
     } finally {
       _isLoading = false;
@@ -280,7 +254,6 @@ class SubscriptionProvider with ChangeNotifier {
     }
   }
 
-  // Reset error
   void resetError() {
     _error = null;
     notifyListeners();

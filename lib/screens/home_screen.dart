@@ -63,35 +63,38 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) { // Ensure widget is still mounted before calling setState
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   // Build the usage indicator widget based on subscription info
   Widget _buildUsageIndicator(SubscriptionInfo subscriptionInfo) {
-    if (subscriptionInfo.tier == SubscriptionTier.premium) {
+    // MODIFIED: Updated for Pro and Free tiers
+    if (subscriptionInfo.tier == SubscriptionTier.pro) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.purple.withOpacity(0.1),
+          color: Colors.deepPurple.withOpacity(0.1), // Color for Pro
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.purple),
+          border: Border.all(color: Colors.deepPurple), // Color for Pro
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: const [
             Icon(
-              Icons.all_inclusive,
-              color: Colors.purple,
+              Icons.all_inclusive, // Icon for unlimited
+              color: Colors.deepPurple, // Color for Pro
               size: 16,
             ),
             SizedBox(width: 8),
             Text(
-              'Unlimited Recipes',
+              'Unlimited Recipes (Pro)', // Text for Pro
               style: TextStyle(
-                color: Colors.purple,
+                color: Colors.deepPurple, // Color for Pro
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -99,10 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else {
-      // Free or Basic plan
-      Color color = subscriptionInfo.tier == SubscriptionTier.basic
-          ? Colors.blue
-          : Colors.green;
+      // Free plan (as basic is removed and default is free)
+      Color color = Colors.green; // Color for Free
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -130,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
             GestureDetector(
               onTap: () => Navigator.of(context).pushNamed('/subscription'),
               child: Text(
-                'Upgrade',
+                'Upgrade to Pro', // Updated text
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.bold,
@@ -168,10 +169,13 @@ class _HomeScreenState extends State<HomeScreen> {
     // Check if queue is active before starting
     await recipeProvider.checkQueueStatus();
 
-    setState(() {
-      _isGenerating = true;
-      _isLoading = true;
-    });
+    if (mounted) { // Ensure widget is still mounted
+      setState(() {
+        _isGenerating = true;
+        _isLoading = true;
+      });
+    }
+
 
     try {
       // If authenticated, save to user's recipes
@@ -221,16 +225,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
       // Show cancellation in progress
-      setState(() => _isLoading = true);
+      if (mounted) { // Ensure widget is still mounted
+        setState(() => _isLoading = true);
+      }
+
 
       // Display cancellation feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cancelling recipe generation...'),
-          backgroundColor: Colors.blue,
-          duration: Duration(seconds: 1),
-        ),
-      );
+      if(mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cancelling recipe generation...'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 1), // Short duration for "in progress"
+          ),
+        );
+      }
+
 
       // Call the cancellation method WITH await
       try {
@@ -254,6 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
       }
+      // isLoading state will be reset in _generateRecipe's finally block or when recipeProvider.isLoading changes via Provider
     }
   }
 
@@ -269,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final userRecipes = recipeProvider.userRecipes;
-    final bool isGenerating = recipeProvider.isLoading;
+    final bool isGenerating = recipeProvider.isLoading; // Use provider's isLoading
     final bool isCancelling = recipeProvider.isCancelling;
     final double progress = recipeProvider.generationProgress;
     final partialRecipe = recipeProvider.partialRecipe;
@@ -323,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onSubmitted: (_) =>
-                        isGenerating
+                        isGenerating // Use provider's isLoading
                             ? null
                             : _generateRecipe(),
                         enabled: !isGenerating, // Disable text field while generating
@@ -331,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 8),
                     // IMPROVED: Better UI for cancellation button with clearer states
-                    isGenerating
+                    isGenerating // Use provider's isLoading
                         ? Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -358,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         // Generation indicator adjacent to cancel button
                         const SizedBox(width: 8),
-                        SizedBox(
+                        SizedBox( // This acts as a visual cue that something is happening
                           width: 56, height: 56,
                           child: Center(
                             child: SizedBox(
@@ -374,17 +385,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     )
-                        : SizedBox(
+                        : SizedBox( // Generate Button
                       width: 56, height: 56,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _generateRecipe,
+                        onPressed: _isLoading ? null : _generateRecipe, // Uses local _isLoading for generate button enable/disable
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.all(16),
                           shape: const CircleBorder(),
                           disabledForegroundColor: Colors.white54,
                           disabledBackgroundColor: Colors.grey,
                         ),
-                        child: _isLoading
+                        child: _isLoading // Uses local _isLoading for button's progress indicator
                             ? const SizedBox(
                             width: 24, height: 24, child: Center(
                             child: CircularProgressIndicator(
@@ -396,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 // Progress indicator for recipe generation
-                if (isGenerating && recipeProvider.isQueueActive)
+                if (isGenerating && recipeProvider.isQueueActive) // Use provider's isLoading
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -457,12 +468,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text('Your Saved Recipes', style: TextStyle(
                         fontSize: 20, fontWeight: FontWeight.bold)),
                   ),
-                  if (recipeProvider.isLoading && userRecipes.isEmpty &&
+                  if (recipeProvider.isLoading && userRecipes.isEmpty && // Use provider's isLoading
                       partialRecipe == null)
                     const Expanded(
                         child: Center(child: CircularProgressIndicator()))
                   else
-                    if (userRecipes.isEmpty && !isGenerating)
+                    if (userRecipes.isEmpty && !isGenerating) // Use provider's isLoading
                       Expanded(
                         child: Center(
                           child: Padding(

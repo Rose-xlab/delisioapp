@@ -1,12 +1,12 @@
 // lib/models/subscription.dart
-enum SubscriptionTier { free, basic, premium }
+enum SubscriptionTier { free, pro } // MODIFIED: Removed basic, premium; Added pro
 enum SubscriptionStatus { active, canceled, past_due, incomplete, trialing }
 
 class SubscriptionInfo {
   final SubscriptionTier tier;
   final SubscriptionStatus status;
   final DateTime currentPeriodEnd;
-  final int recipeGenerationsLimit;
+  final int recipeGenerationsLimit; // For Pro, this might be a special value or ignored by UI
   final int recipeGenerationsUsed;
   final int recipeGenerationsRemaining;
   final bool cancelAtPeriodEnd;
@@ -35,19 +35,27 @@ class SubscriptionInfo {
 
   static SubscriptionTier _parseTier(String tier) {
     switch (tier) {
-      case 'basic': return SubscriptionTier.basic;
-      case 'premium': return SubscriptionTier.premium;
-      default: return SubscriptionTier.free;
+      case 'pro': // MODIFIED: Changed from 'basic'/'premium'
+        return SubscriptionTier.pro;
+    // case 'basic': return SubscriptionTier.basic; // REMOVED
+    // case 'premium': return SubscriptionTier.premium; // REMOVED
+      default:
+        return SubscriptionTier.free;
     }
   }
 
   static SubscriptionStatus _parseStatus(String status) {
     switch (status) {
-      case 'canceled': return SubscriptionStatus.canceled;
-      case 'past_due': return SubscriptionStatus.past_due;
-      case 'incomplete': return SubscriptionStatus.incomplete;
-      case 'trialing': return SubscriptionStatus.trialing;
-      default: return SubscriptionStatus.active;
+      case 'canceled':
+        return SubscriptionStatus.canceled;
+      case 'past_due':
+        return SubscriptionStatus.past_due;
+      case 'incomplete':
+        return SubscriptionStatus.incomplete;
+      case 'trialing':
+        return SubscriptionStatus.trialing;
+      default:
+        return SubscriptionStatus.active;
     }
   }
 }
@@ -55,12 +63,13 @@ class SubscriptionInfo {
 // Define subscription plan details
 class SubscriptionPlan {
   final SubscriptionTier tier;
-  final String name;
+  final String name; // e.g., "Free", "Pro Monthly", "Pro Annual"
   final String description;
   final double price;
   final String currency;
-  final String interval;
+  final String interval; // e.g., "month", "year"
   final List<String> features;
+  final String? planIdentifier; // MODIFIED: Added for backend communication (e.g., "pro-monthly")
 
   SubscriptionPlan({
     required this.tier,
@@ -70,5 +79,6 @@ class SubscriptionPlan {
     required this.currency,
     required this.interval,
     required this.features,
+    this.planIdentifier, // MODIFIED
   });
 }

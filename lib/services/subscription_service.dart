@@ -2,13 +2,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import '../models/subscription.dart';
+import '../models/subscription.dart'; // SubscriptionTier enum is not directly used here for checkout
 
 class SubscriptionService {
   final String baseUrl = ApiConfig.baseUrl;
   final http.Client client = http.Client();
 
-  // Get subscription status
   Future<SubscriptionInfo> getSubscriptionStatus(String token) async {
     try {
       final response = await client.get(
@@ -33,14 +32,15 @@ class SubscriptionService {
   }
 
   // Create checkout session
+  // MODIFIED: Takes a planIdentifier string instead of SubscriptionTier
   Future<String> createCheckoutSession(
       String token,
-      SubscriptionTier tier,
+      String planIdentifier, // MODIFIED: e.g., "pro-monthly", "pro-annual"
       String successUrl,
       String cancelUrl,
       ) async {
     try {
-      final tierString = tier == SubscriptionTier.premium ? 'premium' : 'basic';
+      // REMOVED: final tierString = tier == SubscriptionTier.premium ? 'premium' : 'basic';
 
       final response = await client.post(
         Uri.parse('$baseUrl${ApiConfig.subscriptionCheckout}'),
@@ -49,7 +49,10 @@ class SubscriptionService {
           'Authorization': 'Bearer $token',
         },
         body: json.encode({
-          'tier': tierString,
+          // MODIFIED: Use planIdentifier instead of 'tier' for checkout if backend expects this
+          'planIdentifier': planIdentifier,
+          // If backend still expects 'tier' but with new values, adjust accordingly:
+          // 'tier': planIdentifier, // e.g. if backend expects 'pro-monthly' in a 'tier' field
           'successUrl': successUrl,
           'cancelUrl': cancelUrl,
         }),
@@ -68,7 +71,6 @@ class SubscriptionService {
     }
   }
 
-  // Create customer portal session
   Future<String> createCustomerPortalSession(
       String token,
       String returnUrl,
@@ -98,7 +100,6 @@ class SubscriptionService {
     }
   }
 
-  // Cancel subscription
   Future<bool> cancelSubscription(String token) async {
     try {
       final response = await client.post(

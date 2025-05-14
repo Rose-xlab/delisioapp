@@ -73,30 +73,39 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       }
 
       await recipeProvider.getTrendingRecipes(token: token);
-      setState(() {
-        _isLoadingTrending = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingTrending = false;
+        });
+      }
+
 
       await recipeProvider.getAllCategories();
-      setState(() {
-        _isLoadingCategories = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+        });
+      }
+
 
       await recipeProvider.getDiscoverRecipes(
         category: _activeCategory,
         token: token,
       );
-      setState(() {
-        _isLoadingRecipes = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingRecipes = false;
+        });
+      }
+
     } catch (e) {
       print('Error loading initial data: $e');
-      setState(() {
-        _isLoadingTrending = false;
-        _isLoadingCategories = false;
-        _isLoadingRecipes = false;
-      });
       if (mounted) {
+        setState(() {
+          _isLoadingTrending = false;
+          _isLoadingCategories = false;
+          _isLoadingRecipes = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading recipes: $e')),
         );
@@ -150,11 +159,14 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _onCategorySelected(String? categoryId) {
-    setState(() {
-      _activeCategory = categoryId;
-      _searchController.clear();
-      _searchQuery = '';
-    });
+    if(mounted){
+      setState(() {
+        _activeCategory = categoryId;
+        _searchController.clear();
+        _searchQuery = '';
+      });
+    }
+
 
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -167,9 +179,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _onSearch(String query) {
-    setState(() {
-      _searchQuery = query;
-    });
+    if(mounted){
+      setState(() {
+        _searchQuery = query;
+      });
+    }
+
 
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -183,10 +198,13 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _onCancelSearch() {
-    setState(() {
-      _searchController.clear();
-      _searchQuery = '';
-    });
+    if(mounted){
+      setState(() {
+        _searchController.clear();
+        _searchQuery = '';
+      });
+    }
+
 
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -239,9 +257,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Future<void> _cancelRecipeGenerationViaRecipeProvider() async {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
-      );
+      if(mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
+        );
+      }
       try {
         await recipeProvider.cancelRecipeGeneration();
         if (mounted) {
@@ -290,96 +310,104 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final subscriptionInfo = subscriptionProvider.subscriptionInfo;
 
     if (subscriptionInfo == null) {
-      return const SizedBox.shrink();
+      return const SizedBox.shrink(); // No info, show nothing
     }
 
-    if (subscriptionInfo.tier == SubscriptionTier.premium) {
+    // MODIFIED: Logic for Pro and Free tiers
+    if (subscriptionInfo.tier == SubscriptionTier.pro) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Adjusted padding
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.purple.shade700, Colors.purple.shade500],
+            colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade400], // Pro colors
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.purple.withOpacity(0.3),
+              color: Colors.deepPurple.withOpacity(0.4), // Pro shadow
               blurRadius: 8,
-              offset: const Offset(0, 3),
+              offset: const Offset(0, 4), // Slightly adjusted shadow
             ),
           ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.star, color: Colors.white),
-            const SizedBox(width: 8),
+            const Icon(Icons.workspace_premium, color: Colors.white, size: 22), // Pro icon
+            const SizedBox(width: 10),
             const Expanded(
               child: Text(
-                'Premium Plan - Unlimited Recipes',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                'Pro Plan - Unlimited Recipes', // Pro text
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pushNamed('/subscription'),
               style: TextButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.2),
+                backgroundColor: Colors.white.withOpacity(0.25),
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               ),
               child: const Text('Manage'),
             ),
           ],
         ),
       );
-    }
+    } else { // Free Plan (as Basic and Premium are removed)
+      Color color = Colors.green; // Color for Free plan
+      String tierName = 'Free';
 
-    Color color = subscriptionInfo.tier == SubscriptionTier.basic ? Colors.blue : Colors.green;
-    String tierName = subscriptionInfo.tier == SubscriptionTier.basic ? 'Basic' : 'Free';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            subscriptionInfo.tier == SubscriptionTier.basic ? Icons.verified_user : Icons.restaurant_menu,
-            color: color,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$tierName Plan - ${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold),
-                ),
-                if (subscriptionInfo.cancelAtPeriodEnd)
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Adjusted padding
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.7)), // Slightly softer border
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.local_florist_outlined, // Icon for Free plan
+              color: color,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                   Text(
-                    'Will cancel on ${_formatDate(subscriptionInfo.currentPeriodEnd)}',
-                    style: const TextStyle(color: Colors.orange, fontSize: 12),
+                    '$tierName Plan: ${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-              ],
+                  // Removed cancelAtPeriodEnd for Free plan, as it's less typical.
+                  // if (subscriptionInfo.cancelAtPeriodEnd)
+                  //   Text(
+                  //     'Will cancel on ${_formatDate(subscriptionInfo.currentPeriodEnd)}',
+                  //     style: const TextStyle(color: Colors.orange, fontSize: 12),
+                  //   ),
+                ],
+              ),
             ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pushNamed('/subscription'),
-            style: TextButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
+            TextButton(
+              onPressed: () => Navigator.of(context).pushNamed('/subscription'),
+              style: TextButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              child: const Text('Upgrade'), // Text for Free plan
             ),
-            child: Text(subscriptionInfo.tier == SubscriptionTier.basic ? 'Manage' : 'Upgrade'),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -438,6 +466,9 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       ],
                     ),
                   ),
+                  // Display subscription banner here if user is authenticated
+                  if (authProvider.isAuthenticated)
+                    _buildSubscriptionBanner(context),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: Column(
@@ -550,7 +581,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                           onRecipeTap: _viewRecipe,
                           isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
                         ),
-                        SizedBox(height: navigationBarHeight + 10),
+                        SizedBox(height: navigationBarHeight + 10), // Padding for bottom content
                         if (isLoadingMore)
                           Padding(
                             padding: const EdgeInsets.all(16.0),

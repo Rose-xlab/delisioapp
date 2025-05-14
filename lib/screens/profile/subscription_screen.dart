@@ -15,7 +15,7 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  bool _isLoading = false;
+  bool _isLoading = false; // Local loading state for screen-specific actions
 
   @override
   void initState() {
@@ -56,29 +56,52 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final willCancel = subscriptionInfo.cancelAtPeriodEnd;
     final endDate = subscriptionInfo.currentPeriodEnd;
 
-    // Get plan name based on tier
-    String planName;
+    String planNameDisplay;
     Color planColor;
 
+    // Get current plan details from provider's list for accurate name (e.g. "Pro Monthly")
+    // This assumes the backend returns a tier that can be matched,
+    // or you have logic to map SubscriptionInfo.tier to a specific plan.
+    // For simplicity, we'll derive from tier here, but for exact "Pro Monthly" vs "Pro Annual"
+    // name in current plan, you might need more info from backend or match against currentPeriodEnd interval.
+
+    // Attempt to find the exact current plan based on its identifier if available from backend
+    // This part requires backend to send 'planIdentifier' or similar with SubscriptionInfo
+    String? currentBackendPlanIdentifier = subscriptionInfo.status == SubscriptionStatus.active
+        ? Provider.of<SubscriptionProvider>(context, listen: false).plans.firstWhere(
+            (p) => p.tier == subscriptionInfo.tier && (
+            (p.interval == 'month' && subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays < 35 ) || // rough guess for monthly
+                (p.interval == 'year' && subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays > 35) // rough guess for yearly
+            // A more reliable way would be if SubscriptionInfo included the priceId or plan.planIdentifier
+        ), orElse: () => Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == subscriptionInfo.tier, orElse: () => SubscriptionPlan(tier: subscriptionInfo.tier, name: "Current", description: "", price: 0, currency: "USD", interval: "", features: []))
+    ).name
+        : subscriptionInfo.tier.toString().split('.').last.toUpperCase(); // Fallback if not active or exact match complex
+
+
     switch (subscriptionInfo.tier) {
-      case SubscriptionTier.basic:
-        planName = 'Basic';
-        planColor = Colors.blue;
+      case SubscriptionTier.pro:
+      // Use the matched plan name if possible, otherwise default to "Pro"
+        final proPlanDetails = Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == SubscriptionTier.pro, orElse: () => SubscriptionPlan(tier: SubscriptionTier.pro, name: "Pro", description: "", price: 0, currency: "USD", interval: "", features: [], planIdentifier: "pro"));
+        planNameDisplay = proPlanDetails.name; // This will be "Pro Monthly" or "Pro Annual" if plans are set up
+        // We need a better way to know which specific Pro plan the user is on.
+        // For now, we will try to find if the user is on a known "Pro" plan.
+        final actualProPlan = Provider.of<SubscriptionProvider>(context, listen: false).plans.firstWhere(
+                (p) => p.tier == SubscriptionTier.pro && p.name.toLowerCase().contains(subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays < 40 ? "month" : "year"), // very rough heuristic
+            orElse: () => proPlanDetails
+        );
+        planNameDisplay = actualProPlan.name;
+        planColor = Colors.deepPurple;
         break;
-      case SubscriptionTier.premium:
-        planName = 'Premium';
-        planColor = Colors.purple;
-        break;
-      default:
-        planName = 'Free';
+      default: // free
+        final freePlanDetails = Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == SubscriptionTier.free);
+        planNameDisplay = freePlanDetails.name; // Should be "Free"
         planColor = Colors.green;
     }
 
+
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -86,50 +109,33 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.star,
-                  color: planColor,
-                  size: 24,
-                ),
+                Icon(Icons.star, color: planColor, size: 24),
                 const SizedBox(width: 8),
                 Text(
-                  'Current Plan: $planName',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'Current Plan: $planNameDisplay',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isActive ? Colors.green : Colors.orange,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    isActive ? 'Active' : 'Inactive',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    isActive ? 'Active' : subscriptionInfo.status.toString().split('.').last,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
 
-            // Recipe usage
-            if (subscriptionInfo.tier != SubscriptionTier.premium)
+            if (subscriptionInfo.tier == SubscriptionTier.free) // Only show for Free
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Recipe Generations',
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  Text('Recipe Generations', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 8),
                   UsageProgressBar(
                     used: subscriptionInfo.recipeGenerationsUsed,
@@ -139,75 +145,54 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   const SizedBox(height: 8),
                   Text(
                     '${subscriptionInfo.recipeGenerationsUsed} used of ${subscriptionInfo.recipeGenerationsLimit} this month',
-                    style: TextStyle(
-                      color: theme.textTheme.bodySmall?.color,
-                    ),
+                    style: TextStyle(color: theme.textTheme.bodySmall?.color),
                   ),
                   const SizedBox(height: 16),
                 ],
               ),
-
-            // Period info
             Row(
               children: [
-                Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: theme.textTheme.bodySmall?.color,
-                ),
+                Icon(Icons.calendar_today, size: 16, color: theme.textTheme.bodySmall?.color),
                 const SizedBox(width: 8),
                 Text(
-                  'Current period ends: ${_formatDate(endDate)}',
-                  style: TextStyle(
-                    color: theme.textTheme.bodySmall?.color,
-                  ),
+                  '${isActive && !willCancel && subscriptionInfo.tier == SubscriptionTier.pro ? "Renews" : "Ends"}: ${_formatDate(endDate)}',
+                  style: TextStyle(color: theme.textTheme.bodySmall?.color),
                 ),
               ],
             ),
-
-            if (willCancel)
+            if (willCancel && subscriptionInfo.tier == SubscriptionTier.pro)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: Colors.orange,
-                    ),
+                    Icon(Icons.info_outline, size: 16, color: Colors.orange),
                     const SizedBox(width: 8),
                     Text(
-                      'Will cancel at end of period',
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      'Set to cancel at period end',
+                      style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
               ),
-
             const SizedBox(height: 16),
 
-            // Manage subscription button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => _manageSubscription(),
-                child: const Text('Manage Subscription'),
+            if (subscriptionInfo.tier == SubscriptionTier.pro) // Only show manage for Pro
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _manageSubscription(),
+                  child: const Text('Manage Subscription'),
+                ),
               ),
-            ),
 
-            if (subscriptionInfo.tier != SubscriptionTier.free && !willCancel)
+            if (subscriptionInfo.tier == SubscriptionTier.pro && !willCancel && isActive)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () => _confirmCancelSubscription(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                    ),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
                     child: const Text('Cancel Subscription'),
                   ),
                 ),
@@ -220,7 +205,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _buildSubscriptionPlans() {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
-    final currentTier = subscriptionProvider.subscriptionInfo?.tier;
+    final currentSubInfo = subscriptionProvider.subscriptionInfo;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,9 +214,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Text(
             'Subscription Plans',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         ListView.builder(
@@ -240,14 +223,43 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           itemCount: subscriptionProvider.plans.length,
           itemBuilder: (context, index) {
             final plan = subscriptionProvider.plans[index];
-            final isCurrentPlan = plan.tier == currentTier;
+            bool isCurrentPlan = false;
+            bool disableSubscribeButton = false;
+
+            if (currentSubInfo != null) {
+              if (currentSubInfo.tier == plan.tier) {
+                // If the tiers match, it's the current tier.
+                // For Pro plans, we need to check if it's the *exact* same interval (monthly/annually)
+                // to disable the button. This requires knowing the current plan's interval.
+                // Assuming SubscriptionInfo might eventually hold plan.planIdentifier or interval for the active sub.
+                isCurrentPlan = true;
+                if (plan.tier == SubscriptionTier.pro) {
+                  // Heuristic: if current plan is active, not cancelling, and its interval matches this card's interval
+                  // then disable button. This is still imperfect without explicit current planIdentifier in SubscriptionInfo.
+                  // For now, if it's a Pro plan and user is on Pro, we mark `isCurrentPlan` true.
+                  // Button will be disabled if it's a paid plan and marked `isCurrentPlan`.
+                  if ((currentSubInfo.status == SubscriptionStatus.active || currentSubInfo.status == SubscriptionStatus.trialing) &&
+                      !currentSubInfo.cancelAtPeriodEnd) {
+                    // A more robust check for exact plan (e.g. Pro Monthly vs Pro Annual)
+                    // would involve comparing plan.planIdentifier if available in currentSubInfo
+                    // For simplicity here, if current tier is Pro, and this card is Pro, consider it the active tier
+                    // The button is disabled if isCurrentPlan is true and price > 0
+                  }
+                }
+                if (plan.price > 0) { // For any paid plan that is current
+                  disableSubscribeButton = true;
+                }
+              }
+            }
+
 
             return SubscriptionPlanCard(
               plan: plan,
               isCurrentPlan: isCurrentPlan,
-              onSubscribe: isCurrentPlan
+              // CORRECTED LINE:
+              onSubscribe: (disableSubscribeButton || plan.tier == SubscriptionTier.free || plan.planIdentifier == null || plan.planIdentifier == 'free')
                   ? null
-                  : () => _subscribeToPlan(plan.tier),
+                  : _subscribeToPlan,
             );
           },
         ),
@@ -255,7 +267,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  Future<void> _subscribeToPlan(SubscriptionTier tier) async {
+  Future<void> _subscribeToPlan(SubscriptionPlan plan) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -263,18 +275,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
       return;
     }
+    if (plan.tier == SubscriptionTier.free || plan.planIdentifier == null || plan.planIdentifier == 'free') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Free plan is automatically applied or cannot be subscribed to directly.')),
+      );
+      return;
+    }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() { _isLoading = true; });
 
     try {
       final success = await Provider.of<SubscriptionProvider>(context, listen: false)
-          .subscribeToPlan(authProvider.token!, tier);
+          .subscribeToPlan(authProvider.token!, plan);
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Opening checkout page...')),
+        );
+      } else {
+        final error = Provider.of<SubscriptionProvider>(context, listen: false).error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error ?? 'Could not start subscription process.')),
         );
       }
     } catch (e) {
@@ -283,9 +304,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() { _isLoading = false; });
       }
     }
   }
@@ -294,22 +313,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must be logged in to manage subscription')),
+        const SnackBar(content: Text('You must be logged in')),
       );
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() { _isLoading = true; });
     try {
       final success = await Provider.of<SubscriptionProvider>(context, listen: false)
           .manageSubscription(authProvider.token!);
-
       if (success) {
+        // Message is usually handled by provider or not needed as browser opens
+      } else {
+        final error = Provider.of<SubscriptionProvider>(context, listen: false).error;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Opening subscription portal...')),
+          SnackBar(content: Text(error ?? 'Could not open management portal.')),
         );
       }
     } catch (e) {
@@ -317,11 +334,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         SnackBar(content: Text('Error managing subscription: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) { setState(() { _isLoading = false; }); }
     }
   }
 
@@ -331,7 +344,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel Subscription?'),
         content: const Text(
-          'Your subscription will continue until the end of the current billing period, and then automatically cancel.',
+          'Your Pro plan benefits will continue until the end of the current billing period, and then automatically cancel.',
         ),
         actions: [
           TextButton(
@@ -340,9 +353,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('YES, CANCEL'),
           ),
         ],
@@ -356,51 +367,34 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Future<void> _cancelSubscription() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.token == null) {
-      return;
-    }
+    if (authProvider.token == null) return;
 
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() { _isLoading = true; });
     try {
       final success = await Provider.of<SubscriptionProvider>(context, listen: false)
           .cancelSubscription(authProvider.token!);
-
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription will cancel at the end of the billing period')),
+          const SnackBar(content: Text('Subscription will cancel at period end.')),
         );
-
-        // Reload subscription data to reflect cancellation
-        await Provider.of<SubscriptionProvider>(context, listen: false)
-            .loadSubscriptionStatus(authProvider.token!);
+        await _loadSubscriptionData();
+      } else {
+        final error = Provider.of<SubscriptionProvider>(context, listen: false).error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error ?? 'Could not cancel subscription.')),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error canceling subscription: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) { setState(() { _isLoading = false; }); }
     }
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = date.difference(now).inDays;
-
-    if (difference <= 0) {
-      return 'Today';
-    } else if (difference == 1) {
-      return 'Tomorrow';
-    } else {
-      return '${date.month}/${date.day}/${date.year}';
-    }
+    return '${date.month.toString().padLeft(2,'0')}/${date.day.toString().padLeft(2,'0')}/${date.year}';
   }
 
   @override
@@ -420,7 +414,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
         ],
       ),
-      body: isLoading
+      body: isLoading && subscriptionInfo == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
         onRefresh: _loadSubscriptionData,
@@ -429,14 +423,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Current subscription info
+              if (subscriptionProvider.error != null && !isLoading)
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text("Error: ${subscriptionProvider.error}", style: TextStyle(color: Colors.red)),
+                ),
               if (subscriptionInfo != null)
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: _buildCurrentPlan(subscriptionInfo),
                 ),
-
-              // Subscription plans
+              if (subscriptionInfo == null && !isLoading && subscriptionProvider.error == null)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: Text("No active subscription information found. You are on the Free plan.", textAlign: TextAlign.center,)),
+                ),
               _buildSubscriptionPlans(),
             ],
           ),
