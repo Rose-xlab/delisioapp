@@ -1,6 +1,6 @@
-// lib/screens/home_screen_enhanced.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // Keep RevenueCat UI import
 
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
@@ -56,11 +56,13 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   Future<void> _loadInitialData() async {
-    setState(() {
-      _isLoadingTrending = true;
-      _isLoadingCategories = true;
-      _isLoadingRecipes = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoadingTrending = true;
+        _isLoadingCategories = true;
+        _isLoadingRecipes = true;
+      });
+    }
 
     try {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
@@ -313,37 +315,40 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       return const SizedBox.shrink(); // No info, show nothing
     }
 
-    // MODIFIED: Logic for Pro and Free tiers
     if (subscriptionInfo.tier == SubscriptionTier.pro) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Adjusted padding
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade400], // Pro colors
+            colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade400],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.deepPurple.withOpacity(0.4), // Pro shadow
+              color: Colors.deepPurple.withOpacity(0.4),
               blurRadius: 8,
-              offset: const Offset(0, 4), // Slightly adjusted shadow
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.workspace_premium, color: Colors.white, size: 22), // Pro icon
+            const Icon(Icons.workspace_premium, color: Colors.white, size: 22),
             const SizedBox(width: 10),
             const Expanded(
               child: Text(
-                'Pro Plan - Unlimited Recipes', // Pro text
+                'Pro Plan - Unlimited Recipes',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
               ),
             ),
             TextButton(
+              // RESOLVED: "Manage" button for Pro users.
+              // Reverted to navigating to your custom subscription screen.
+              // Showing a paywall for "Manage" is incorrect.
+              // If RevenueCat is to handle management, a different RevenueCat SDK call would be needed.
               onPressed: () => Navigator.of(context).pushNamed('/subscription'),
               style: TextButton.styleFrom(
                 backgroundColor: Colors.white.withOpacity(0.25),
@@ -356,22 +361,22 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           ],
         ),
       );
-    } else { // Free Plan (as Basic and Premium are removed)
-      Color color = Colors.green; // Color for Free plan
+    } else { // Free Plan
+      Color color = Colors.green;
       String tierName = 'Free';
 
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Adjusted padding
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.7)), // Slightly softer border
+          border: Border.all(color: color.withOpacity(0.7)),
         ),
         child: Row(
           children: [
             Icon(
-              Icons.local_florist_outlined, // Icon for Free plan
+              Icons.local_florist_outlined,
               color: color,
               size: 22,
             ),
@@ -385,24 +390,21 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                     '$tierName Plan: ${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
                     style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-                  // Removed cancelAtPeriodEnd for Free plan, as it's less typical.
-                  // if (subscriptionInfo.cancelAtPeriodEnd)
-                  //   Text(
-                  //     'Will cancel on ${_formatDate(subscriptionInfo.currentPeriodEnd)}',
-                  //     style: const TextStyle(color: Colors.orange, fontSize: 12),
-                  //   ),
                 ],
               ),
             ),
+            // RESOLVED: "Upgrade" button for Free users. Uses RevenueCat paywall.
             TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/subscription'),
+              onPressed: () { // Using a block for clarity, though not strictly necessary for single call
+                RevenueCatUI.presentPaywallIfNeeded("Pro");
+              },
               style: TextButton.styleFrom(
                 backgroundColor: color,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               ),
-              child: const Text('Upgrade'), // Text for Free plan
+              child: const Text('Upgrade'),
             ),
           ],
         ),
@@ -429,11 +431,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final bool isLoadingMore = recipeProvider.isLoadingMore;
 
     final double screenHeight = MediaQuery.of(context).size.height;
-    // MODIFICATION: Use standard FAB size for calculation
-    final double fabSize = 56.0; // Standard FAB diameter
-    // Adjust top position to center the FAB vertically considering SafeArea padding
+    final double fabSize = 56.0;
     final double fabTopPosition = (screenHeight / 2) - (fabSize / 2) - (MediaQuery.of(context).padding.top / 2);
-
     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -466,7 +465,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       ],
                     ),
                   ),
-                  // Display subscription banner here if user is authenticated
                   if (authProvider.isAuthenticated)
                     _buildSubscriptionBanner(context),
                   Padding(
@@ -484,9 +482,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                         Padding(
                           padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
                           child: Center(
-                            child: ElevatedButton( // MODIFIED: Was ElevatedButton.icon
+                            child: ElevatedButton(
                               onPressed: _navigateToChatScreenWithQuery,
-                              // MODIFIED: Icon removed
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: theme.colorScheme.primary,
                                 foregroundColor: theme.colorScheme.onPrimary,
@@ -496,7 +493,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                                   borderRadius: BorderRadius.circular(10.0),
                                 ),
                               ),
-                              child: const Text('Generate Recipe'), // MODIFIED: Text changed
+                              child: const Text('Generate Recipe'),
                             ),
                           ),
                         ),
@@ -581,7 +578,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                           onRecipeTap: _viewRecipe,
                           isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
                         ),
-                        SizedBox(height: navigationBarHeight + 10), // Padding for bottom content
+                        SizedBox(height: navigationBarHeight + 10),
                         if (isLoadingMore)
                           Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -599,18 +596,15 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             ),
             if (authProvider.isAuthenticated)
               Positioned(
-                // MODIFICATION: Positioned to the right
                 right: 16.0,
                 top: fabTopPosition,
                 child: FloatingActionButton(
-                  // MODIFICATION: Removed mini: true for standard size
                   heroTag: 'homeScreenNewChatFab',
                   onPressed: _navigateToNewChatScreen,
-                  // MODIFICATION: Using theme.colorScheme.secondary for more prominence
                   backgroundColor: theme.colorScheme.secondary,
                   foregroundColor: theme.colorScheme.onSecondary,
-                  elevation: 6.0, // Slightly increased elevation
-                  child: const Icon(Icons.add_comment_outlined), // Icon for new chat
+                  elevation: 6.0,
+                  child: const Icon(Icons.add_comment_outlined),
                 ),
               ),
           ],
