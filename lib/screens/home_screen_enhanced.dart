@@ -1,6 +1,7 @@
 // lib/screens/home_screen_enhanced.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
@@ -343,7 +344,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/subscription'),
+              onPressed: () =>{
+                // Navigator.of(context).pushNamed('/subscription')
+                RevenueCatUI.presentPaywallIfNeeded("Pro")
+              },
               style: TextButton.styleFrom(
                 backgroundColor: Colors.white.withOpacity(0.2),
                 foregroundColor: Colors.white,
@@ -390,7 +394,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pushNamed('/subscription'),
+            onPressed: () => {
+              // Navigator.of(context).pushNamed('/subscription')
+                RevenueCatUI.presentPaywallIfNeeded("Pro")
+            },
             style: TextButton.styleFrom(
               backgroundColor: color,
               foregroundColor: Colors.white,

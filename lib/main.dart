@@ -1,7 +1,10 @@
 // lib/main.dart
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart'; // Add this import
 import 'app.dart'; // Assuming DelisioApp is here
@@ -28,6 +31,8 @@ Future<void> main() async {
   // 1. Load .env file and essential keys FIRST
   String? supabaseUrl;
   String? supabaseAnonKey;
+  String? revenueCatAndroidApiKey;
+  String? revenueCatIOSApiKey;
   // Keep track if dotenv loading failed
   bool dotEnvLoadFailed = false;
 
@@ -37,6 +42,8 @@ Future<void> main() async {
     // Read keys immediately after loading
     supabaseUrl = dotenv.env['SUPABASE_URL'];
     supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    revenueCatAndroidApiKey = dotenv.env["REVENUECAT_ANDROID_API_KEY"];
+    revenueCatIOSApiKey = dotenv.env["REVENUECAT_IOS_API_KEY"];
     // You could also load SENTRY_DSN here if needed elsewhere,
     // but initSentry reads it internally anyway.
   } catch (e) {
@@ -99,6 +106,20 @@ Future<void> main() async {
     // Log this critical error
     await captureException(e, stackTrace: StackTrace.current);
     return; // Stop execution if Supabase fails to initialize
+  }
+
+
+  ////////////////////// INITIALISE REVENUE CAT //////////////////////////
+  if(revenueCatAndroidApiKey != null && revenueCatIOSApiKey != null){
+    
+      final revenueCatConfig = PurchasesConfiguration(
+
+        Platform.isAndroid  
+        ? revenueCatAndroidApiKey
+        : revenueCatIOSApiKey,
+      );
+
+      await Purchases.configure(revenueCatConfig);
   }
 
   // 4. Run the App (only if all initializations succeeded)
