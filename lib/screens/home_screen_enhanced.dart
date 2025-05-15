@@ -9,7 +9,7 @@ import '../providers/subscription_provider.dart';
 import '../models/subscription.dart';
 import '../widgets/home/trending_recipes.dart';
 import '../widgets/home/recipe_grid.dart';
-import '../widgets/search/search_bar.dart';
+import '../widgets/search/search_bar.dart'; // Assuming this is EnhancedSearchBar
 import '../constants/categories.dart';
 import '../models/recipe_category.dart';
 import '../models/recipe.dart';
@@ -28,6 +28,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   bool _isLoadingTrending = false;
   bool _isLoadingRecipes = false;
   bool _isLoadingCategories = false;
+  bool _isSearchUIVisible = false;
 
   String? _activeCategory;
   String _searchQuery = '';
@@ -90,14 +91,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         });
       }
 
-
       await recipeProvider.getAllCategories();
       if (mounted) {
         setState(() {
           _isLoadingCategories = false;
         });
       }
-
 
       await recipeProvider.getDiscoverRecipes(
         category: _activeCategory,
@@ -117,9 +116,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           _isLoadingCategories = false;
           _isLoadingRecipes = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading recipes: $e')),
-        );
+        if (context.mounted) { // Check if context is still valid
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading recipes: $e')),
+          );
+        }
       }
     }
   }
@@ -138,9 +139,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     } catch (e) {
       print('Error loading more recipes: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading more recipes: $e')),
-        );
+        if (context.mounted) { // Check if context is still valid
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading more recipes: $e')),
+          );
+        }
       }
     }
   }
@@ -158,10 +161,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             .loadSubscriptionStatus(token);
       }
 
+      String? currentQuery = _isSearchUIVisible && _searchQuery.isNotEmpty ? _searchQuery : null;
+
       await recipeProvider.resetAndReloadDiscoverRecipes(
         category: _activeCategory,
         token: token,
-        query: _searchQuery,
+        query: currentQuery ?? _searchQuery,
       );
       await recipeProvider.getTrendingRecipes(token: token);
       return;
@@ -177,9 +182,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         _activeCategory = categoryId;
         _searchController.clear();
         _searchQuery = '';
+        if (_isSearchUIVisible) {
+          _isSearchUIVisible = false;
+        }
       });
     }
-
 
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -195,16 +202,15 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     if(mounted){
       setState(() {
         _searchQuery = query;
+        _activeCategory = null;
       });
     }
-
 
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final token = authProvider.isAuthenticated ? authProvider.token : null;
 
     recipeProvider.getDiscoverRecipes(
-      category: _activeCategory,
       query: query,
       token: token,
     );
@@ -215,9 +221,9 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       setState(() {
         _searchController.clear();
         _searchQuery = '';
+        _isSearchUIVisible = false;
       });
     }
-
 
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -233,9 +239,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a recipe name or ingredients to generate.')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a recipe name or ingredients to generate.')),
+          );
+        }
       }
       return;
     }
@@ -251,18 +259,22 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       );
       if (!recipeProvider.wasCancelled && recipeProvider.error == null && mounted) {
         print("Recipe generation successful (via RecipeProvider), navigating...");
-        Navigator.of(context).pushNamed('/recipe');
+        if (context.mounted) Navigator.of(context).pushNamed('/recipe');
       } else if (recipeProvider.wasCancelled && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Recipe generation cancelled'), backgroundColor: Colors.orange),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Recipe generation cancelled'), backgroundColor: Colors.orange),
+          );
+        }
       }
     } catch (e) {
       print('Error generating recipe (via RecipeProvider): ${e.toString()}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -271,28 +283,37 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
       if(mounted){
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
-        );
+        if(context.mounted){
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
+          );
+        }
       }
       try {
         await recipeProvider.cancelRecipeGeneration();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Recipe generation cancelled by user.'), backgroundColor: Colors.orange),
-          );
+          if(context.mounted){
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Recipe generation cancelled by user.'), backgroundColor: Colors.orange),
+            );
+          }
         }
       } catch (e) {
         print('Error during cancellation (via RecipeProvider): $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error during cancellation: $e'), backgroundColor: Colors.red),
-          );
+          if(context.mounted){
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error during cancellation: $e'), backgroundColor: Colors.red),
+            );
+          }
         }
       }
     }
   }
 
+  // The _navigateToChatScreenWithQuery method is no longer directly tied to a visible button
+  // on this screen if the "Generate Recipe" button that used it is removed.
+  // It's kept here as it might be used by other functionalities (e.g. if search submission also offered a "chat about this" option).
   void _navigateToChatScreenWithQuery() {
     final query = _searchController.text.trim();
     Navigator.of(context).pushNamed('/chat', arguments: {
@@ -301,12 +322,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     });
   }
 
-  void _navigateToNewChatScreen() {
-    Navigator.of(context).pushNamed('/chat', arguments: {
-      'initialQuery': null,
-      'purpose': 'newChatFromHomeFab'
-    });
-  }
 
   void _viewRecipe(Recipe recipe) {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
@@ -323,7 +338,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final subscriptionInfo = subscriptionProvider.subscriptionInfo;
 
     if (subscriptionInfo == null) {
-      return const SizedBox.shrink(); // No info, show nothing
+      return const SizedBox.shrink();
     }
 
     if (subscriptionInfo.tier == SubscriptionTier.pro) {
@@ -356,10 +371,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               ),
             ),
             TextButton(
-              // RESOLVED: "Manage" button for Pro users.
-              // Reverted to navigating to your custom subscription screen.
-              // Showing a paywall for "Manage" is incorrect.
-              // If RevenueCat is to handle management, a different RevenueCat SDK call would be needed.
               onPressed: () => Navigator.of(context).pushNamed('/subscription'),
               style: TextButton.styleFrom(
                 backgroundColor: Colors.white.withOpacity(0.25),
@@ -372,7 +383,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           ],
         ),
       );
-    } else { // Free Plan
+    } else {
       Color color = Colors.green;
       String tierName = 'Free';
 
@@ -404,9 +415,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                 ],
               ),
             ),
-            // RESOLVED: "Upgrade" button for Free users. Uses RevenueCat paywall.
             TextButton(
-              onPressed: () { // Using a block for clarity, though not strictly necessary for single call
+              onPressed: () {
                 RevenueCatUI.presentPaywallIfNeeded("TestPro");
               },
               style: TextButton.styleFrom(
@@ -423,10 +433,49 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     }
   }
 
-  String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  Widget _buildTopBarWidget(BuildContext context, bool isSearchBarLoading) {
+    final theme = Theme.of(context);
+    if (!_isSearchUIVisible) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Row(
+          children: [
+            Text(
+              'Kitchen Assistant',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.primaryColor,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search Recipes',
+              onPressed: () {
+                setState(() {
+                  _isSearchUIVisible = true;
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+        child: EnhancedSearchBar(
+          controller: _searchController,
+          onSubmitted: (query) {
+            _onSearch(query);
+          },
+          onCancel: _onCancelSearch,
+          isLoading: isSearchBarLoading,
+          hintText: 'Search recipes...',
+        ),
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -441,9 +490,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final bool isSearchBarLoading = recipeProvider.isLoading;
     final bool isLoadingMore = recipeProvider.isLoadingMore;
 
-    final double screenHeight = MediaQuery.of(context).size.height;
-    final double fabSize = 56.0;
-    final double fabTopPosition = (screenHeight / 2) - (fabSize / 2) - (MediaQuery.of(context).padding.top / 2);
     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -455,67 +501,48 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Row(
-                      children: [
-                        Text(
-                          'Kitchen Assistant',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.primaryColor,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.notifications_none),
-                          onPressed: () {
-                            // Navigate to notifications
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildTopBarWidget(context, isSearchBarLoading),
+
                   if (authProvider.isAuthenticated)
                     _buildSubscriptionBanner(context),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        EnhancedSearchBar(
-                          controller: _searchController,
-                          onSubmitted: _onSearch,
-                          onCancel: _onCancelSearch,
-                          isLoading: isSearchBarLoading,
-                          hintText: 'Search recipes or start a chat...',
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-                          child: Center(
-                            child: ElevatedButton(
-                              onPressed: _navigateToChatScreenWithQuery,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.primary,
-                                foregroundColor: theme.colorScheme.onPrimary,
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10.0),
-                                ),
-                              ),
-                              child: const Text('Generate Recipe'),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+
+                  // The "Generate Recipe" button section is now commented out / removed.
+                  // Padding(
+                  //   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  //   child: Column(
+                  //     crossAxisAlignment: CrossAxisAlignment.start,
+                  //     children: [
+                  //       Padding(
+                  //         padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+                  //         child: Center(
+                  //           child: ElevatedButton(
+                  //             onPressed: _navigateToChatScreenWithQuery,
+                  //             style: ElevatedButton.styleFrom(
+                  //               backgroundColor: theme.colorScheme.primary,
+                  //               foregroundColor: theme.colorScheme.onPrimary,
+                  //               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  //               textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  //               shape: RoundedRectangleBorder(
+                  //                 borderRadius: BorderRadius.circular(10.0),
+                  //               ),
+                  //             ),
+                  //             child: const Text('Generate Recipe'),
+                  //           ),
+                  //         ),
+                  //       ),
+                  //     ],
+                  //   ),
+                  // ),
+
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
+                        // Add some top padding to the categories if the button above it was removed
+                        // to maintain visual spacing, if needed.
+                        const SizedBox(height: 8), // Adjust or remove as needed for spacing
+
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                           child: Row(
@@ -561,10 +588,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                _activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!),
+                                _searchQuery.isNotEmpty
+                                    ? 'Search Results for "$_searchQuery"'
+                                    : (_activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!)),
                                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
-                              if (_activeCategory != null)
+                              if (_activeCategory != null && _searchQuery.isEmpty)
                                 TextButton(
                                   onPressed: () => _onCategorySelected(null),
                                   style: TextButton.styleFrom(
@@ -605,19 +634,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                 ],
               ),
             ),
-            if (authProvider.isAuthenticated)
-              Positioned(
-                right: 16.0,
-                top: fabTopPosition,
-                child: FloatingActionButton(
-                  heroTag: 'homeScreenNewChatFab',
-                  onPressed: _navigateToNewChatScreen,
-                  backgroundColor: theme.colorScheme.secondary,
-                  foregroundColor: theme.colorScheme.onSecondary,
-                  elevation: 6.0,
-                  child: const Icon(Icons.add_comment_outlined),
-                ),
-              ),
           ],
         ),
       ),
@@ -625,7 +641,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   Widget _buildCategoriesList(List<RecipeCategory> categories, String? activeCategory) {
-    if (categories.isEmpty) {
+    if (categories.isEmpty && !_isLoadingCategories) {
       return const Center(child: Text('No categories available'));
     }
     final allCategories = [
@@ -664,7 +680,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   category.name,
                   style: TextStyle(
                     fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    color: isActive ? category.color : Colors.black87,
+                    color: isActive ? category.color : Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.87),
                   ),
                 ),
               ],
@@ -688,7 +704,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             children: [
               Container(width: 60, height: 60, decoration: BoxDecoration(color: Colors.grey[300], shape: BoxShape.circle)),
               const SizedBox(height: 8),
-              Container(width: 60, height: 12, color: Colors.grey[300]),
+              Container(width: 50, height: 12, color: Colors.grey[300], margin: const EdgeInsets.only(top: 4)),
             ],
           ),
         );
@@ -697,12 +713,22 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   Widget _buildEmptyState() {
-    String message = 'No recipes found';
+    String message = 'No recipes found.';
+    // Updated subMessage since the prominent "Generate Recipe" button is gone.
+    // The "Generate This Recipe" button below is only for when _searchQuery is not empty.
+    String subMessage = 'Try a different search or category. You can also start a new chat for recipe ideas using the "+" button in the navigation bar!';
+
+
     if (_searchQuery.isNotEmpty) {
       message = 'No recipes found for "$_searchQuery"';
+      // This subMessage is fine as it refers to the button within the empty state itself.
+      subMessage = 'Try a different search term or use the "Generate This Recipe" button below.';
     } else if (_activeCategory != null) {
-      message = 'No recipes found in ${_getCategoryTitle(_activeCategory!)}';
+      final categoryName = _getCategoryTitle(_activeCategory!);
+      message = 'No recipes found in $categoryName.';
+      subMessage = 'Explore other categories or start a new chat for recipe ideas using the "+" button in the navigation bar!';
     }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -713,11 +739,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Try a different search or category, or chat with our AI for new ideas!', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-            if (_searchQuery.isNotEmpty) ...[
+            Text(subMessage, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            if (_searchQuery.isNotEmpty) ...[ // This button is specific to the empty state when a search yields no results
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _generateRecipeViaRecipeProvider,
+                onPressed: _generateRecipeViaRecipeProvider, // This uses _searchController.text
                 icon: const Icon(Icons.auto_awesome, size: 18),
                 label: const Text('Generate This Recipe'),
                 style: ElevatedButton.styleFrom(
@@ -738,7 +764,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   String _getCategoryTitle(String categoryId) {
-    final category = RecipeCategories.getCategoryById(categoryId);
-    return category.name;
+    try {
+      final category = RecipeCategories.getCategoryById(categoryId);
+      return category.name;
+    } catch (e) {
+      print("Error getting category title for ID $categoryId: $e");
+      return "Category";
+    }
   }
 }

@@ -596,19 +596,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
       // Example: Navigator.of(context).pushNamed('/change-password');
     },
     ),
-      SettingsItem(
-        icon: Icons.email_outlined,
-        title: 'Update Email',
-        onTap: () {
-          // TODO: Implement email update navigation
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Update email screen not implemented')),
-          );
-          // Example: Navigator.of(context).pushNamed('/update-email');
-        },
-      ),
-      // This item is slightly redundant if there's a dedicated preferences section/button
-      // Keep it if it serves a distinct purpose or navigates differently
+
       SettingsItem(
         icon: Icons.edit_outlined,
         title: 'Edit Cooking Preferences',
