@@ -1,5 +1,6 @@
 // lib/providers/subscription_provider.dart
 import 'package:flutter/foundation.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
@@ -97,8 +98,14 @@ class SubscriptionProvider with ChangeNotifier {
 
   Future<void> revenueCatSubscriptionStatus() async {
       try{
+      
+      CustomerInfo customerInfo = await Purchases.getCustomerInfo();
 
-        
+      if (customerInfo.entitlements.all["TestPro"]!.isActive == true) {
+          // Grant user "pro" access
+         _isProSubscriber = true;
+      }
+
 
       }
       catch(e){

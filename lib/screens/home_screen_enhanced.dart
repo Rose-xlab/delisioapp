@@ -36,6 +36,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   @override
   void initState() {
     super.initState();
+    debugPrint("------------ INIT----------------");
     _loadInitialData();
     _scrollController.addListener(_onScroll);
   }
@@ -67,16 +68,22 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     }
 
     try {
+
+      debugPrint("------------------------- LOAD CALLED -----------------------------");
+
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
-      final userID = authProvider.isAuthenticated ? authProvider.user?.id : null;
+      // final userID = authProvider.isAuthenticated ? authProvider.user?.id : null;
+      const userID = "a0ba2771fd1b415f86bfe03cf8facada";
 
-      if (authProvider.isAuthenticated && token != null && userID != null) {
+      if (authProvider.isAuthenticated && token != null ) {
 
          //re initialise revenuecat with customer identifier (user app ID) when authenticated
         LogInResult result = await Purchases.logIn(userID);
-        debugPrint(result.toString());
+        debugPrint("========================= ADDED USER APP ID TO _rc =======================");
+        debugPrint("Purchase date: ${result.customerInfo.originalPurchaseDate}");
+        debugPrint("==========================================================================");
 
 
         await Provider.of<SubscriptionProvider>(context, listen: false)
@@ -109,7 +116,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       }
 
     } catch (e) {
-      print('Error loading initial data: $e');
+      debugPrint('Error loading initial data: $e');
       if (mounted) {
         setState(() {
           _isLoadingTrending = false;
@@ -137,7 +144,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         query: _searchQuery,
       );
     } catch (e) {
-      print('Error loading more recipes: $e');
+      debugPrint('Error loading more recipes: $e');
       if (mounted) {
         if (context.mounted) { // Check if context is still valid
           ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +178,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       await recipeProvider.getTrendingRecipes(token: token);
       return;
     } catch (e) {
-      print('Error refreshing data: $e');
+      debugPrint('Error refreshing data: $e');
       rethrow;
     }
   }
@@ -249,7 +256,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     }
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     if (recipeProvider.isLoading) return;
-    print("Attempting to generate recipe for query (via RecipeProvider): $query");
+    debugPrint("Attempting to generate recipe for query (via RecipeProvider): $query");
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await recipeProvider.generateRecipe(
@@ -258,7 +265,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         token: authProvider.token,
       );
       if (!recipeProvider.wasCancelled && recipeProvider.error == null && mounted) {
-        print("Recipe generation successful (via RecipeProvider), navigating...");
+        debugPrint("Recipe generation successful (via RecipeProvider), navigating...");
         if (context.mounted) Navigator.of(context).pushNamed('/recipe');
       } else if (recipeProvider.wasCancelled && mounted) {
         if (context.mounted) {
@@ -268,7 +275,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         }
       }
     } catch (e) {
-      print('Error generating recipe (via RecipeProvider): ${e.toString()}');
+      debugPrint('Error generating recipe (via RecipeProvider): ${e.toString()}');
       if (mounted) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -299,7 +306,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           }
         }
       } catch (e) {
-        print('Error during cancellation (via RecipeProvider): $e');
+        debugPrint('Error during cancellation (via RecipeProvider): $e');
         if (mounted) {
           if(context.mounted){
             ScaffoldMessenger.of(context).showSnackBar(
@@ -481,6 +488,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final theme = Theme.of(context);
 
     final categories = recipeProvider.categories;
@@ -491,6 +499,13 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final bool isLoadingMore = recipeProvider.isLoadingMore;
 
     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
+
+    debugPrint("========================= SUBSCRIPTION STATUS _rc ================");
+                  debugPrint("is pro: ${subscriptionProvider.isProSubscriber}");
+    debugPrint("==========================================================================");
+
+   
+
 
     return Scaffold(
       body: SafeArea(
@@ -503,7 +518,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                 children: [
                   _buildTopBarWidget(context, isSearchBarLoading),
 
-                  if (authProvider.isAuthenticated)
+                  
+                  if (authProvider.isAuthenticated && subscriptionProvider.isProSubscriber == false)
                     _buildSubscriptionBanner(context),
 
                   // The "Generate Recipe" button section is now commented out / removed.
@@ -768,7 +784,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final category = RecipeCategories.getCategoryById(categoryId);
       return category.name;
     } catch (e) {
-      print("Error getting category title for ID $categoryId: $e");
+      debugPrint("Error getting category title for ID $categoryId: $e");
       return "Category";
     }
   }
