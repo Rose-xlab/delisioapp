@@ -119,7 +119,10 @@ Future<void> main() async {
         : revenueCatIOSApiKey,
       );
 
-      await Purchases.configure(revenueCatConfig);
+      await Purchases.configure(
+        revenueCatConfig
+        //..appUserID= ""    // This should be re initialized when a user logsin
+        );
   }
 
   // 4. Run the App (only if all initializations succeeded)

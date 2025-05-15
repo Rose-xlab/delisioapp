@@ -12,6 +12,9 @@ class SubscriptionProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  ////////// revenuecat subscription status ///////////////////////////////////////
+  bool _isProSubscriber = false;
+
   // Predefined subscription plans
   final List<SubscriptionPlan> _plans = [
     SubscriptionPlan(
@@ -71,6 +74,9 @@ class SubscriptionProvider with ChangeNotifier {
   ];
 
   // Getters
+
+
+
   SubscriptionInfo? get subscriptionInfo => _subscriptionInfo;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -81,6 +87,24 @@ class SubscriptionProvider with ChangeNotifier {
 
   // Check if user is on paid plan
   bool get isPaidTier => _subscriptionInfo?.tier == SubscriptionTier.pro;
+
+
+
+
+  //////////////////////////////// REVENUECAT //////////////////////////////////////
+    //when using revenuecat
+  bool get isProSubscriber => _isProSubscriber;
+
+  Future<void> revenueCatSubscriptionStatus() async {
+      try{
+
+        
+
+      }
+      catch(e){
+         debugPrint(e.toString());
+      }
+  }
 
   // Load subscription status
   Future<void> loadSubscriptionStatus(String token) async {

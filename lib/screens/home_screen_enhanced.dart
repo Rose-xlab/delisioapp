@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // Keep RevenueCat UI import
 
 import '../providers/auth_provider.dart';
@@ -68,13 +69,21 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
+      final userID = authProvider.isAuthenticated ? authProvider.user?.id : null;
 
-      if (authProvider.isAuthenticated && token != null) {
+      if (authProvider.isAuthenticated && token != null && userID != null) {
+
+         //re initialise revenuecat with customer identifier (user app ID) when authenticated
+        LogInResult result = await Purchases.logIn(userID);
+        debugPrint(result.toString());
+
+
         await Provider.of<SubscriptionProvider>(context, listen: false)
             .loadSubscriptionStatus(token);
       }
 
       await recipeProvider.getTrendingRecipes(token: token);
+      
       if (mounted) {
         setState(() {
           _isLoadingTrending = false;
@@ -141,8 +150,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
+      
 
       if (authProvider.isAuthenticated && token != null) {
+
         await Provider.of<SubscriptionProvider>(context, listen: false)
             .loadSubscriptionStatus(token);
       }
@@ -396,7 +407,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             // RESOLVED: "Upgrade" button for Free users. Uses RevenueCat paywall.
             TextButton(
               onPressed: () { // Using a block for clarity, though not strictly necessary for single call
-                RevenueCatUI.presentPaywallIfNeeded("Pro");
+                RevenueCatUI.presentPaywallIfNeeded("TestPro");
               },
               style: TextButton.styleFrom(
                 backgroundColor: color,
