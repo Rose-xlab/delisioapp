@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart'; // For kDebugMode
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase; // Import Supabase client
+import 'package:uuid/uuid.dart';
 import '../config/api_config.dart'; // Still needed for non-auth endpoints
 // import '../config/supabase_config.dart'; // Likely no longer needed here
 import '../models/user.dart'; // Your custom User model
@@ -27,6 +28,27 @@ class AuthService {
         // Pass user metadata (like name) in the 'data' field
         data: {'name': name}, // Ensure 'name' matches your Supabase trigger/metadata key
       );
+
+      
+     
+
+
+      //generate and add a unique user_app_id for revenuecat subscriptions
+
+      final user = response.user;
+
+      if( user  != null){
+
+          const appId = Uuid();
+         
+          final profile = await _supabase.from("profiles").insert({
+            "id":user.id,
+            "user_app_id":appId,
+          });
+
+          debugPrint(profile);
+
+      }
 
       
 
