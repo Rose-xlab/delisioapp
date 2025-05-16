@@ -21,7 +21,6 @@ class AuthService {
   Future<void> signUp(String email, String password, String name) async {
     if (kDebugMode) print("AuthService: Attempting Supabase signUp...");
     try {
-
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -32,28 +31,66 @@ class AuthService {
       //generate and add a unique user_app_id for revenuecat subscriptions
       final user = response.user;
 
-      if( user  != null){
+      if (user != null) {
+        final String userAppIdValue = const Uuid().v4(); // Generate a v4 UUID string
 
-          const appId = Uuid();
-         
-          final profile = await _supabase.from("profiles").insert({
-            "id":user.id,
-            "user_app_id":appId,
-          });
+        final profileData = {
+          "id": user.id,
+          "user_app_id": userAppIdValue, // Use the generated string
+          // You might want to include other initial profile data like 'name' here if needed
+          // "name": name, // Example if you have a 'name' column in 'profiles' table
+        };
 
-          debugPrint(profile);
+        if (kDebugMode) {
+          debugPrint("AuthService: Attempting to insert into profiles table: $profileData");
+        }
+
+        try {
+          // Insert into 'profiles' table and select the inserted row to confirm/debug
+          final profileResponse = await _supabase
+              .from("profiles")
+              .insert(profileData)
+              .select() // Optionally select to see the result or catch errors better
+              .single(); // Use .single() if you expect one row and want errors if not
+
+          // The 'profileResponse' will contain the data or an error.
+          // Supabase client >= 1.0.0: response.data, response.error
+          // Older versions might differ slightly in how error/data is accessed.
+          // Assuming supabase_flutter is up-to-date:
+          // if (profileResponse.error != null) { // Check for PostgrestError
+          //   if (kDebugMode) {
+          //     debugPrint("AuthService: Error inserting profile: ${profileResponse.error!.message}");
+          //   }
+          //   // Optionally, throw an exception here to indicate sign-up partially failed
+          //   // throw Exception("Failed to create user profile: ${profileResponse.error!.message}");
+          // } else {
+          //   if (kDebugMode) {
+          //     debugPrint("AuthService: Profile created successfully for user ${user.id} with user_app_id $userAppIdValue. Response data: ${profileResponse.data}");
+          //   }
+          // }
+          // Simpler debug print for now as per original code:
+          if (kDebugMode) {
+            // If using older supabase client version, the response might be the data directly or needs casting.
+            // For newer, `profileResponse` itself could be an object with `data` and `error` properties.
+            // The original `debugPrint(profile)` was likely trying to print the response from the insert.
+            // Let's assume `profileResponse` holds the relevant info or error.
+            debugPrint("AuthService: Profile insert operation response: ${profileResponse.toString()}");
+          }
+
+        } catch (profileError) {
+          if (kDebugMode) {
+            debugPrint("AuthService: Exception during profile insertion: ${profileError.toString()}");
+          }
+          // Handle profile insertion error - e.g., log to Sentry
+          // Decide if this should prevent the sign-up from being considered "successful"
+        }
       }
-
-      
-
-      
 
       if (kDebugMode) {
         debugPrint("AuthService: Supabase signUp successful. User: ${response.user?.id}, Session: ${response.session != null}");
         // Note: If email confirmation is enabled, response.session might be null initially.
         // The onAuthStateChange listener in AuthProvider will handle the final SIGNED_IN state.
       }
-
     } on supabase.AuthException catch (e) {
       // Catch specific Supabase auth errors
       if (kDebugMode) debugPrint("AuthService: Supabase signUp AuthException: ${e.message}");

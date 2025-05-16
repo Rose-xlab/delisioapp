@@ -1,20 +1,21 @@
+// lib/screens/home/home_screen_enhanced.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // Keep RevenueCat UI import
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-
-import '../providers/auth_provider.dart';
-import '../providers/recipe_provider.dart';
-import '../providers/subscription_provider.dart';
-import '../models/subscription.dart';
-import '../widgets/home/trending_recipes.dart';
-import '../widgets/home/recipe_grid.dart';
-import '../widgets/search/search_bar.dart'; // Assuming this is EnhancedSearchBar
-import '../constants/categories.dart';
-import '../models/recipe_category.dart';
-import '../models/recipe.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/recipe_provider.dart';
+import '../../providers/subscription_provider.dart';
+import '../../models/subscription.dart';
+import '../../widgets/home/trending_recipes.dart';
+import '../../widgets/home/recipe_grid.dart';
+import '../../widgets/search/search_bar.dart'; // Assuming this is EnhancedSearchBar
+import '../../constants/categories.dart';
+import '../../models/recipe_category.dart';
+import '../../models/recipe.dart';
 
 class HomeScreenEnhanced extends StatefulWidget {
   const HomeScreenEnhanced({Key? key}) : super(key: key);
@@ -38,7 +39,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   @override
   void initState() {
     super.initState();
-    debugPrint("------------ INIT----------------");
+    if (kDebugMode) debugPrint("------------ HomeScreenEnhanced initState() ----------------");
     _loadInitialData();
     _scrollController.addListener(_onScroll);
   }
@@ -60,6 +61,50 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     }
   }
 
+  Future<void> getprofiles() async {
+    try {
+      final client = Supabase.instance.client;
+      // Use listen: false as this method is not directly rebuilding UI based on these provider changes
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final subsProvider = Provider.of<SubscriptionProvider>(context, listen: false);
+      final userId = authProvider.isAuthenticated ? authProvider.user?.id : null;
+
+      if (userId == null) {
+        if (kDebugMode) debugPrint("getprofiles: User not authenticated. Skipping RevenueCat login.");
+        return;
+      }
+      String uid = userId;
+
+      // Fetch only the user_app_id column
+      final profileResponse = await client.from("profiles").select("user_app_id").eq("id", uid).single();
+
+      // The response from Supabase is a Map<String, dynamic>
+      final String? userAppId = profileResponse['user_app_id'] as String?;
+
+
+      if (kDebugMode) debugPrint("================ PROFILE APP ID FROM DB: $userAppId");
+
+      if (userAppId != null && userAppId.isNotEmpty) {
+        LogInResult result = await Purchases.logIn(userAppId);
+        if (kDebugMode) {
+          debugPrint("================================== REVCAT LOGIN RESULT ============");
+          debugPrint("CustomerInfo Original App User ID: ${result.customerInfo.originalAppUserId}");
+          debugPrint("Active Entitlements: ${result.customerInfo.entitlements.active.toString()}");
+          debugPrint("Login Created User: ${result.created}");
+          debugPrint("================================== ============");
+        }
+        // After successful login, update the RevenueCat subscription status in your provider
+        await subsProvider.revenueCatSubscriptionStatus(); // Ensure this is awaited
+      } else {
+        if (kDebugMode) debugPrint("getprofiles: user_app_id is null or empty from DB. Cannot log into RevenueCat.");
+        // Handle case where user_app_id might be missing (e.g. older user accounts)
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint("Error in getprofiles or RevenueCat login: ${e.toString()}");
+      // Log this error to Sentry or your preferred logging service
+    }
+  }
+
   Future<void> _loadInitialData() async {
     if (mounted) {
       setState(() {
@@ -70,45 +115,32 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     }
 
     try {
-
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
 
-                    
-      if (authProvider.isAuthenticated && token != null ) {
-
+      // If authenticated, perform operations that require login
+      if (authProvider.isAuthenticated && token != null) {
+        await getprofiles(); // Call getprofiles to log into RevenueCat and update status
         await Provider.of<SubscriptionProvider>(context, listen: false)
-            .loadSubscriptionStatus(token);
-        }
-
-        await recipeProvider.getTrendingRecipes(token: token);
-      
-      if (mounted) {
-        setState(() {
-          _isLoadingTrending = false;
-        });
+            .loadSubscriptionStatus(token); // Your backend subscription status
       }
+
+      // These can load even for non-authenticated users, if your backend allows
+      await recipeProvider.getTrendingRecipes(token: token);
+      if (mounted) setState(() => _isLoadingTrending = false);
 
       await recipeProvider.getAllCategories();
-      if (mounted) {
-        setState(() {
-          _isLoadingCategories = false;
-        });
-      }
+      if (mounted) setState(() => _isLoadingCategories = false);
 
       await recipeProvider.getDiscoverRecipes(
         category: _activeCategory,
         token: token,
       );
-      if (mounted) {
-        setState(() {
-          _isLoadingRecipes = false;
-        });
-      }
+      if (mounted) setState(() => _isLoadingRecipes = false);
 
     } catch (e) {
-      debugPrint('Error loading initial data: $e');
+      if (kDebugMode) debugPrint('Error loading initial data: $e');
       if (mounted) {
         setState(() {
           _isLoadingTrending = false;
@@ -136,7 +168,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         query: _searchQuery,
       );
     } catch (e) {
-      debugPrint('Error loading more recipes: $e');
+      if (kDebugMode) debugPrint('Error loading more recipes: $e');
       if (mounted) {
         if (context.mounted) { // Check if context is still valid
           ScaffoldMessenger.of(context).showSnackBar(
@@ -152,10 +184,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
-      
 
       if (authProvider.isAuthenticated && token != null) {
-
+        // Refresh RevenueCat status and backend status on pull-to-refresh
+        await getprofiles();
         await Provider.of<SubscriptionProvider>(context, listen: false)
             .loadSubscriptionStatus(token);
       }
@@ -168,15 +200,15 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         query: currentQuery ?? _searchQuery,
       );
       await recipeProvider.getTrendingRecipes(token: token);
-      return;
+      // No explicit return needed for Future<void>
     } catch (e) {
-      debugPrint('Error refreshing data: $e');
-      rethrow;
+      if (kDebugMode) debugPrint('Error refreshing data: $e');
+      rethrow; // Rethrow to allow RefreshIndicator to handle it
     }
   }
 
   void _onCategorySelected(String? categoryId) {
-    if(mounted){
+    if (mounted) {
       setState(() {
         _activeCategory = categoryId;
         _searchController.clear();
@@ -198,10 +230,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _onSearch(String query) {
-    if(mounted){
+    if (mounted) {
       setState(() {
         _searchQuery = query;
-        _activeCategory = null;
+        _activeCategory = null; // Clear category when searching
       });
     }
 
@@ -216,7 +248,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _onCancelSearch() {
-    if(mounted){
+    if (mounted) {
       setState(() {
         _searchController.clear();
         _searchQuery = '';
@@ -228,6 +260,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final token = authProvider.isAuthenticated ? authProvider.token : null;
 
+    // Reload discover recipes, potentially with the last active category or default
     recipeProvider.getDiscoverRecipes(
       category: _activeCategory,
       token: token,
@@ -237,43 +270,42 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Future<void> _generateRecipeViaRecipeProvider() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
-      if (mounted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please enter a recipe name or ingredients to generate.')),
-          );
-        }
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a recipe name or ingredients to generate.')),
+        );
       }
       return;
     }
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-    if (recipeProvider.isLoading) return;
-    debugPrint("Attempting to generate recipe for query (via RecipeProvider): $query");
+    if (recipeProvider.isLoading) return; // Prevent multiple generation attempts
+
+    if (kDebugMode) debugPrint("Attempting to generate recipe for query (via RecipeProvider): $query");
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await recipeProvider.generateRecipe(
+      // The generateRecipe method in RecipeProvider now handles the subscription check and dialog
+      final Recipe? generatedRecipe = await recipeProvider.generateRecipe(
         query,
-        save: authProvider.token != null,
+        save: authProvider.token != null, // Save if logged in
         token: authProvider.token,
       );
-      if (!recipeProvider.wasCancelled && recipeProvider.error == null && mounted) {
-        debugPrint("Recipe generation successful (via RecipeProvider), navigating...");
-        if (context.mounted) Navigator.of(context).pushNamed('/recipe');
-      } else if (recipeProvider.wasCancelled && mounted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Recipe generation cancelled'), backgroundColor: Colors.orange),
-          );
-        }
+
+      // Navigate only if a recipe was actually generated (not cancelled, no limit dialog shown)
+      if (generatedRecipe != null && !recipeProvider.wasCancelled && recipeProvider.error == null && mounted && context.mounted) {
+        if (kDebugMode) debugPrint("Recipe generation successful (via RecipeProvider), navigating...");
+        Navigator.of(context).pushNamed('/recipe');
+      } else if (recipeProvider.wasCancelled && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe generation cancelled'), backgroundColor: Colors.orange),
+        );
       }
+      // If generatedRecipe is null due to limit dialog, no further action here as dialog handles it.
     } catch (e) {
-      debugPrint('Error generating recipe (via RecipeProvider): ${e.toString()}');
-      if (mounted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
-          );
-        }
+      if (kDebugMode) debugPrint('Error generating recipe (via RecipeProvider): ${e.toString()}');
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
+        );
       }
     }
   }
@@ -281,46 +313,36 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   Future<void> _cancelRecipeGenerationViaRecipeProvider() async {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     if (recipeProvider.isLoading && !recipeProvider.isCancelling) {
-      if(mounted){
-        if(context.mounted){
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
-          );
-        }
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cancelling recipe generation...'), backgroundColor: Colors.blue, duration: Duration(seconds: 1)),
+        );
       }
       try {
         await recipeProvider.cancelRecipeGeneration();
-        if (mounted) {
-          if(context.mounted){
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Recipe generation cancelled by user.'), backgroundColor: Colors.orange),
-            );
-          }
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Recipe generation cancelled by user.'), backgroundColor: Colors.orange),
+          );
         }
       } catch (e) {
-        debugPrint('Error during cancellation (via RecipeProvider): $e');
-        if (mounted) {
-          if(context.mounted){
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error during cancellation: $e'), backgroundColor: Colors.red),
-            );
-          }
+        if (kDebugMode) debugPrint('Error during cancellation (via RecipeProvider): $e');
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error during cancellation: $e'), backgroundColor: Colors.red),
+          );
         }
       }
     }
   }
 
-  // The _navigateToChatScreenWithQuery method is no longer directly tied to a visible button
-  // on this screen if the "Generate Recipe" button that used it is removed.
-  // It's kept here as it might be used by other functionalities (e.g. if search submission also offered a "chat about this" option).
   void _navigateToChatScreenWithQuery() {
     final query = _searchController.text.trim();
     Navigator.of(context).pushNamed('/chat', arguments: {
       'initialQuery': query.isNotEmpty ? query : null,
-      'purpose': 'generateRecipe'
+      'purpose': 'generateRecipe' // Or another purpose if this button's function changes
     });
   }
-
 
   void _viewRecipe(Recipe recipe) {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
@@ -329,18 +351,18 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   void _viewCategory(String categoryId) {
+    // This navigation seems to be for a dedicated category screen.
+    // Ensure '/category/$categoryId' route exists and handles this.
     Navigator.of(context).pushNamed('/category/$categoryId');
   }
 
   Widget _buildSubscriptionBanner(BuildContext context) {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
-    final subscriptionInfo = subscriptionProvider.subscriptionInfo;
+    // Use isProSubscriber from RevenueCat for the banner logic primarily
+    final bool isPro = subscriptionProvider.isProSubscriber;
+    final subscriptionInfo = subscriptionProvider.subscriptionInfo; // Backend info for limits
 
-    if (subscriptionInfo == null) {
-      return const SizedBox.shrink();
-    }
-
-    if (subscriptionInfo.tier == SubscriptionTier.pro) {
+    if (isPro) { // User is Pro according to RevenueCat
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -382,9 +404,17 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           ],
         ),
       );
-    } else {
+    } else { // User is Free (or status unknown, defaulting to free view)
       Color color = Colors.green;
       String tierName = 'Free';
+      String generationsText = 'Upgrade for more'; // Default text
+
+      if (subscriptionInfo != null) { // If backend info is available
+        generationsText = '${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left';
+      } else if (subscriptionProvider.isLoading) {
+        generationsText = 'Loading status...';
+      }
+
 
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -408,7 +438,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '$tierName Plan: ${subscriptionInfo.recipeGenerationsRemaining}/${subscriptionInfo.recipeGenerationsLimit} recipes left',
+                    '$tierName Plan: $generationsText',
                     style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ],
@@ -416,6 +446,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             ),
             TextButton(
               onPressed: () {
+                // Ensure "TestPro" is your Offering Identifier in RevenueCat
                 RevenueCatUI.presentPaywallIfNeeded("TestPro");
               },
               style: TextButton.styleFrom(
@@ -451,9 +482,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               icon: const Icon(Icons.search),
               tooltip: 'Search Recipes',
               onPressed: () {
-                setState(() {
-                  _isSearchUIVisible = true;
-                });
+                if (mounted) {
+                  setState(() {
+                    _isSearchUIVisible = true;
+                  });
+                }
               },
             ),
           ],
@@ -468,73 +501,43 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             _onSearch(query);
           },
           onCancel: _onCancelSearch,
-          isLoading: isSearchBarLoading,
+          isLoading: isSearchBarLoading, // Pass the loading state for the search bar
           hintText: 'Search recipes...',
         ),
       );
     }
   }
 
-
-
-  Future<void> getprofiles ( ) async {
-    try{
-
-      final client = Supabase.instance.client;
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final subsProvider = Provider.of<SubscriptionProvider>(context, listen:true);
-      final userId = authProvider.isAuthenticated ? authProvider.user?.id : null;
-
-      String uid = userId as String;
-
-     final profiles  = await client.from("profiles").select().eq("id", uid).single();
-     debugPrint("================ PROFILE APP ID: ${profiles["user_app_id"]}");
-
-     String userAppId = profiles["user_app_id"];
-
-     LogInResult result = await Purchases.logIn(userAppId);
-
-     debugPrint("================================== REVCAT LOGIN RESULT ============");
-             debugPrint(result.toString());
-     debugPrint("================================== ============");
-
-
-     subsProvider.revenueCatSubscriptionStatus();
-
-    }
-    catch(e){
-       debugPrint(e.toString());
-    }
-  }
-
-
   @override
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
-    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context); // For UI updates
     final theme = Theme.of(context);
 
     final categories = recipeProvider.categories;
     final trendingRecipes = recipeProvider.trendingRecipes;
     final discoverRecipes = recipeProvider.discoverRecipes;
 
-    final bool isSearchBarLoading = recipeProvider.isLoading;
+    // isLoading for the search bar should reflect recipeProvider.isLoading when a search is active
+    final bool isSearchBarLoading = recipeProvider.isLoading && _searchQuery.isNotEmpty;
     final bool isLoadingMore = recipeProvider.isLoadingMore;
 
     final double navigationBarHeight = MediaQuery.of(context).padding.bottom;
 
-    debugPrint("========================= SUBSCRIPTION STATUS _rc ================");
-                  debugPrint("is pro: ${subscriptionProvider.isProSubscriber}");
-    debugPrint("==========================================================================");
-
-    if(authProvider.isAuthenticated){
-      getprofiles();
+    if (kDebugMode) {
+      debugPrint("========================= HomeScreen BUILD - Subscription Status (RevenueCat) ================");
+      debugPrint("isProSubscriber: ${subscriptionProvider.isProSubscriber}");
+      if (subscriptionProvider.subscriptionInfo != null) {
+        debugPrint("Backend Tier: ${subscriptionProvider.subscriptionInfo!.tier}");
+        debugPrint("Backend Gens Remaining: ${subscriptionProvider.subscriptionInfo!.recipeGenerationsRemaining}");
+      } else {
+        debugPrint("Backend Tier: (No info)");
+      }
+      debugPrint("==========================================================================");
     }
-     
 
-   
-
+    // The getprofiles() call is now in _loadInitialData and _refreshData
 
     return Scaffold(
       body: SafeArea(
@@ -547,46 +550,20 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                 children: [
                   _buildTopBarWidget(context, isSearchBarLoading),
 
-                  
-                  if (authProvider.isAuthenticated && subscriptionProvider.isProSubscriber == false)
+                  // Show banner if user is authenticated AND NOT Pro (according to RevenueCat)
+                  // OR if backend info is available and shows them as free (as a fallback display)
+                  if (authProvider.isAuthenticated && !subscriptionProvider.isProSubscriber)
                     _buildSubscriptionBanner(context),
 
-                  // The "Generate Recipe" button section is now commented out / removed.
-                  // Padding(
-                  //   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  //   child: Column(
-                  //     crossAxisAlignment: CrossAxisAlignment.start,
-                  //     children: [
-                  //       Padding(
-                  //         padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-                  //         child: Center(
-                  //           child: ElevatedButton(
-                  //             onPressed: _navigateToChatScreenWithQuery,
-                  //             style: ElevatedButton.styleFrom(
-                  //               backgroundColor: theme.colorScheme.primary,
-                  //               foregroundColor: theme.colorScheme.onPrimary,
-                  //               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  //               textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  //               shape: RoundedRectangleBorder(
-                  //                 borderRadius: BorderRadius.circular(10.0),
-                  //               ),
-                  //             ),
-                  //             child: const Text('Generate Recipe'),
-                  //           ),
-                  //         ),
-                  //       ),
-                  //     ],
-                  //   ),
-                  // ),
+                  // The "Generate Recipe" button section is removed from here as per previous instructions.
+                  // It's now primarily handled via chat or the empty search state.
 
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        // Add some top padding to the categories if the button above it was removed
-                        // to maintain visual spacing, if needed.
-                        const SizedBox(height: 8), // Adjust or remove as needed for spacing
+                        const SizedBox(height: 8), // Spacing
 
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -640,7 +617,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                               ),
                               if (_activeCategory != null && _searchQuery.isEmpty)
                                 TextButton(
-                                  onPressed: () => _onCategorySelected(null),
+                                  onPressed: () => _onCategorySelected(null), // Select "All"
                                   style: TextButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     minimumSize: const Size(50, 30),
@@ -651,19 +628,23 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                             ],
                           ),
                         ),
+                        // Show loading indicator if recipes are loading and the list is currently empty
                         _isLoadingRecipes && discoverRecipes.isEmpty
                             ? const Center(child: Padding(
                           padding: EdgeInsets.all(16.0),
                           child: CircularProgressIndicator(),
                         ))
+                        // Show empty state if not loading and list is empty
                             : discoverRecipes.isEmpty && !_isLoadingRecipes
                             ? _buildEmptyState()
+                        // Otherwise, show the recipe grid
                             : RecipeGrid(
                           recipes: discoverRecipes,
                           onRecipeTap: _viewRecipe,
+                          // Pass true if loading and list is NOT empty (e.g. refreshing)
                           isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
                         ),
-                        SizedBox(height: navigationBarHeight + 10),
+                        SizedBox(height: navigationBarHeight + 10), // Padding for bottom nav bar
                         if (isLoadingMore)
                           Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -679,6 +660,41 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                 ],
               ),
             ),
+            // Show progress indicator for recipe generation if RecipeProvider is loading
+            // and it's not a cancellation process.
+            if (recipeProvider.isLoading && !recipeProvider.isCancelling && recipeProvider.currentRecipe == null && recipeProvider.partialRecipe == null)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                  child: Center(
+                    child: Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(value: recipeProvider.isQueueActive ? recipeProvider.generationProgress : null),
+                            const SizedBox(height: 20),
+                            Text(
+                              recipeProvider.isQueueActive && recipeProvider.generationProgress > 0
+                                  ? "Generating... ${(recipeProvider.generationProgress * 100).toStringAsFixed(0)}%"
+                                  : "Generating recipe...",
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 10),
+                            TextButton(
+                              onPressed: _cancelRecipeGenerationViaRecipeProvider,
+                              child: const Text("Cancel", style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -687,19 +703,25 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
   Widget _buildCategoriesList(List<RecipeCategory> categories, String? activeCategory) {
     if (categories.isEmpty && !_isLoadingCategories) {
-      return const Center(child: Text('No categories available'));
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(8.0),
+        child: Text('No categories available'),
+      ));
     }
-    final allCategories = [
-      RecipeCategory(id: 'all', name: 'All', description: 'All recipes', icon: Icons.apps, color: Colors.blueGrey),
+    // Create a new list with "All" category prepended
+    final allDisplayCategories = [
+      RecipeCategory(id: 'all', name: 'All', description: 'All recipes', icon: Icons.apps, color: Colors.blueGrey[700]!), // Ensure color is not null
       ...categories,
     ];
+
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      itemCount: allCategories.length,
+      itemCount: allDisplayCategories.length,
       itemBuilder: (context, index) {
-        final category = allCategories[index];
-        final isActive = (activeCategory == category.id) || (activeCategory == null && category.id == 'all');
+        final category = allDisplayCategories[index];
+        // 'isActive' logic: if activeCategory is null, "All" is active. Otherwise, match ID.
+        final isActive = (activeCategory == null && category.id == 'all') || (activeCategory == category.id);
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: GestureDetector(
@@ -727,6 +749,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                     fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                     color: isActive ? category.color : Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.87),
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -740,7 +763,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      itemCount: 5,
+      itemCount: 5, // Placeholder count
       itemBuilder: (context, index) {
         return Padding(
           padding: const EdgeInsets.all(8.0),
@@ -759,14 +782,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
   Widget _buildEmptyState() {
     String message = 'No recipes found.';
-    // Updated subMessage since the prominent "Generate Recipe" button is gone.
-    // The "Generate This Recipe" button below is only for when _searchQuery is not empty.
     String subMessage = 'Try a different search or category. You can also start a new chat for recipe ideas using the "+" button in the navigation bar!';
-
 
     if (_searchQuery.isNotEmpty) {
       message = 'No recipes found for "$_searchQuery"';
-      // This subMessage is fine as it refers to the button within the empty state itself.
       subMessage = 'Try a different search term or use the "Generate This Recipe" button below.';
     } else if (_activeCategory != null) {
       final categoryName = _getCategoryTitle(_activeCategory!);
@@ -780,16 +799,16 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.restaurant_menu, size: 64, color: Colors.grey[400]),
+            Icon(Icons.restaurant_menu_outlined, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(subMessage, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-            if (_searchQuery.isNotEmpty) ...[ // This button is specific to the empty state when a search yields no results
+            if (_searchQuery.isNotEmpty) ...[
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: _generateRecipeViaRecipeProvider, // This uses _searchController.text
-                icon: const Icon(Icons.auto_awesome, size: 18),
+                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
                 label: const Text('Generate This Recipe'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.secondary,
@@ -810,11 +829,12 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
   String _getCategoryTitle(String categoryId) {
     try {
+      // Assuming RecipeCategories.getCategoryById is a static method or you have an instance
       final category = RecipeCategories.getCategoryById(categoryId);
       return category.name;
     } catch (e) {
-      debugPrint("Error getting category title for ID $categoryId: $e");
-      return "Category";
+      if (kDebugMode) debugPrint("Error getting category title for ID $categoryId: $e");
+      return "Category"; // Fallback title
     }
   }
 }
