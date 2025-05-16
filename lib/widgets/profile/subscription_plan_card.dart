@@ -101,6 +101,7 @@ class SubscriptionPlanCard extends StatelessWidget {
               ),
             )),
             const SizedBox(height: 16),
+
             SizedBox(
               width: double.infinity,
               child: isCurrentPlan
@@ -111,14 +112,14 @@ class SubscriptionPlanCard extends StatelessWidget {
                 ),
                 child: const Text('Current Plan'),
               )
-                  : ElevatedButton(
+                  : isCurrentPlan == false && plan.price == 0 ? const Text("") :ElevatedButton(
                 // MODIFIED: Pass the full plan to the callback
                 onPressed: onSubscribe != null ? () => onSubscribe!(plan) : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: planColor,
                 ),
-                child: Text(
-                  plan.price == 0 ? 'Use Free Plan' : 'Subscribe',
+                child: const Text(
+                  'Subscribe',
                 ),
               ),
             ),

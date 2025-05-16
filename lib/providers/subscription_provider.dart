@@ -21,7 +21,7 @@ class SubscriptionProvider with ChangeNotifier {
     SubscriptionPlan(
       tier: SubscriptionTier.free,
       name: 'Free',
-      description: 'Basic access to Delisio',
+      description: 'Basic access to Kitchen Assistant',
       price: 0,
       currency: 'USD',
       interval: 'month', // Or appropriate interval for free if it matters
@@ -52,26 +52,26 @@ class SubscriptionProvider with ChangeNotifier {
       ],
       planIdentifier: 'pro-monthly',
     ),
-    SubscriptionPlan(
-      tier: SubscriptionTier.pro,
-      name: 'Pro Annual',
-      description: 'Get the best value with Pro annually',
-      price: 180.00, // MODIFIED: Annual price updated from $200 to $180
-      currency: 'USD',
-      interval: 'year',
-      features: [
-        'Unlimited recipe generations',
-        'HD image quality',
-        'Full access to recipe library',
-        'Priority chat assistance',
-        'Save unlimited favorite recipes',
-        'Exclusive premium recipes (now Pro)',
-        'Custom recipe modifications',
-        'All features unlimited',
-        'Discounted annual rate (save \$60/year)', // Updated feature to reflect new savings
-      ],
-      planIdentifier: 'pro-annual',
-    ),
+    // SubscriptionPlan(
+    //   tier: SubscriptionTier.pro,
+    //   name: 'Pro Annual',
+    //   description: 'Get the best value with Pro annually',
+    //   price: 180.00, // MODIFIED: Annual price updated from $200 to $180
+    //   currency: 'USD',
+    //   interval: 'year',
+    //   features: [
+    //     'Unlimited recipe generations',
+    //     'HD image quality',
+    //     'Full access to recipe library',
+    //     'Priority chat assistance',
+    //     'Save unlimited favorite recipes',
+    //     'Exclusive premium recipes (now Pro)',
+    //     'Custom recipe modifications',
+    //     'All features unlimited',
+    //     'Discounted annual rate (save \$60/year)', // Updated feature to reflect new savings
+    //   ],
+    //   planIdentifier: 'pro-annual',
+    // ),
   ];
 
   // Getters

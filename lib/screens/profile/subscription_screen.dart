@@ -50,158 +50,158 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  Widget _buildCurrentPlan(SubscriptionInfo subscriptionInfo) {
-    final theme = Theme.of(context);
-    final isActive = subscriptionInfo.status == SubscriptionStatus.active;
-    final willCancel = subscriptionInfo.cancelAtPeriodEnd;
-    final endDate = subscriptionInfo.currentPeriodEnd;
+  // Widget _buildCurrentPlan(SubscriptionInfo subscriptionInfo) {
+  //   final theme = Theme.of(context);
+  //   final isActive = subscriptionInfo.status == SubscriptionStatus.active;
+  //   final willCancel = subscriptionInfo.cancelAtPeriodEnd;
+  //   final endDate = subscriptionInfo.currentPeriodEnd;
 
-    String planNameDisplay;
-    Color planColor;
+  //   String planNameDisplay;
+  //   Color planColor;
 
-    // Get current plan details from provider's list for accurate name (e.g. "Pro Monthly")
-    // This assumes the backend returns a tier that can be matched,
-    // or you have logic to map SubscriptionInfo.tier to a specific plan.
-    // For simplicity, we'll derive from tier here, but for exact "Pro Monthly" vs "Pro Annual"
-    // name in current plan, you might need more info from backend or match against currentPeriodEnd interval.
+  //   // Get current plan details from provider's list for accurate name (e.g. "Pro Monthly")
+  //   // This assumes the backend returns a tier that can be matched,
+  //   // or you have logic to map SubscriptionInfo.tier to a specific plan.
+  //   // For simplicity, we'll derive from tier here, but for exact "Pro Monthly" vs "Pro Annual"
+  //   // name in current plan, you might need more info from backend or match against currentPeriodEnd interval.
 
-    // Attempt to find the exact current plan based on its identifier if available from backend
-    // This part requires backend to send 'planIdentifier' or similar with SubscriptionInfo
-    String? currentBackendPlanIdentifier = subscriptionInfo.status == SubscriptionStatus.active
-        ? Provider.of<SubscriptionProvider>(context, listen: false).plans.firstWhere(
-            (p) => p.tier == subscriptionInfo.tier && (
-            (p.interval == 'month' && subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays < 35 ) || // rough guess for monthly
-                (p.interval == 'year' && subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays > 35) // rough guess for yearly
-            // A more reliable way would be if SubscriptionInfo included the priceId or plan.planIdentifier
-        ), orElse: () => Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == subscriptionInfo.tier, orElse: () => SubscriptionPlan(tier: subscriptionInfo.tier, name: "Current", description: "", price: 0, currency: "USD", interval: "", features: []))
-    ).name
-        : subscriptionInfo.tier.toString().split('.').last.toUpperCase(); // Fallback if not active or exact match complex
-
-
-    switch (subscriptionInfo.tier) {
-      case SubscriptionTier.pro:
-      // Use the matched plan name if possible, otherwise default to "Pro"
-        final proPlanDetails = Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == SubscriptionTier.pro, orElse: () => SubscriptionPlan(tier: SubscriptionTier.pro, name: "Pro", description: "", price: 0, currency: "USD", interval: "", features: [], planIdentifier: "pro"));
-        planNameDisplay = proPlanDetails.name; // This will be "Pro Monthly" or "Pro Annual" if plans are set up
-        // We need a better way to know which specific Pro plan the user is on.
-        // For now, we will try to find if the user is on a known "Pro" plan.
-        final actualProPlan = Provider.of<SubscriptionProvider>(context, listen: false).plans.firstWhere(
-                (p) => p.tier == SubscriptionTier.pro && p.name.toLowerCase().contains(subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays < 40 ? "month" : "year"), // very rough heuristic
-            orElse: () => proPlanDetails
-        );
-        planNameDisplay = actualProPlan.name;
-        planColor = Colors.deepPurple;
-        break;
-      default: // free
-        final freePlanDetails = Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == SubscriptionTier.free);
-        planNameDisplay = freePlanDetails.name; // Should be "Free"
-        planColor = Colors.green;
-    }
+  //   // Attempt to find the exact current plan based on its identifier if available from backend
+  //   // This part requires backend to send 'planIdentifier' or similar with SubscriptionInfo
+  //   String? currentBackendPlanIdentifier = subscriptionInfo.status == SubscriptionStatus.active
+  //       ? Provider.of<SubscriptionProvider>(context, listen: false).plans.firstWhere(
+  //           (p) => p.tier == subscriptionInfo.tier && (
+  //           (p.interval == 'month' && subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays < 35 ) || // rough guess for monthly
+  //               (p.interval == 'year' && subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays > 35) // rough guess for yearly
+  //           // A more reliable way would be if SubscriptionInfo included the priceId or plan.planIdentifier
+  //       ), orElse: () => Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == subscriptionInfo.tier, orElse: () => SubscriptionPlan(tier: subscriptionInfo.tier, name: "Current", description: "", price: 0, currency: "USD", interval: "", features: []))
+  //   ).name
+  //       : subscriptionInfo.tier.toString().split('.').last.toUpperCase(); // Fallback if not active or exact match complex
 
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.star, color: planColor, size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  'Current Plan: $planNameDisplay',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isActive ? Colors.green : Colors.orange,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    isActive ? 'Active' : subscriptionInfo.status.toString().split('.').last,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+  //   switch (subscriptionInfo.tier) {
+  //     case SubscriptionTier.pro:
+  //     // Use the matched plan name if possible, otherwise default to "Pro"
+  //       final proPlanDetails = Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == SubscriptionTier.pro, orElse: () => SubscriptionPlan(tier: SubscriptionTier.pro, name: "Pro", description: "", price: 0, currency: "USD", interval: "", features: [], planIdentifier: "pro"));
+  //       planNameDisplay = proPlanDetails.name; // This will be "Pro Monthly" or "Pro Annual" if plans are set up
+  //       // We need a better way to know which specific Pro plan the user is on.
+  //       // For now, we will try to find if the user is on a known "Pro" plan.
+  //       final actualProPlan = Provider.of<SubscriptionProvider>(context, listen: false).plans.firstWhere(
+  //               (p) => p.tier == SubscriptionTier.pro && p.name.toLowerCase().contains(subscriptionInfo.currentPeriodEnd.difference(DateTime.now()).inDays < 40 ? "month" : "year"), // very rough heuristic
+  //           orElse: () => proPlanDetails
+  //       );
+  //       planNameDisplay = actualProPlan.name;
+  //       planColor = Colors.deepPurple;
+  //       break;
+  //     default: // free
+  //       final freePlanDetails = Provider.of<SubscriptionProvider>(context, listen:false).plans.firstWhere((p) => p.tier == SubscriptionTier.free);
+  //       planNameDisplay = freePlanDetails.name; // Should be "Free"
+  //       planColor = Colors.green;
+  //   }
 
-            if (subscriptionInfo.tier == SubscriptionTier.free) // Only show for Free
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Recipe Generations', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  UsageProgressBar(
-                    used: subscriptionInfo.recipeGenerationsUsed,
-                    total: subscriptionInfo.recipeGenerationsLimit,
-                    color: planColor,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${subscriptionInfo.recipeGenerationsUsed} used of ${subscriptionInfo.recipeGenerationsLimit} this month',
-                    style: TextStyle(color: theme.textTheme.bodySmall?.color),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 16, color: theme.textTheme.bodySmall?.color),
-                const SizedBox(width: 8),
-                Text(
-                  '${isActive && !willCancel && subscriptionInfo.tier == SubscriptionTier.pro ? "Renews" : "Ends"}: ${_formatDate(endDate)}',
-                  style: TextStyle(color: theme.textTheme.bodySmall?.color),
-                ),
-              ],
-            ),
-            if (willCancel && subscriptionInfo.tier == SubscriptionTier.pro)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Set to cancel at period end',
-                      style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
 
-            if (subscriptionInfo.tier == SubscriptionTier.pro) // Only show manage for Pro
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _manageSubscription(),
-                  child: const Text('Manage Subscription'),
-                ),
-              ),
+  //   return Card(
+  //     elevation: 2,
+  //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16.0),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Row(
+  //             children: [
+  //               Icon(Icons.star, color: planColor, size: 24),
+  //               const SizedBox(width: 8),
+  //               Text(
+  //                 'Current Plan: $planNameDisplay',
+  //                 style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+  //               ),
+  //               const Spacer(),
+  //               Container(
+  //                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //                 decoration: BoxDecoration(
+  //                   color: isActive ? Colors.green : Colors.orange,
+  //                   borderRadius: BorderRadius.circular(12),
+  //                 ),
+  //                 child: Text(
+  //                   isActive ? 'Active' : subscriptionInfo.status.toString().split('.').last,
+  //                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 16),
 
-            if (subscriptionInfo.tier == SubscriptionTier.pro && !willCancel && isActive)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => _confirmCancelSubscription(),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('Cancel Subscription'),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  //           if (subscriptionInfo.tier == SubscriptionTier.free) // Only show for Free
+  //             Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: [
+  //                 Text('Recipe Generations', style: theme.textTheme.titleMedium),
+  //                 const SizedBox(height: 8),
+  //                 UsageProgressBar(
+  //                   used: subscriptionInfo.recipeGenerationsUsed,
+  //                   total: subscriptionInfo.recipeGenerationsLimit,
+  //                   color: planColor,
+  //                 ),
+  //                 const SizedBox(height: 8),
+  //                 Text(
+  //                   '${subscriptionInfo.recipeGenerationsUsed} used of ${subscriptionInfo.recipeGenerationsLimit} this month',
+  //                   style: TextStyle(color: theme.textTheme.bodySmall?.color),
+  //                 ),
+  //                 const SizedBox(height: 16),
+  //               ],
+  //             ),
+  //           Row(
+  //             children: [
+  //               Icon(Icons.calendar_today, size: 16, color: theme.textTheme.bodySmall?.color),
+  //               const SizedBox(width: 8),
+  //               Text(
+  //                 '${isActive && !willCancel && subscriptionInfo.tier == SubscriptionTier.pro ? "Renews" : "Ends"}: ${_formatDate(endDate)}',
+  //                 style: TextStyle(color: theme.textTheme.bodySmall?.color),
+  //               ),
+  //             ],
+  //           ),
+  //           if (willCancel && subscriptionInfo.tier == SubscriptionTier.pro)
+  //             const Padding(
+  //               padding: EdgeInsets.only(top: 8.0),
+  //               child: Row(
+  //                 children: [
+  //                   Icon(Icons.info_outline, size: 16, color: Colors.orange),
+  //                   SizedBox(width: 8),
+  //                   Text(
+  //                     'Set to cancel at period end',
+  //                     style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           const SizedBox(height: 16),
+
+  //           if (subscriptionInfo.tier == SubscriptionTier.pro) // Only show manage for Pro
+  //             SizedBox(
+  //               width: double.infinity,
+  //               child: ElevatedButton(
+  //                 onPressed: () => _manageSubscription(),
+  //                 child: const Text('Manage Subscription'),
+  //               ),
+  //             ),
+
+  //           if (subscriptionInfo.tier == SubscriptionTier.pro && !willCancel && isActive)
+  //             Padding(
+  //               padding: const EdgeInsets.only(top: 8.0),
+  //               child: SizedBox(
+  //                 width: double.infinity,
+  //                 child: OutlinedButton(
+  //                   onPressed: () => _confirmCancelSubscription(),
+  //                   style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+  //                   child: const Text('Cancel Subscription'),
+  //                 ),
+  //               ),
+  //             ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildSubscriptionPlans() {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
@@ -222,42 +222,55 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: subscriptionProvider.plans.length,
           itemBuilder: (context, index) {
-            final plan = subscriptionProvider.plans[index];
-            bool isCurrentPlan = false;
-            bool disableSubscribeButton = false;
 
-            if (currentSubInfo != null) {
-              if (currentSubInfo.tier == plan.tier) {
-                // If the tiers match, it's the current tier.
-                // For Pro plans, we need to check if it's the *exact* same interval (monthly/annually)
-                // to disable the button. This requires knowing the current plan's interval.
-                // Assuming SubscriptionInfo might eventually hold plan.planIdentifier or interval for the active sub.
-                isCurrentPlan = true;
-                if (plan.tier == SubscriptionTier.pro) {
-                  // Heuristic: if current plan is active, not cancelling, and its interval matches this card's interval
-                  // then disable button. This is still imperfect without explicit current planIdentifier in SubscriptionInfo.
-                  // For now, if it's a Pro plan and user is on Pro, we mark `isCurrentPlan` true.
-                  // Button will be disabled if it's a paid plan and marked `isCurrentPlan`.
-                  if ((currentSubInfo.status == SubscriptionStatus.active || currentSubInfo.status == SubscriptionStatus.trialing) &&
-                      !currentSubInfo.cancelAtPeriodEnd) {
-                    // A more robust check for exact plan (e.g. Pro Monthly vs Pro Annual)
-                    // would involve comparing plan.planIdentifier if available in currentSubInfo
-                    // For simplicity here, if current tier is Pro, and this card is Pro, consider it the active tier
-                    // The button is disabled if isCurrentPlan is true and price > 0
-                  }
-                }
-                if (plan.price > 0) { // For any paid plan that is current
-                  disableSubscribeButton = true;
-                }
-              }
+            final plan = subscriptionProvider.plans[index];
+            bool isPro = false;
+
+            if(plan.tier.name == "pro" && subscriptionProvider.isProSubscriber == true){
+               isPro = true;
             }
+            if(plan.tier.name == "free" && subscriptionProvider.isProSubscriber == false){
+               isPro = false;
+            }
+            
+
+            // bool isCurrentPlan = false;
+            bool isCurrentRevenueCatPlan = isPro;
+
+            // bool disableSubscribeButton = false;
+
+            // if (currentSubInfo != null) {
+            //   if (currentSubInfo.tier == plan.tier) {
+            //     // If the tiers match, it's the current tier.
+            //     // For Pro plans, we need to check if it's the *exact* same interval (monthly/annually)
+            //     // to disable the button. This requires knowing the current plan's interval.
+            //     // Assuming SubscriptionInfo might eventually hold plan.planIdentifier or interval for the active sub.
+            //     isCurrentPlan = true;
+            //     if (plan.tier == SubscriptionTier.pro) {
+            //       // Heuristic: if current plan is active, not cancelling, and its interval matches this card's interval
+            //       // then disable button. This is still imperfect without explicit current planIdentifier in SubscriptionInfo.
+            //       // For now, if it's a Pro plan and user is on Pro, we mark `isCurrentPlan` true.
+            //       // Button will be disabled if it's a paid plan and marked `isCurrentPlan`.
+            //       if ((currentSubInfo.status == SubscriptionStatus.active || currentSubInfo.status == SubscriptionStatus.trialing) &&
+            //           !currentSubInfo.cancelAtPeriodEnd) {
+            //         // A more robust check for exact plan (e.g. Pro Monthly vs Pro Annual)
+            //         // would involve comparing plan.planIdentifier if available in currentSubInfo
+            //         // For simplicity here, if current tier is Pro, and this card is Pro, consider it the active tier
+            //         // The button is disabled if isCurrentPlan is true and price > 0
+            //       }
+            //     }
+            //     if (plan.price > 0) { // For any paid plan that is current
+            //       disableSubscribeButton = true;
+            //     }
+            //   }
+            // }
 
 
             return SubscriptionPlanCard(
               plan: plan,
-              isCurrentPlan: isCurrentPlan,
+              isCurrentPlan:isCurrentRevenueCatPlan,
               // CORRECTED LINE:
-              onSubscribe: (disableSubscribeButton || plan.tier == SubscriptionTier.free || plan.planIdentifier == null || plan.planIdentifier == 'free')
+              onSubscribe: (plan.tier == SubscriptionTier.free || plan.planIdentifier == null || plan.planIdentifier == 'free')
                   ? null
                   : _subscribeToPlan,
             );
@@ -428,11 +441,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Text("Error: ${subscriptionProvider.error}", style: TextStyle(color: Colors.red)),
                 ),
-              if (subscriptionInfo != null)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: _buildCurrentPlan(subscriptionInfo),
-                ),
+              // if (subscriptionInfo != null)
+              //   Padding(
+              //     padding: const EdgeInsets.all(16.0),
+              //     child: _buildCurrentPlan(subscriptionInfo),
+              //   ),
               if (subscriptionInfo == null && !isLoading && subscriptionProvider.error == null)
                 const Padding(
                   padding: EdgeInsets.all(16.0),
