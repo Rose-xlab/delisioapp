@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // Keep RevenueCat UI import
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 import '../providers/auth_provider.dart';
 import '../providers/recipe_provider.dart';
@@ -69,28 +71,18 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
     try {
 
-      debugPrint("------------------------- LOAD CALLED -----------------------------");
-
       final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.isAuthenticated ? authProvider.token : null;
-      // final userID = authProvider.isAuthenticated ? authProvider.user?.id : null;
-      const userID = "a0ba2771fd1b415f86bfe03cf8facada";
 
+                    
       if (authProvider.isAuthenticated && token != null ) {
-
-         //re initialise revenuecat with customer identifier (user app ID) when authenticated
-        LogInResult result = await Purchases.logIn(userID);
-        debugPrint("========================= ADDED USER APP ID TO _rc =======================");
-        debugPrint("Purchase date: ${result.customerInfo.originalPurchaseDate}");
-        debugPrint("==========================================================================");
-
 
         await Provider.of<SubscriptionProvider>(context, listen: false)
             .loadSubscriptionStatus(token);
-      }
+        }
 
-      await recipeProvider.getTrendingRecipes(token: token);
+        await recipeProvider.getTrendingRecipes(token: token);
       
       if (mounted) {
         setState(() {
@@ -484,6 +476,38 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
 
+
+  Future<void> getprofiles ( ) async {
+    try{
+
+      final client = Supabase.instance.client;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final subsProvider = Provider.of<SubscriptionProvider>(context, listen:true);
+      final userId = authProvider.isAuthenticated ? authProvider.user?.id : null;
+
+      String uid = userId as String;
+
+     final profiles  = await client.from("profiles").select().eq("id", uid).single();
+     debugPrint("================ PROFILE APP ID: ${profiles["user_app_id"]}");
+
+     String _user_app_id = profiles["user_app_id"];
+
+     LogInResult result = await Purchases.logIn(_user_app_id);
+
+     debugPrint("================================== REVCAT LOGIN RESULT ============");
+             debugPrint(result.toString());
+     debugPrint("================================== ============");
+
+
+     subsProvider.revenueCatSubscriptionStatus();
+
+    }
+    catch(e){
+       debugPrint(e.toString());
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final recipeProvider = Provider.of<RecipeProvider>(context);
@@ -503,6 +527,11 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     debugPrint("========================= SUBSCRIPTION STATUS _rc ================");
                   debugPrint("is pro: ${subscriptionProvider.isProSubscriber}");
     debugPrint("==========================================================================");
+
+    if(authProvider.isAuthenticated){
+      getprofiles();
+    }
+     
 
    
 

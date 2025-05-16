@@ -20,24 +20,31 @@ class AuthService {
   Future<void> signUp(String email, String password, String name) async {
     if (kDebugMode) print("AuthService: Attempting Supabase signUp...");
     try {
+
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
         // Pass user metadata (like name) in the 'data' field
         data: {'name': name}, // Ensure 'name' matches your Supabase trigger/metadata key
       );
+
+      
+
+      
+
       if (kDebugMode) {
-        print("AuthService: Supabase signUp successful. User: ${response.user?.id}, Session: ${response.session != null}");
+        debugPrint("AuthService: Supabase signUp successful. User: ${response.user?.id}, Session: ${response.session != null}");
         // Note: If email confirmation is enabled, response.session might be null initially.
         // The onAuthStateChange listener in AuthProvider will handle the final SIGNED_IN state.
       }
+
     } on supabase.AuthException catch (e) {
       // Catch specific Supabase auth errors
-      if (kDebugMode) print("AuthService: Supabase signUp AuthException: ${e.message}");
+      if (kDebugMode) debugPrint("AuthService: Supabase signUp AuthException: ${e.message}");
       throw Exception(e.message); // Re-throw a generic exception for AuthProvider
     } catch (e) {
       // Catch any other errors
-      if (kDebugMode) print("AuthService: Supabase signUp generic error: $e");
+      if (kDebugMode) debugPrint("AuthService: Supabase signUp generic error: $e");
       throw Exception('An unexpected error occurred during sign up.');
     }
   }

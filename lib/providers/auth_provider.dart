@@ -211,14 +211,16 @@ class AuthProvider with ChangeNotifier {
     );
 
     try {
-      await _authService.signUp(email, password, name); // Uses Supabase client now
-      if (kDebugMode) print("AuthProvider: signUp service call successful (state update relies on listener).");
+      await _authService.signUp(email, password, name); 
+      // Uses Supabase client now
+      if (kDebugMode) debugPrint("AuthProvider: signUp service call successful (state update relies on listener).");
     } catch (e) {
-      if (kDebugMode) print("AuthProvider: signUp failed: $e");
+      if (kDebugMode) debugPrint("AuthProvider: signUp failed: $e");
       _setError(e.toString());
       // Log sign-up failures to Sentry
       captureException(e, stackTrace: StackTrace.current);
       rethrow;
+
     } finally {
       _isLoading = false;
       notifyListeners();
