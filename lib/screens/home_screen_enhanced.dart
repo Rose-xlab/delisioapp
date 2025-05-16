@@ -490,9 +490,9 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
      final profiles  = await client.from("profiles").select().eq("id", uid).single();
      debugPrint("================ PROFILE APP ID: ${profiles["user_app_id"]}");
 
-     String _user_app_id = profiles["user_app_id"];
+     String userAppId = profiles["user_app_id"];
 
-     LogInResult result = await Purchases.logIn(_user_app_id);
+     LogInResult result = await Purchases.logIn(userAppId);
 
      debugPrint("================================== REVCAT LOGIN RESULT ============");
              debugPrint(result.toString());

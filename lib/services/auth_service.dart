@@ -29,12 +29,7 @@ class AuthService {
         data: {'name': name}, // Ensure 'name' matches your Supabase trigger/metadata key
       );
 
-      
-     
-
-
       //generate and add a unique user_app_id for revenuecat subscriptions
-
       final user = response.user;
 
       if( user  != null){
@@ -47,7 +42,6 @@ class AuthService {
           });
 
           debugPrint(profile);
-
       }
 
       
