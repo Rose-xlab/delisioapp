@@ -1,6 +1,7 @@
 // lib/screens/home/home_screen_enhanced.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/constants/myofferings.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // Keep RevenueCat UI import
@@ -447,7 +448,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             TextButton(
               onPressed: () {
                 // Ensure "TestPro" is your Offering Identifier in RevenueCat
-                RevenueCatUI.presentPaywallIfNeeded("TestPro");
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro);
               },
               style: TextButton.styleFrom(
                 backgroundColor: color,

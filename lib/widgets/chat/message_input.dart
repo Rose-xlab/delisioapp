@@ -1,5 +1,10 @@
 // lib/widgets/chat/message_input.dart
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/constants/myofferings.dart';
+import 'package:kitchenassistant/providers/chat_provider.dart';
+import 'package:kitchenassistant/providers/subscription_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 
 class MessageInput extends StatefulWidget {
   final TextEditingController controller;
@@ -47,6 +52,12 @@ class _MessageInputState extends State<MessageInput> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final chatProvider = Provider.of<ChatProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+
+    debugPrint("================= CONVASATION  LENGTH: ${chatProvider.conversations.length.toString()}  ===========");
+
+    final canChat = subscriptionProvider.isProSubscriber == false && chatProvider.conversations.length <= 3 ? true : subscriptionProvider.isProSubscriber ? true : false ; 
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
@@ -122,7 +133,7 @@ class _MessageInputState extends State<MessageInput> {
           const SizedBox(width: 8),
 
           // Send button
-          Material(
+        canChat ?  Material(
             color: _hasText ? colorScheme.primary : Colors.grey.shade300,
             borderRadius: BorderRadius.circular(50),
             child: InkWell(
@@ -154,7 +165,19 @@ class _MessageInputState extends State<MessageInput> {
                 ),
               ),
             ),
-          ),
+          ) : TextButton(
+              onPressed: () {
+                // Ensure "TestPro" is your Offering Identifier in RevenueCat
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro);
+              },
+              style: TextButton.styleFrom(
+                backgroundColor:Colors.green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              child: const Text('Upgrade'),
+            ),
         ],
       ),
     );
