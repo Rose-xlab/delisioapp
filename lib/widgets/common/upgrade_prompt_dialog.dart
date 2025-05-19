@@ -10,88 +10,194 @@ class UpgradePromptDialog extends StatelessWidget {
 
   const UpgradePromptDialog({
     Key? key,
-    this.titleText = 'Upgrade to Pro!',
+    this.titleText = 'Unlock Pro Features!',
     required this.messageText,
-    this.proFeatures = const [ // Default features, can be overridden
+    this.proFeatures = const [
       'Unlimited recipe generations',
-      'Unlimited AI chat replies', // Added this feature
-      'HD image quality',
+      'Unlimited AI chat replies',
+      'Enhanced HD image quality',
       'Full access to recipe library',
       'Priority chat assistance',
-      'All features unlocked',
+      'All current & future features unlocked',
     ],
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    final primaryColor = theme.colorScheme.primary;
+    final onPrimaryColor = theme.colorScheme.onPrimary;
+    final surfaceColor = theme.colorScheme.surface;
+    final onSurfaceColor = theme.colorScheme.onSurface;
+    final onSurfaceVariantColor = theme.colorScheme.onSurfaceVariant;
+    final successColor = Colors.green.shade600;
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-      title: Row(
+      backgroundColor: surfaceColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+      elevation: isDarkMode ? 4.0 : 8.0,
+      titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 16.0),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24.0),
+      actionsPadding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 24.0),
+      // Use a Stack to allow positioning the close button on top
+      content: Stack(
+        clipBehavior: Clip.none, // Allow close button to be slightly outside if needed
         children: [
-          Icon(Icons.rocket_launch_outlined, color: theme.colorScheme.primary, size: 28),
-          const SizedBox(width: 12),
-          Text(titleText, style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.onSurface)),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.rocket_launch_outlined,
+                    color: primaryColor,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      titleText,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: onSurfaceColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  // We will place the close button outside this Row, using the Stack
+                ],
+              ),
+              const SizedBox(height: 8), // Reduced space as title is now part of content Stack
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.55, // Adjusted max height
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        messageText,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontSize: 16,
+                          color: onSurfaceColor.withOpacity(0.85),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Upgrade to Pro to enjoy:',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: onSurfaceColor,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...proFeatures.map((feature) =>
+                          _buildFeatureRow(Icons.check_circle, feature, theme, successColor))
+                          .toList(),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // Positioned Close Button
+          Positioned(
+            top: -12.0, // Adjust to position correctly relative to the new content structure
+            right: -12.0, // Adjust to position correctly
+            child: Material( // Adding Material for InkWell splash effect
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18), // Make the tap area a bit larger and circular
+                onTap: () {
+                  Navigator.of(context).pop(); // Close the dialog
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(6), // Padding around the icon
+                  decoration: BoxDecoration(
+                    // Optional: add a subtle background if needed for better visibility
+                    // color: surfaceColor.withOpacity(isDarkMode ? 0.5 : 0.1),
+                    // borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    color: onSurfaceVariantColor.withOpacity(0.7),
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              messageText, // Use the passed message
-              style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Upgrade to Pro to enjoy:',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      // Nullify the title here as it's now part of the content Stack for positioning the close button
+      title: null,
+      actionsAlignment: MainAxisAlignment.center,
+      actions: <Widget>[
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.workspace_premium_outlined, size: 20),
+              label: const Text('View Pro Plans'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: onPrimaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                elevation: 2.0,
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro);
+              },
             ),
             const SizedBox(height: 10),
-            ...proFeatures.map((feature) => _buildFeatureRow(Icons.check_circle_outline, feature, theme)).toList(),
+            TextButton(
+              child: Text(
+                'Maybe Later',
+                style: TextStyle(
+                  color: onSurfaceVariantColor,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
           ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-      actionsAlignment: MainAxisAlignment.spaceBetween,
-      actions: <Widget>[
-        TextButton(
-          child: Text('Maybe Later', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          onPressed: () {
-            Navigator.of(context).pop(); // Close the dialog
-          },
-        ),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.workspace_premium_outlined, size: 18),
-          label: const Text('View Pro Plans'),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-              textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)
-          ),
-          onPressed: () {
-            Navigator.of(context).pop(); // Close the dialog first
-            // Present the RevenueCat paywall using the offering identifier from MyOfferings
-            RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro);
-          },
         ),
       ],
     );
   }
 
-  Widget _buildFeatureRow(IconData icon, String text, ThemeData theme) {
+  Widget _buildFeatureRow(IconData icon, String text, ThemeData theme, Color iconColor) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.green.shade600, size: 20),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+          Icon(
+            icon,
+            color: iconColor,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 15,
+                color: theme.colorScheme.onSurface.withOpacity(0.9),
+              ),
+            ),
+          ),
         ],
       ),
     );
