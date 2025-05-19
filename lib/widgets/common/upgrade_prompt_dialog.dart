@@ -38,104 +38,96 @@ class UpgradePromptDialog extends StatelessWidget {
       backgroundColor: surfaceColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
       elevation: isDarkMode ? 4.0 : 8.0,
-      titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 16.0),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24.0),
-      actionsPadding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 24.0),
-      // Use a Stack to allow positioning the close button on top
-      content: Stack(
-        clipBehavior: Clip.none, // Allow close button to be slightly outside if needed
+
+      // Define the title as a Row to include the icon, text, and close button
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes title to left, close button to right
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.rocket_launch_outlined,
-                    color: primaryColor,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      titleText,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: onSurfaceColor,
-                        fontWeight: FontWeight.bold,
-                      ),
+          // Icon and Title Text (wrapped in a Row and Flexible to handle long text)
+          Expanded( // Allow title part to take available space, pushing close button to the edge
+            child: Row(
+              mainAxisSize: MainAxisSize.min, // Don't let this inner Row expand unnecessarily
+              children: [
+                Icon(
+                  Icons.rocket_launch_outlined,
+                  color: primaryColor,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Flexible( // Ensures title text wraps or truncates if too long
+                  child: Text(
+                    titleText,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: onSurfaceColor,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  // We will place the close button outside this Row, using the Stack
-                ],
-              ),
-              const SizedBox(height: 8), // Reduced space as title is now part of content Stack
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.55, // Adjusted max height
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        messageText,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontSize: 16,
-                          color: onSurfaceColor.withOpacity(0.85),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Upgrade to Pro to enjoy:',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: onSurfaceColor,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ...proFeatures.map((feature) =>
-                          _buildFeatureRow(Icons.check_circle, feature, theme, successColor))
-                          .toList(),
-                      const SizedBox(height: 8),
-                    ],
+                    overflow: TextOverflow.ellipsis, // Good for very long titles
+                    maxLines: 2, // Allow title to wrap to two lines if needed
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          // Positioned Close Button
-          Positioned(
-            top: -12.0, // Adjust to position correctly relative to the new content structure
-            right: -12.0, // Adjust to position correctly
-            child: Material( // Adding Material for InkWell splash effect
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18), // Make the tap area a bit larger and circular
-                onTap: () {
-                  Navigator.of(context).pop(); // Close the dialog
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(6), // Padding around the icon
-                  decoration: BoxDecoration(
-                    // Optional: add a subtle background if needed for better visibility
-                    // color: surfaceColor.withOpacity(isDarkMode ? 0.5 : 0.1),
-                    // borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(
-                    Icons.close,
-                    color: onSurfaceVariantColor.withOpacity(0.7),
-                    size: 24,
-                  ),
+          // Close Button
+          Material( // Ensures InkWell splash effect is visible
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20), // Circular tap area
+              onTap: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(6.0), // Padding around the icon to increase tap area
+                child: Icon(
+                  Icons.close,
+                  color: onSurfaceVariantColor.withOpacity(0.8),
+                  size: 24,
                 ),
               ),
             ),
           ),
         ],
       ),
-      // Nullify the title here as it's now part of the content Stack for positioning the close button
-      title: null,
+      titlePadding: const EdgeInsets.fromLTRB(20.0, 16.0, 12.0, 12.0), // Adjusted padding for the title area
+      contentPadding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 16.0), // Top padding is reduced as title handles it
+
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.55, // Max height for scrollable content
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // The title is now handled by AlertDialog's 'title' property.
+              // Add a little space if the title's bottom padding isn't enough.
+              // const SizedBox(height: 4), // Optional: if more space needed below title
+              Text(
+                messageText,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontSize: 16,
+                  color: onSurfaceColor.withOpacity(0.85),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Upgrade to Pro to enjoy:',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: onSurfaceColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...proFeatures.map((feature) =>
+                  _buildFeatureRow(Icons.check_circle, feature, theme, successColor))
+                  .toList(),
+            ],
+          ),
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 24.0),
       actionsAlignment: MainAxisAlignment.center,
       actions: <Widget>[
         Column(
