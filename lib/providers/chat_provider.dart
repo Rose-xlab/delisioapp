@@ -3,21 +3,22 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart'; // Import for generating unique IDs
+import 'package:uuid/uuid.dart';
 
-import '../models/chat_message.dart'; // Updated model
+import '../models/chat_message.dart';
 import '../models/conversation.dart';
-import '../models/recipe.dart'; // Import Recipe model
 import '../services/chat_service.dart';
 import './auth_provider.dart';
+import './subscription_provider.dart';
 import 'dart:math' as math;
 import '../config/sentry_config.dart';
 
 class ChatProvider with ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ChatService _chatService = ChatService();
-  AuthProvider? _authProvider; // Already exists
-  final _uuid = const Uuid(); // For generating local IDs
+  AuthProvider? _authProvider;
+  SubscriptionProvider? _subscriptionProvider;
+  final _uuid = const Uuid();
 
   List<Conversation> _conversations = [];
   bool _isLoadingConversations = false;
@@ -30,15 +31,12 @@ class ChatProvider with ChangeNotifier {
 
   bool _isSendingMessage = false;
   String? _sendMessageError;
+  bool _aiReplyLimitReachedError = false;
 
-  // Added properties for queue support
   bool _isQueueActive = false;
   bool _isPolling = false;
-
-  // Maximum number of messages to include as context history
   final int _maxContextMessages = 10;
 
-  // --- Getters ---
   List<Conversation> get conversations => List.unmodifiable(_conversations);
   bool get isLoadingConversations => _isLoadingConversations;
   String? get conversationsError => _conversationsError;
@@ -48,52 +46,68 @@ class ChatProvider with ChangeNotifier {
   String? get messagesError => _messagesError;
   bool get isSendingMessage => _isSendingMessage;
   String? get sendMessageError => _sendMessageError;
+  bool get aiReplyLimitReachedError => _aiReplyLimitReachedError;
   bool get isQueueActive => _isQueueActive;
 
-  // --- Update Method ---
-  void updateAuth(AuthProvider? auth) {
-    if (kDebugMode) print("ChatProvider: Received updateAuth. New auth state isAuthenticated: ${auth?.isAuthenticated}");
+  void updateProviders({AuthProvider? auth, SubscriptionProvider? subs}) {
     bool authChanged = _authProvider?.isAuthenticated != auth?.isAuthenticated;
-    _authProvider = auth; // Update the internal auth provider reference
+    bool subsProviderChanged = _subscriptionProvider != subs;
 
-    addBreadcrumb(
-      message: 'Auth state updated in ChatProvider',
-      category: 'auth',
-      data: {'isAuthenticated': auth?.isAuthenticated},
-    );
+    if (auth != null) _authProvider = auth;
+    if (subs != null) _subscriptionProvider = subs;
+
+    if (authChanged || subsProviderChanged) {
+      if (kDebugMode) {
+        print("ChatProvider: updateProviders called. AuthChanged: $authChanged, SubsChanged: $subsProviderChanged");
+        print("  Auth State: ${auth?.isAuthenticated}, SubsProvider Instance: ${subs != null}");
+        if (subs != null && subs.subscriptionInfo != null) {
+          print("  SubsProvider isPro: ${subs.isProSubscriber}, SubInfo AI Limits: L=${subs.subscriptionInfo!.aiChatRepliesLimit}, R=${subs.subscriptionInfo!.aiChatRepliesRemaining}");
+        } else if (subs != null) {
+          print("  SubsProvider isPro: ${subs.isProSubscriber}, SubInfo: null");
+        }
+      }
+      addBreadcrumb(
+        message: 'Auth/Subs providers updated in ChatProvider',
+        category: 'provider_update',
+        data: {
+          'authProvided': auth != null, 'subsProvided': subs != null,
+          'authChanged': authChanged, 'subsProviderChanged': subsProviderChanged,
+          'isProNow': _subscriptionProvider?.isProSubscriber,
+          'subInfoAvailableNow': _subscriptionProvider?.subscriptionInfo != null
+        },
+      );
+    }
 
     if (authChanged) {
       if (!(_authProvider?.isAuthenticated ?? false)) {
-        if (kDebugMode) print("ChatProvider: Auth state changed to logged out, resetting chat state.");
+        if (kDebugMode) print("ChatProvider: User logged out, resetting chat state.");
         _conversations = []; _conversationsError = null; resetActiveChat();
       } else {
-        if (kDebugMode) print("ChatProvider: Auth state changed to logged in, reloading conversations.");
+        if (kDebugMode) print("ChatProvider: User logged in, reloading conversations.");
         loadConversations();
       }
     } else if (_authProvider?.isAuthenticated ?? false) {
       _checkQueueStatus();
+      if (subsProviderChanged && _authProvider?.token != null && _subscriptionProvider != null) {
+        if (kDebugMode) print("ChatProvider: SubscriptionProvider instance updated, refreshing subscription status.");
+        _subscriptionProvider!.loadSubscriptionStatus(_authProvider!.token!);
+        _subscriptionProvider!.revenueCatSubscriptionStatus();
+      }
     }
   }
 
   Future<void> _checkQueueStatus() async {
     try {
       final token = _authProvider?.token;
-      if (kDebugMode && token == null) {
-        print("ChatProvider: Attempting to check queue status, but token is null (User might be logged out).");
+      if (kDebugMode && token == null && (_authProvider?.isAuthenticated ?? false) ) {
+        print("ChatProvider: Attempting to check queue status for authenticated user, but token is null.");
       }
-      addBreadcrumb(
-        message: 'Checking chat queue status',
-        category: 'api',
-      );
       _isQueueActive = await _chatService.isChatQueueActive(token: token);
       if (kDebugMode) print("ChatProvider: Queue system is ${_isQueueActive ? 'active' : 'not active'}");
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) print("ChatProvider: Error checking queue status: $e");
       _isQueueActive = false;
-      captureException(e,
-          stackTrace: StackTrace.current,
-          hint: 'Error checking chat queue status'
-      );
+      captureException(e, stackTrace: stackTrace, hint: 'Error checking chat queue status');
     }
   }
 
@@ -103,21 +117,15 @@ class ChatProvider with ChangeNotifier {
     if (userId == null) {
       _conversationsError = "Cannot load conversations: User not logged in.";
       _conversations = [];
-      if(kDebugMode) print("ChatProvider: Cannot load conversations, user null according to AuthProvider.");
-      if (_isLoadingConversations || _conversations.isNotEmpty || _conversationsError == null) {
-        _isLoadingConversations = false; notifyListeners();
-      }
+      _isLoadingConversations = false;
+      notifyListeners();
       return;
     }
-    _isLoadingConversations = true; _conversationsError = null; notifyListeners();
-    if(kDebugMode) print("ChatProvider: Loading conversations for user $userId (from AuthProvider)");
+    _isLoadingConversations = true; _conversationsError = null;
+    notifyListeners(); // Notify loading start
 
-    addBreadcrumb(
-      message: 'Loading conversations',
-      category: 'chat',
-      data: {'userId': userId},
-    );
-
+    if(kDebugMode) print("ChatProvider: Loading conversations for user $userId");
+    addBreadcrumb(message: 'Loading conversations', category: 'chat', data: {'userId': userId});
     try {
       final response = await _supabase.from('conversations').select().eq('user_id', userId).order('updated_at', ascending: false);
       _conversations = response.map((data) => Conversation.fromJson(data)).toList();
@@ -125,10 +133,7 @@ class ChatProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error loading conversations: $e\n$stackTrace");
       _conversationsError = "Failed to load conversations."; _conversations = [];
-      captureException(e,
-          stackTrace: stackTrace,
-          hint: 'Error loading conversations'
-      );
+      captureException(e, stackTrace: stackTrace, hint: 'Error loading conversations');
     } finally {
       _isLoadingConversations = false;
       await _checkQueueStatus();
@@ -137,303 +142,308 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> selectConversation(String conversationId) async {
-    if (_activeConversationId == conversationId && _activeMessages.isNotEmpty) return;
+    if (_activeConversationId == conversationId && _activeMessages.isNotEmpty && !_isLoadingMessages) return;
     if(kDebugMode) print("ChatProvider: Selecting conversation $conversationId");
+    addBreadcrumb(message: 'Selecting conversation', category: 'chat', data: {'conversationId': conversationId});
 
-    addBreadcrumb(
-      message: 'Selecting conversation',
-      category: 'chat',
-      data: {'conversationId': conversationId},
-    );
+    clearAiReplyLimitError();
 
-    _activeConversationId = conversationId; _activeMessages = []; _messagesError = null;
-    _sendMessageError = null; _isLoadingMessages = true; notifyListeners();
+    _activeConversationId = conversationId;
+    _activeMessages = [];
+    _messagesError = null;
+    _sendMessageError = null;
+    _isLoadingMessages = true;
+    notifyListeners();
     await _loadMessagesForActiveConversation();
   }
 
-  // --- MODIFIED: _loadMessagesForActiveConversation uses new factory ---
   Future<void> _loadMessagesForActiveConversation() async {
-    if (_activeConversationId == null) return;
+    if (_activeConversationId == null) {
+      _isLoadingMessages = false;
+      notifyListeners();
+      return;
+    }
     if(kDebugMode) print("ChatProvider: Loading messages for conversation $_activeConversationId");
-
-    addBreadcrumb(
-      message: 'Loading messages for conversation',
-      category: 'chat',
-      data: {'conversationId': _activeConversationId},
-    );
-
+    addBreadcrumb(message: 'Loading messages for conversation', category: 'chat', data: {'conversationId': _activeConversationId});
     try {
       final response = await _supabase.from('messages').select().eq('conversation_id', _activeConversationId!).order('created_at', ascending: true);
-      _activeMessages = response.map((data) {
-        final mapData = data;
-        MessageType type = (mapData['role'] == 'assistant') ? MessageType.ai : MessageType.user;
-        final metadata = mapData['metadata'];
-        if (kDebugMode) print("<<< ChatProvider: Loading message ID ${mapData['id']}, Raw metadata from DB: ${metadata?.toString()} (Type: ${metadata?.runtimeType})");
-        List<String>? suggestionsList;
-        if (metadata != null && metadata is Map && metadata['suggestions'] != null && metadata['suggestions'] is List) {
-          try {
-            suggestionsList = (metadata['suggestions'] as List).whereType<String>().toList();
-            if (suggestionsList.isEmpty) suggestionsList = null;
-            if (kDebugMode) print("<<< ChatProvider: Parsed suggestions list from DB: ${suggestionsList?.toString()}");
-          } catch (e) {
-            if (kDebugMode) print("<<< ChatProvider: Error casting suggestions metadata from DB for msg ${mapData['id']}: $e");
-            suggestionsList = null;
-            captureException(e, stackTrace: StackTrace.current, hint: 'Error parsing message suggestions from database');
-          }
-        } else {
-          if (kDebugMode) print("<<< ChatProvider: No valid suggestions list found in metadata for msg ${mapData['id']}.");
-          suggestionsList = null;
-        }
-        return ChatMessage(
-          id: mapData['id'] as String,
-          content: mapData['content'] as String,
-          type: type,
-          timestamp: DateTime.parse(mapData['created_at'] as String),
-          suggestions: suggestionsList,
-        );
-      }).toList();
-
-      if (kDebugMode) print("ChatProvider: Loaded ${_activeMessages.length} messages. Last message type: ${_activeMessages.lastOrNull?.type}");
+      _activeMessages = response.map((data) => ChatMessage.fromJson(data)).toList();
+      if (kDebugMode) print("ChatProvider: Loaded ${_activeMessages.length} messages for $_activeConversationId. Last message type: ${_activeMessages.lastOrNull?.type}");
       _messagesError = null;
     } catch (e, stackTrace) {
-      if(kDebugMode) print("ChatProvider: Error loading messages: $e\n$stackTrace");
-      _messagesError = "Failed to load messages."; _activeMessages = [];
-      captureException(e, stackTrace: stackTrace, hint: 'Error loading messages for conversation');
+      if(kDebugMode) print("ChatProvider: Error loading messages for $_activeConversationId: $e\n$stackTrace");
+      _messagesError = "Failed to load messages for conversation $_activeConversationId.";
+      _activeMessages = [];
+      captureException(e, stackTrace: stackTrace, hint: 'Error loading messages for conversation $_activeConversationId');
     } finally {
       _isLoadingMessages = false;
       notifyListeners();
     }
   }
-  // --- END MODIFIED ---
 
   Future<String?> createNewConversation() async {
     final userId = _authProvider?.user?.id;
     if (userId == null) {
-      _conversationsError = "Cannot create conversation: User not logged in.";
+      _conversationsError = "User not logged in.";
       notifyListeners();
-      if(kDebugMode) print("ChatProvider: Attempted createNewConversation, but user is null according to AuthProvider.");
       return null;
     }
-    if(kDebugMode) print("ChatProvider: Creating new conversation for user $userId (from AuthProvider)");
+    if(kDebugMode) print("ChatProvider: Creating new conversation for user $userId");
+    addBreadcrumb(message: 'Creating new conversation',category: 'chat',data: {'userId': userId});
 
-    addBreadcrumb(
-      message: 'Creating new conversation',
-      category: 'chat',
-      data: {'userId': userId},
-    );
+    clearAiReplyLimitError();
 
     _isLoadingConversations = true; notifyListeners();
+    String? newId;
     try {
       final response = await _supabase.from('conversations').insert({'user_id': userId}).select('id').single();
-      final newId = response['id'] as String?;
+      newId = response['id'] as String?;
       if (newId != null) {
         if(kDebugMode) print("ChatProvider: New conversation created with ID: $newId");
         await loadConversations();
         await selectConversation(newId);
         return newId;
-      } else { throw Exception("Failed to retrieve ID for new conversation."); }
+      } else { throw Exception("Failed to retrieve ID for new conversation from Supabase."); }
     } catch (e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error creating new conversation: $e\n$stackTrace");
-      _conversationsError = "Failed to create conversation.";
+      _conversationsError = "Failed to create new conversation.";
       captureException(e, stackTrace: stackTrace, hint: 'Error creating new conversation');
     } finally {
-      _isLoadingConversations = false;
-      notifyListeners();
+      if (newId == null && _isLoadingConversations) {
+        _isLoadingConversations = false;
+        notifyListeners();
+      }
     }
-    return null;
+    return newId;
   }
 
-  // MODIFIED sendMessage method
-  Future<void> sendMessage(String content, {bool addToUi = true}) async { // Added addToUi parameter
+  Future<void> sendMessage(String content, {bool addToUi = true}) async {
     if (_isSendingMessage) return;
     if (_activeConversationId == null) {
-      _sendMessageError = "No active chat.";
+      _sendMessageError = "No active chat selected.";
+      _aiReplyLimitReachedError = false;
       notifyListeners();
       return;
     }
+
     final userId = _authProvider?.user?.id;
+
+    // --- PRE-SEND AI REPLY LIMIT CHECK ---
+    if (userId != null && _subscriptionProvider != null) {
+      if (!_subscriptionProvider!.isProSubscriber) {
+        final subInfo = _subscriptionProvider!.subscriptionInfo;
+
+        int freeAiRepliesLimit = 3;
+        int aiRepliesRemaining = 3;
+
+        if (subInfo != null) {
+          // Ensure your SubscriptionInfo model has these fields and they are non-null
+          // or handle nullability here.
+          freeAiRepliesLimit = (subInfo.aiChatRepliesLimit != -1) ? subInfo.aiChatRepliesLimit : 3;
+          aiRepliesRemaining = (subInfo.aiChatRepliesRemaining != -1) ? subInfo.aiChatRepliesRemaining : freeAiRepliesLimit;
+        } else {
+          if (kDebugMode) print("ChatProvider (Pre-send Check): SubscriptionInfo is null. Using default AI reply limits (Limit: $freeAiRepliesLimit, Remaining: $aiRepliesRemaining).");
+        }
+
+        if (kDebugMode) {
+          print("ChatProvider --- PRE-SEND CHECK ---");
+          print("  User ID: $userId, Is Pro (RevenueCat): ${_subscriptionProvider!.isProSubscriber}");
+          print("  SubInfo from backend: ${subInfo != null}");
+          if (subInfo != null) {
+            print("    Backend Tier: ${subInfo.tier}");
+            print("    Backend AI Limit: ${subInfo.aiChatRepliesLimit}");
+            print("    Backend AI Used: ${subInfo.aiChatRepliesUsed}");
+            print("    Backend AI Remaining: ${subInfo.aiChatRepliesRemaining}");
+          }
+          print("  Effective AI Limit for Check: $freeAiRepliesLimit");
+          print("  Effective AI Remaining for Check: $aiRepliesRemaining");
+        }
+
+        if (aiRepliesRemaining <= 0 && freeAiRepliesLimit != -1) {
+          if (kDebugMode) {
+            print("ChatProvider: PRE-SEND LIMIT HIT! Remaining: $aiRepliesRemaining, Limit: $freeAiRepliesLimit. Stopping send.");
+          }
+          _sendMessageError = "You've used your $freeAiRepliesLimit free AI replies for this period. Please upgrade.";
+          if (subInfo != null && subInfo.aiChatRepliesLimit != -1) {
+            _sendMessageError = "You've used your ${subInfo.aiChatRepliesLimit} free AI replies for this period. Please upgrade.";
+          }
+          _aiReplyLimitReachedError = true;
+          notifyListeners();
+          return; // <<<< CRITICAL RETURN TO STOP EXECUTION
+        }
+        if (kDebugMode) {
+          print("ChatProvider: Pre-send check passed. Proceeding to send message.");
+        }
+      }
+    }
+    // --- END PRE-SEND AI REPLY LIMIT CHECK ---
 
     _isSendingMessage = true;
     _sendMessageError = null;
-    notifyListeners(); // Notify listeners that sending has started (for UI indicators)
+    _aiReplyLimitReachedError = false;
+    notifyListeners();
 
     addBreadcrumb(
       message: 'Sending chat message',
       category: 'chat',
-      data: {
-        'conversationId': _activeConversationId,
-        'contentLength': content.length,
-        'addToUi': addToUi // Log the new parameter
-      },
+      data: { 'conversationId': _activeConversationId, 'contentLength': content.length, 'addToUi': addToUi },
     );
 
-    ChatMessage? localUserMessage; // Declare here to access in catch/finally if needed
-
+    ChatMessage? localUserMessage;
     if (addToUi) {
       localUserMessage = ChatMessage(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
-        content: content,
-        type: MessageType.user,
-        timestamp: DateTime.now(),
+        id: 'local_${_uuid.v4()}', content: content, type: MessageType.user, timestamp: DateTime.now(),
       );
       _activeMessages.add(localUserMessage);
-      notifyListeners(); // Show user's message in UI immediately if addToUi is true
     }
 
-    ChatMessage? localAiMessage;
-    String? savedUserMessageDbId; // Store the DB ID if saved
-
     try {
-      // Save User Message to DB (Only if user is logged in AND message is meant for UI)
-      // If addToUi is false, it's a background query, so we typically wouldn't save it as a user message.
-      // Adjust this logic if your backend expects even "silent" queries to be logged this way.
-      if (userId != null && addToUi) { // Conditionally save based on addToUi
-        if(kDebugMode) print("ChatProvider: Saving user message to DB (since addToUi is true)...");
+      if (userId != null && addToUi && localUserMessage != null) {
         await _supabase.from('messages').insert({
+          // id is auto-generated by DB
           'conversation_id': _activeConversationId!,
-          'user_id': userId,
-          'role': 'user',
-          'content': content
+          'user_id': userId, 'role': 'user', 'content': content
         });
-      } else {
-        if(kDebugMode) print("ChatProvider: Skipping saving user message to DB (User not logged in OR addToUi is false).");
       }
 
       List<ChatMessage> contextMessages = [];
-      // Prepare context. If addToUi is false, the current `content` is not in `_activeMessages` yet.
-      // Consider if "silent" messages should still use existing visible history or have tailored context.
-      // For now, let's use the visible history.
-      final messagesForContext = List<ChatMessage>.from(_activeMessages);
+      final List<ChatMessage> messagesForContext = List.from(_activeMessages);
       if (addToUi && localUserMessage != null && messagesForContext.isNotEmpty) {
-        // If we added the user message to UI, it's the last one. Exclude it from context for the current call.
-        messagesForContext.removeLast();
+        if (messagesForContext.last.id == localUserMessage.id) {
+          messagesForContext.removeLast();
+        }
       }
-
       if (messagesForContext.isNotEmpty) {
         final startIndex = math.max(0, messagesForContext.length - _maxContextMessages);
         contextMessages = messagesForContext.sublist(startIndex);
-        if(kDebugMode) print("ChatProvider: Including ${contextMessages.length} previous messages as context");
       }
 
-
       final token = _authProvider?.token;
-      if(kDebugMode) print("ChatProvider: Calling backend chat service with context history...");
+      if (kDebugMode) print("ChatProvider: Calling backend chat service with context history (${contextMessages.length} messages)...");
       final Map<String, dynamic> response = await _chatService.sendMessage(
-          _activeConversationId!,
-          content, // This is the actual query text, visible or silent
-          contextMessages,
-          token: token
-      );
+          _activeConversationId!, content, contextMessages, token: token);
 
       if (kDebugMode) print(">>> ChatProvider: Received from ChatService: ${response.toString()}");
+
+      if (response['error'] == "AI_REPLY_LIMIT_REACHED" || response['status_code'] == 402 ) {
+        _sendMessageError = response['reply'] as String? ?? "You've reached your AI reply limit. Please upgrade.";
+        _aiReplyLimitReachedError = true;
+        if (localUserMessage != null && addToUi && _activeMessages.contains(localUserMessage)) {
+          _activeMessages.remove(localUserMessage);
+        }
+        _isSendingMessage = false; notifyListeners(); return;
+      }
+
       final String? aiReplyContent = response['reply'] as String?;
       List<String>? suggestionsList;
       final suggestionsData = response['suggestions'];
-      if (kDebugMode) print(">>> ChatProvider: Raw suggestions data from backend: ${suggestionsData?.toString()} (Type: ${suggestionsData?.runtimeType})");
-      if (suggestionsData != null && suggestionsData is List) {
-        try {
-          suggestionsList = suggestionsData.whereType<String>().toList();
-          if (suggestionsList.isEmpty) suggestionsList = null;
-        } catch (e) {
-          if (kDebugMode) print(">>> ChatProvider: Error casting suggestions from backend: $e");
-          suggestionsList = null;
-          captureException(e, stackTrace: StackTrace.current, hint: 'Error parsing suggestions from chat API response');
+      if (suggestionsData is List) {
+        suggestionsList = suggestionsData.whereType<String>().toList();
+        if (suggestionsList.isEmpty) suggestionsList = null;
+      }
+
+      if (aiReplyContent == null || aiReplyContent.isEmpty) {
+        throw Exception("Received empty or null reply from assistant.");
+      }
+
+      if (userId != null && _subscriptionProvider != null && !_subscriptionProvider!.isProSubscriber) {
+        if (kDebugMode) print("ChatProvider: AI reply generated for free user. Backend tracked usage. Refreshing SubscriptionInfo.");
+        if (_authProvider?.token != null) {
+          await _subscriptionProvider!.loadSubscriptionStatus(_authProvider!.token!);
         }
       }
-      if (kDebugMode) print(">>> ChatProvider: Parsed suggestions list for local message: ${suggestionsList?.toString()}");
 
-      if (aiReplyContent == null || aiReplyContent.isEmpty) throw Exception("Received empty reply from assistant.");
-
-      localAiMessage = ChatMessage(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch + 1}', // Ensure unique ID
-        content: aiReplyContent,
-        type: MessageType.ai,
-        timestamp: DateTime.now(),
-        suggestions: suggestionsList,
+      final String aiMessageDbId = _uuid.v4();
+      final aiMessage = ChatMessage(
+        id: aiMessageDbId, content: aiReplyContent, type: MessageType.ai,
+        timestamp: DateTime.now(), suggestions: suggestionsList,
       );
-      _activeMessages.add(localAiMessage);
-      // No need to notifyListeners here if we save and then notify in finally,
-      // but for immediate UI update of AI message:
-      // notifyListeners(); // Uncomment if you want AI message to show before DB save completes
+      _activeMessages.add(aiMessage);
 
-      final metadataToSave = {'suggestions': suggestionsList ?? []};
-      final assistantMessageDataToSave = {
-        'conversation_id': _activeConversationId!,
-        'user_id': null,
-        'role': 'assistant',
-        'content': aiReplyContent,
-        'metadata': metadataToSave,
-      };
-
-      if (kDebugMode) print(">>> ChatProvider: Metadata being saved to DB: ${jsonEncode(metadataToSave)}");
-      if(kDebugMode) print("ChatProvider: Saving assistant message to DB...");
-      // Insert the assistant message
-      await _supabase.from('messages').insert(assistantMessageDataToSave);
-      if(kDebugMode) print("ChatProvider: Assistant message saved successfully.");
-
-      if (userId != null) { // Only update conversation timestamp if a user is involved
-        if(kDebugMode) print("ChatProvider: Updating conversation timestamp...");
+      if (userId != null) {
+        final metadataToSave = {'suggestions': suggestionsList ?? []};
+        await _supabase.from('messages').insert({
+          // id is auto-generated by DB
+          'conversation_id': _activeConversationId!, 'user_id': null,
+          'role': 'assistant', 'content': aiReplyContent, 'metadata': metadataToSave,
+        });
         await _supabase.from('conversations').update({'updated_at': DateTime.now().toIso8601String()}).eq('id', _activeConversationId!);
-      } else {
-        if(kDebugMode) print("ChatProvider: User not logged in, skipping conversation timestamp update.");
       }
-
-      if(kDebugMode) print("ChatProvider: Send message process complete.");
-      _sendMessageError = null; // Clear error on success
+      _sendMessageError = null;
 
     } catch (e, stackTrace) {
-      if(kDebugMode) print("ChatProvider: Error during sendMessage full process: $e\n$stackTrace");
-      _sendMessageError = e.toString().replaceFirst("Exception: ", "");
-      if (addToUi && localUserMessage != null) {
-        // If the message was added to UI and failed, consider removing it or marking it as failed
+      if (kDebugMode) print("ChatProvider: Error during sendMessage process: $e");
+      String errorMessage = e.toString();
+
+      if (errorMessage.contains("AI_REPLY_LIMIT_REACHED")) {
+        _aiReplyLimitReachedError = true;
+        final match = RegExp(r"reply:\s*([^,}]*)").firstMatch(errorMessage);
+        _sendMessageError = match?.group(1)?.trim() ?? "You've reached your AI reply limit. Please upgrade.";
+      } else {
+        _sendMessageError = _extractUserFacingError(e, "Failed to send message. Please try again.");
+        _aiReplyLimitReachedError = false;
+      }
+
+      if (localUserMessage != null && addToUi && _activeMessages.contains(localUserMessage)) {
         _activeMessages.remove(localUserMessage);
       }
-      if (localAiMessage != null) _activeMessages.remove(localAiMessage);
-      // notifyListeners(); // Already called in finally
-
-      captureException(e, stackTrace: stackTrace, hint: 'Error sending chat message');
+      captureException(e, stackTrace: stackTrace, hint: 'Error sending chat message. Content: $content');
     } finally {
       _isSendingMessage = false;
-      notifyListeners(); // Crucial: Notify UI about the final state (sending finished, error updated, messages updated)
+      notifyListeners();
     }
   }
-  // END OF MODIFIED sendMessage
+
+  String _extractUserFacingError(Object error, String defaultMessage) {
+    if (error is FormatException) return "There was an issue with the data format from the server.";
+    String errorStr = error.toString();
+    if (errorStr.startsWith("Exception: ")) errorStr = errorStr.substring("Exception: ".length);
+
+    final limitMsgMatch = RegExp(r"AI_REPLY_LIMIT_REACHED(?:.*reply: ([^,}]*))?").firstMatch(errorStr);
+    if (limitMsgMatch != null) {
+      return limitMsgMatch.group(1)?.trim() ?? "You've reached your AI reply limit. Please upgrade.";
+    }
+
+    if (errorStr.length > 150 || errorStr.contains("SocketException") || errorStr.contains("HttpException")) return defaultMessage;
+    return errorStr.isEmpty ? defaultMessage : errorStr;
+  }
+
+  void clearAiReplyLimitError() {
+    if (_aiReplyLimitReachedError ||
+        (_sendMessageError != null &&
+            (_sendMessageError!.toLowerCase().contains("ai repl") || _sendMessageError!.toLowerCase().contains("limit"))
+        )
+    ) {
+      if (kDebugMode) print("ChatProvider: Clearing AI Reply Limit Error state.");
+      _aiReplyLimitReachedError = false;
+      _sendMessageError = null;
+      notifyListeners();
+    }
+  }
 
   void resetActiveChat() {
+    clearAiReplyLimitError();
     _activeConversationId = null; _activeMessages = []; _messagesError = null;
     _sendMessageError = null; _isSendingMessage = false;
     if(kDebugMode) print("ChatProvider: Active chat state reset.");
     notifyListeners();
-    addBreadcrumb(message: 'Reset active chat', category: 'chat');
   }
 
   Future<void> deleteConversation(String conversationId) async {
     final userId = _authProvider?.user?.id;
     if (userId == null) { _conversationsError = "Cannot delete: User not logged in."; notifyListeners(); return; }
     if(kDebugMode) print("ChatProvider: Deleting conversation $conversationId");
-
-    addBreadcrumb(
-      message: 'Deleting conversation',
-      category: 'chat',
-      data: {'conversationId': conversationId, 'userId': userId},
-    );
-
+    addBreadcrumb(message: 'Deleting conversation', category: 'chat', data: {'conversationId': conversationId, 'userId': userId});
     try {
       await _supabase.from('conversations').delete().match({'id': conversationId, 'user_id': userId});
-      int initialLength = _conversations.length;
       _conversations.removeWhere((c) => c.id == conversationId);
-      if (initialLength == _conversations.length) {
-        if(kDebugMode) print("ChatProvider: Delete action completed, but conversation $conversationId not found locally or delete RLS failed.");
-      } else {
-        if(kDebugMode) print("ChatProvider: Conversation $conversationId deleted locally.");
-      }
       if (_activeConversationId == conversationId) resetActiveChat();
       notifyListeners();
     } catch(e, stackTrace) {
       if(kDebugMode) print("ChatProvider: Error deleting conversation: $e\n$stackTrace");
       _conversationsError = "Failed to delete conversation.";
+      captureException(e, stackTrace: stackTrace, hint: 'Error deleting conversation $conversationId');
       notifyListeners();
-      captureException(e, stackTrace: stackTrace, hint: 'Error deleting conversation');
     }
   }
 
@@ -442,11 +452,7 @@ class ChatProvider with ChangeNotifier {
     _isPolling = true;
     int attempts = 0;
     const maxAttempts = 30;
-    addBreadcrumb(
-      message: 'Starting to poll for AI response',
-      category: 'chat',
-      data: {'messageId': messageId, 'maxAttempts': maxAttempts},
-    );
+    addBreadcrumb(message: 'Starting to poll for AI response', category: 'chat', data: {'messageId': messageId, 'maxAttempts': maxAttempts});
     while (_isPolling && attempts < maxAttempts) {
       attempts++;
       await Future.delayed(const Duration(milliseconds: 500));
@@ -456,27 +462,22 @@ class ChatProvider with ChangeNotifier {
         hasResponse = _activeMessages[userMessageIndex + 1].type == MessageType.ai;
       }
       if (hasResponse) {
-        if (kDebugMode) print("ChatProvider: Response likely received, stopping polls");
+        if (kDebugMode) print("ChatProvider: Response likely received, stopping polls for $messageId");
         _isPolling = false;
         break;
       }
       if (!_isSendingMessage) {
-        if (kDebugMode) print("ChatProvider: Message sending phase completed/failed, stopping polls");
+        if (kDebugMode) print("ChatProvider: Message sending phase completed/failed, stopping polls for $messageId");
         _isPolling = false;
         break;
       }
       if (kDebugMode && attempts % 10 == 0) {
-        print("ChatProvider: Still waiting for queued response, poll attempt $attempts");
+        print("ChatProvider: Still waiting for queued response for $messageId, poll attempt $attempts");
       }
     }
     if (_isPolling && attempts >= maxAttempts) {
-      if (kDebugMode) print("ChatProvider: Polling timed out waiting for response.");
-      addBreadcrumb(
-        message: 'Polling for AI response timed out',
-        category: 'chat',
-        level: SentryLevel.warning,
-        data: {'messageId': messageId, 'attempts': attempts},
-      );
+      if (kDebugMode) print("ChatProvider: Polling timed out waiting for response for $messageId.");
+      addBreadcrumb(message: 'Polling for AI response timed out', category: 'chat', level: SentryLevel.warning, data: {'messageId': messageId, 'attempts': attempts});
     }
     _isPolling = false;
   }
