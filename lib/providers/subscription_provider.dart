@@ -93,53 +93,112 @@ class SubscriptionProvider with ChangeNotifier {
 
   // RevenueCat specific getter
   bool get isProSubscriber => _isProSubscriber;
+  CustomerInfo? customerInfo; // Store it for later use
 
-  // Method to check RevenueCat subscription status
-  Future<void> revenueCatSubscriptionStatus() async {
-    bool previousProStatus = _isProSubscriber; // Store previous status
-    bool currentProStatus = false;           // Assume false until proven otherwise
 
-    try {
-      CustomerInfo customerInfo = await Purchases.getCustomerInfo();
-      // Check if the entitlement (e.g., "TestPro") exists and then if it's active
-      if (customerInfo.entitlements.all[MyOfferings.pro] != null &&
-          customerInfo.entitlements.all[MyOfferings.pro]!.isActive == true) {
-        currentProStatus = true;
-        if (kDebugMode) {
-          print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is ACTIVE.");
-        }
-      } else {
-        currentProStatus = false; // User is not pro or entitlement is not active
-        if (kDebugMode) {
-          print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is NOT active or does not exist.");
-          print("  All entitlements: ${customerInfo.entitlements.all.keys.join(', ')}");
-          if (customerInfo.entitlements.all[MyOfferings.pro] != null) {
-            print("  '${MyOfferings.pro}' isActive: ${customerInfo.entitlements.all[MyOfferings.pro]!.isActive}");
-          }
-        }
-      }
-    } catch (e, stackTrace) {
+Future<void> revenueCatSubscriptionStatus(String token) async {
+  bool previousProStatus = _isProSubscriber; // Store previous status
+  bool currentProStatus = false;           // Assume false until proven otherwise
+  CustomerInfo? customerInfo; // Store it for later use
+
+  try {
+    customerInfo = await Purchases.getCustomerInfo();
+    final entitlement = customerInfo.entitlements.all[MyOfferings.pro];
+
+    debugPrint("==================================== SUB STATUS ========================");
+    debugPrint(customerInfo.toString());
+
+    // Check if the entitlement exists and then if it's active
+    if (entitlement != null && entitlement.isActive == true) {
+      currentProStatus = true;
       if (kDebugMode) {
-        debugPrint("SubscriptionProvider: Error fetching RevenueCat CustomerInfo: ${e.toString()}");
+        print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is ACTIVE.");
       }
-      currentProStatus = false; // Default to false on any error
-      captureException(e, stackTrace: stackTrace, hint: 'Error in revenueCatSubscriptionStatus');
-    }
-
-    // Only update and notify if the status has actually changed
-    if (previousProStatus != currentProStatus) {
-      _isProSubscriber = currentProStatus;
-      if (kDebugMode) {
-        print("SubscriptionProvider: isProSubscriber status changed to $_isProSubscriber. Notifying listeners.");
-      }
-      notifyListeners(); // CRITICAL: Notify listeners of the change
     } else {
+      currentProStatus = false; // User is not pro or entitlement is not active
       if (kDebugMode) {
-        print("SubscriptionProvider: isProSubscriber status ($_isProSubscriber) did not change. No notification needed.");
+        print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is NOT active or does not exist.");
       }
     }
+  } catch (e, stackTrace) {
+    if (kDebugMode) {
+      debugPrint("SubscriptionProvider: Error fetching RevenueCat CustomerInfo: ${e.toString()}");
+    }
+    currentProStatus = false; // Default to false on any error
+    captureException(e, stackTrace: stackTrace, hint: 'Error in revenueCatSubscriptionStatus (Fetch)');
+    // Don't try to sync if fetching CustomerInfo failed
+    customerInfo = null;
   }
 
+  
+  // Only try to sync if we successfully fetched CustomerInfo
+  if (customerInfo != null) {
+    try {
+      // --- Get User ID and Token ---
+      // You NEED to implement these functions to get the
+      // currently authenticated user's ID and auth token.
+      
+
+      if (token == null) {
+          print("SubscriptionProvider: Cannot sync - Auth Token missing.");
+      } else {
+          final entitlement = customerInfo.entitlements.all[MyOfferings.pro];
+          final bool isActive = entitlement?.isActive ?? false;
+
+          // Map RevenueCat data to your backend's format
+          final String tier = isActive ? 'pro' : 'free'; // <-- Adjust to match your backend tiers
+          final String status = isActive ? 'active' : 'inactive'; // <-- Or map more finely if needed
+
+          // Use .toIso8601String() and handle nulls.
+          final String? currentPeriodStart = entitlement?.latestPurchaseDate;
+          final String? currentPeriodEnd = entitlement?.expirationDate;
+
+          // If willRenew is false, it means the user has cancelled.
+          // We assume if willRenew is null or true, it's not cancelled.
+          final bool cancelAtPeriodEnd = !(entitlement?.willRenew ?? true);
+
+          if (kDebugMode) {
+            print("SubscriptionProvider: Syncing to backend - Tier: $tier, Status: $status, Start: $currentPeriodStart, End: $currentPeriodEnd, Cancel?: $cancelAtPeriodEnd");
+          }
+
+          // Call the updated subscriptionSyc function
+          
+          await _subscriptionService.subscriptionSync(
+            tier: tier,
+            status: status,
+            currentPeriodStart: currentPeriodStart,
+            currentPeriodEnd: currentPeriodEnd,
+            cancelAtPeriodEnd: cancelAtPeriodEnd,
+            token: token,
+          );
+
+          if (kDebugMode) {
+            print("SubscriptionProvider: Backend sync attempt finished.");
+          }
+      }
+    } catch (e, stackTrace) {
+        // Handle errors during the API call itself
+        if (kDebugMode) {
+          debugPrint("SubscriptionProvider: Error syncing subscription to backend: ${e.toString()}");
+        }
+        captureException(e, stackTrace: stackTrace, hint: 'Error calling subscriptionSyc');
+    }
+  }
+  // --- End of NEW ---
+
+  // Only update and notify if the status has actually changed
+  if (previousProStatus != currentProStatus) {
+    _isProSubscriber = currentProStatus;
+    if (kDebugMode) {
+      print("SubscriptionProvider: isProSubscriber status changed to $_isProSubscriber. Notifying listeners.");
+    }
+    notifyListeners(); // CRITICAL: Notify listeners of the change
+  } else {
+    if (kDebugMode) {
+      print("SubscriptionProvider: isProSubscriber status ($_isProSubscriber) did not change. No notification needed.");
+    }
+  }
+}
   // Load subscription status from your backend
   Future<void> loadSubscriptionStatus(String token) async {
     _isLoading = true;
@@ -296,7 +355,7 @@ class SubscriptionProvider with ChangeNotifier {
         // Reload subscription status from backend to get updated info
         await loadSubscriptionStatus(token);
         // Also refresh RevenueCat status, as backend cancellation might affect entitlements
-        await revenueCatSubscriptionStatus();
+        await revenueCatSubscriptionStatus(token);
         addBreadcrumb(
           message: 'Subscription cancelled successfully (backend)',
           category: 'subscription',

@@ -1,5 +1,6 @@
 // lib/services/subscription_service.dart
 import 'dart:convert';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/subscription.dart'; // SubscriptionTier enum is not directly used here for checkout
@@ -99,6 +100,60 @@ class SubscriptionService {
       rethrow;
     }
   }
+
+
+  Future<void> subscriptionSync({ // Return Future<void> if you don't need a specific return
+  required String tier,
+  required String status,
+  required String? currentPeriodStart, // Can be null
+  required String? currentPeriodEnd,   // Can be null
+  required bool cancelAtPeriodEnd,
+  required String token,
+}) async {
+  try {
+
+    debugPrint("================================== SYNC CALLED =================================");
+    final url = Uri.parse('$baseUrl${ApiConfig.subscriptionSync}');
+    debugPrint("============= $url ===========================");
+    final response = await client.put(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token', // Send the token for authentication
+      },
+      body: json.encode({
+        // Do NOT send userId; backend gets it from the token.
+        'tier': tier,
+        'status': status,
+        'currentPeriodStart': currentPeriodStart,
+        'currentPeriodEnd': currentPeriodEnd,
+        'cancelAtPeriodEnd': cancelAtPeriodEnd,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      print('Backend sync successful.');
+      // You can decode and return something if needed, but often
+      // a successful sync doesn't need to return data.
+      // final responseData = json.decode(response.body);
+      // return; // Or return responseData['message'] or similar
+    } else {
+      // Improved error handling
+      String errorMessage = 'Failed to sync subscription';
+      try {
+           final errorData = json.decode(response.body);
+           errorMessage = errorData['message'] ?? errorData['error']?['message'] ?? errorMessage;
+      } catch(_) {
+          // Keep default message if parsing fails
+      }
+      print('Backend sync failed: ${response.statusCode} - $errorMessage');
+      throw Exception(errorMessage);
+    }
+  } catch (e) {
+    print('Error during subscriptionSyc API call: $e');
+    rethrow; // Re-throw the exception so the caller can handle it
+  }
+}
 
   Future<bool> cancelSubscription(String token) async {
     try {

@@ -239,7 +239,7 @@ class RecipeProvider with ChangeNotifier {
       final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
       try {
         await subscriptionProvider.loadSubscriptionStatus(token); // Fetches backend status (limits)
-        await subscriptionProvider.revenueCatSubscriptionStatus(); // Fetches RevenueCat status (isPro)
+        await subscriptionProvider.revenueCatSubscriptionStatus(token); // Fetches RevenueCat status (isPro)
 
         final subscriptionInfo = subscriptionProvider.subscriptionInfo; // From your backend
         final isProViaRevenueCat = subscriptionProvider.isProSubscriber; // From RevenueCat

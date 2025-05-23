@@ -438,7 +438,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
         if (authProvider.isAuthenticated && authProvider.token != null) {
           if (kDebugMode) print("ChatScreen: Upgrade dialog dismissed. Refreshing subscription status.");
-          subscriptionProvider.revenueCatSubscriptionStatus();
+          subscriptionProvider.revenueCatSubscriptionStatus(authProvider.token!);
           subscriptionProvider.loadSubscriptionStatus(authProvider.token!);
         }
       }
