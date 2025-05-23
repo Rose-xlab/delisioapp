@@ -70,6 +70,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       final subsProvider = Provider.of<SubscriptionProvider>(context, listen: false);
       final userId = authProvider.isAuthenticated ? authProvider.user?.id : null;
 
+      String? token = authProvider.token;
+
       if (userId == null) {
         if (kDebugMode) debugPrint("getprofiles: User not authenticated. Skipping RevenueCat login.");
         return;
@@ -95,10 +97,13 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           debugPrint("================================== ============");
         }
         // After successful login, update the RevenueCat subscription status in your provider
-        await subsProvider.revenueCatSubscriptionStatus(); // Ensure this is awaited
+        if(token != null){
+            await subsProvider.revenueCatSubscriptionStatus(token);
+        }
+         // Ensure this is awaited
       } else {
-        if (kDebugMode) debugPrint("getprofiles: user_app_id is null or empty from DB. Cannot log into RevenueCat.");
-        // Handle case where user_app_id might be missing (e.g. older user accounts)
+           if (kDebugMode) debugPrint("getprofiles: user_app_id is null or empty from DB. Cannot log into RevenueCat.");
+          // Handle case where user_app_id might be missing (e.g. older user accounts)
       }
     } catch (e) {
       if (kDebugMode) debugPrint("Error in getprofiles or RevenueCat login: ${e.toString()}");
@@ -538,7 +543,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       debugPrint("==========================================================================");
     }
 
-    // The getprofiles() call is now in _loadInitialData and _refreshData
+   // getprofiles(); //call is now in _loadInitialData and _refreshData
 
     return Scaffold(
       body: SafeArea(

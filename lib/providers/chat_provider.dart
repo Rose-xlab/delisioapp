@@ -91,7 +91,7 @@ class ChatProvider with ChangeNotifier {
       if (subsProviderChanged && _authProvider?.token != null && _subscriptionProvider != null) {
         if (kDebugMode) print("ChatProvider: SubscriptionProvider instance updated, refreshing subscription status.");
         _subscriptionProvider!.loadSubscriptionStatus(_authProvider!.token!);
-        _subscriptionProvider!.revenueCatSubscriptionStatus();
+        _subscriptionProvider!.revenueCatSubscriptionStatus(_authProvider!.token!);
       }
     }
   }

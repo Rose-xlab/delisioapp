@@ -1,7 +1,7 @@
 // config/api_config.dart
 class ApiConfig {
   //static const String baseUrl = 'http://10.0.2.2:3002';
-   //static const String baseUrl = 'http://192.168.1.144:3002';
+  //  static const String baseUrl = 'http://192.168.0.14:3002';
 
   static const String baseUrl = "https://delisio-production.up.railway.app";
   static const String apiVersion = '/api';
@@ -29,6 +29,7 @@ class ApiConfig {
   static const String subscriptionCheckout = '$apiVersion/subscriptions/checkout';
   static const String subscriptionPortal = '$apiVersion/subscriptions/portal';
   static const String subscriptionCancel = '$apiVersion/subscriptions/cancel';
+   static const String subscriptionSync = '$apiVersion/subscriptions/sync';
 
   // Helper method to construct recipe-specific endpoints
   static String recipeById(String id) => '$recipes/$id';
