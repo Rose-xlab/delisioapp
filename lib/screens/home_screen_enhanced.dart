@@ -543,7 +543,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
       debugPrint("==========================================================================");
     }
 
-    getprofiles(); //call is now in _loadInitialData and _refreshData
+   // getprofiles(); //call is now in _loadInitialData and _refreshData
 
     return Scaffold(
       body: SafeArea(
