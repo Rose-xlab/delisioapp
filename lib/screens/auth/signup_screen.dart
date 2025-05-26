@@ -1,9 +1,12 @@
 // lib/screens/auth/signup_screen.dart
+import 'dart:io'; 
 import 'package:kitchenassistant/widgets/auth/social_auth_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/auth/auth_form.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
@@ -31,6 +34,41 @@ class _SignupScreenState extends State<SignupScreen> {
     _confirmPasswordController.dispose();
     super.dispose();
   }
+
+
+
+  Future<AuthResponse> signInWithGoogle() async {
+
+  const webClientId = '601707002682-2gna6etmp9k6jak25v5m7n3mrar683t4.apps.googleusercontent.com';
+
+  final GoogleSignIn googleSignIn = GoogleSignIn(
+    clientId: webClientId,
+  );
+
+  final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+  if (googleUser == null) {
+    throw Exception('Sign in aborted by user');
+  }
+  final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+  final idToken = googleAuth.idToken;
+  if (idToken == null) {
+    throw Exception('No ID Token found.');
+  }
+
+  final accessToken = googleAuth.accessToken;
+  if(accessToken == null){
+    throw Exception('No ACCESS TOKEN found');
+  }
+  // Authenticate with Supabase using the ID token
+  final AuthResponse response = await Supabase.instance.client.auth.signInWithIdToken(
+    provider:OAuthProvider.google,
+    idToken: idToken,
+    accessToken: accessToken
+  );
+  return response;
+}
+
+
 
   Future<void> _signup() async {
     if (!_formKey.currentState!.validate()) {
@@ -153,24 +191,22 @@ class _SignupScreenState extends State<SignupScreen> {
                       SocialAuthButton(
                         onTap: (){
                           debugPrint("Social one");
+                          var res = signInWithGoogle();
+                          debugPrint("=====SIGN UP========================= ${res.toString()}");
                         },
                         image: "assets/google_logo.png",
                       ),
                       const SizedBox(width: 10,),
-                      SocialAuthButton(
-                        onTap: (){
-                          debugPrint("Social two");
-                        },
-                        image: "assets/facebook_logo.png",
-                      ),
-
-                      const SizedBox(width: 10,),
-                      SocialAuthButton(
-                        onTap: (){
-                          debugPrint("Social three");
-                        },
-                        image: "assets/apple_logo.png",
-                      ),
+                     
+                      if (Platform.isIOS) ...[
+                        SocialAuthButton(
+                          onTap: () {
+                            debugPrint("Social three");
+                          },
+                          image: "assets/apple_logo.png",
+                        ),
+                        const SizedBox(width: 10,),
+                      ],
                     ],
                   )
 

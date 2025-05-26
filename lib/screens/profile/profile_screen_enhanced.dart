@@ -583,7 +583,10 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
     SettingsItem(
     icon: Icons.card_membership,
     title: 'Subscription Plans',
-    onTap: () => Navigator.of(context).pushNamed('/subscription'),
+     onTap: () {
+        debugPrint("Navigating to /subscription");
+        Navigator.of(context).pushNamed('/subscription');
+     },    
     ),
     SettingsItem(
     icon: Icons.lock_outline,

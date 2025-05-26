@@ -36,6 +36,26 @@ class SubscriptionProvider with ChangeNotifier {
     ),
     SubscriptionPlan(
       tier: SubscriptionTier.pro,
+      name: 'Pro Weekly',
+      description: 'Unlock all features with Pro weekly',
+      price: 10.00,
+      currency: 'USD',
+      interval: 'week',
+      features: [
+        'Unlimited recipe generations',
+        'HD image quality',
+        'Full access to recipe library',
+        'Priority chat assistance',
+        'Save unlimited favorite recipes',
+        'Exclusive premium recipes (now Pro)',
+        'Custom recipe modifications',
+        'All features unlimited',
+        'Unlimited chat conversations', // Example feature
+      ],
+      planIdentifier: 'pro-weekly', // This should match your Stripe Price ID or equivalent
+    ),
+    SubscriptionPlan(
+      tier: SubscriptionTier.pro,
       name: 'Pro Monthly',
       description: 'Unlock all features with Pro monthly',
       price: 20.00,
@@ -54,27 +74,27 @@ class SubscriptionProvider with ChangeNotifier {
       ],
       planIdentifier: 'pro-monthly', // This should match your Stripe Price ID or equivalent
     ),
-    // SubscriptionPlan(
-    //   tier: SubscriptionTier.pro,
-    //   name: 'Pro Annual',
-    //   description: 'Get the best value with Pro annually',
-    //   price: 180.00,
-    //   currency: 'USD',
-    //   interval: 'year',
-    //   features: [
-    //     'Unlimited recipe generations',
-    //     'HD image quality',
-    //     'Full access to recipe library',
-    //     'Priority chat assistance',
-    //     'Save unlimited favorite recipes',
-    //     'Exclusive premium recipes (now Pro)',
-    //     'Custom recipe modifications',
-    //     'All features unlimited',
-    //     'Discounted annual rate (save \$60/year)',
-    //     'Unlimited chat conversations', // Example feature
-    //   ],
-    //   planIdentifier: 'pro-annual', // This should match your Stripe Price ID or equivalent
-    // ),
+    SubscriptionPlan(
+      tier: SubscriptionTier.pro,
+      name: 'Pro Annual',
+      description: 'Get the best value with Pro annually',
+      price: 179.99,
+      currency: 'USD',
+      interval: 'year',
+      features: [
+        'Unlimited recipe generations',
+        'HD image quality',
+        'Full access to recipe library',
+        'Priority chat assistance',
+        'Save unlimited favorite recipes',
+        'Exclusive premium recipes (now Pro)',
+        'Custom recipe modifications',
+        'All features unlimited',
+        'Discounted annual rate (save \$60/year)',
+        'Unlimited chat conversations', // Example feature
+      ],
+      planIdentifier: 'pro-annual', // This should match your Stripe Price ID or equivalent
+    ),
   ];
 
   // Getters
@@ -93,11 +113,14 @@ class SubscriptionProvider with ChangeNotifier {
   bool get isProSubscriber => _isProSubscriber;
   CustomerInfo? customerInfo; // Store it for later use
 
+  String? _package = "free"; // Holds the current RevenueCat package identifier
+
+  String? get package => _package;
 
   Future<void> revenueCatSubscriptionStatus(String token) async {
-    bool previousProStatus = _isProSubscriber; // Store previous status
-    bool currentProStatus = false;           // Assume false until proven otherwise
-    CustomerInfo? customerInfo; // Store it for later use
+    bool previousProStatus = _isProSubscriber;
+    bool currentProStatus = false;
+    CustomerInfo? customerInfo;
 
     try {
       customerInfo = await Purchases.getCustomerInfo();
@@ -109,11 +132,14 @@ class SubscriptionProvider with ChangeNotifier {
       // Check if the entitlement exists and then if it's active
       if (entitlement != null && entitlement.isActive == true) {
         currentProStatus = true;
+        // Assign the RevenueCat package identifier
+        _package = entitlement.productIdentifier; // This is the RevenueCat product/package id
         if (kDebugMode) {
-          print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is ACTIVE.");
+          print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is ACTIVE. Package: $_package");
         }
       } else {
-        currentProStatus = false; // User is not pro or entitlement is not active
+        currentProStatus = false;
+        _package = null; // No active package
         if (kDebugMode) {
           print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is NOT active or does not exist.");
         }
@@ -122,9 +148,9 @@ class SubscriptionProvider with ChangeNotifier {
       if (kDebugMode) {
         debugPrint("SubscriptionProvider: Error fetching RevenueCat CustomerInfo: ${e.toString()}");
       }
-      currentProStatus = false; // Default to false on any error
-      captureException(e, stackTrace: stackTrace, hintText: 'Error in revenueCatSubscriptionStatus (Fetch)'); // MODIFIED
-      // Don't try to sync if fetching CustomerInfo failed
+      currentProStatus = false;
+      _package = null;
+      captureException(e, stackTrace: stackTrace, hintText: 'Error in revenueCatSubscriptionStatus (Fetch)');
       customerInfo = null;
     }
 
@@ -187,14 +213,7 @@ class SubscriptionProvider with ChangeNotifier {
     // Only update and notify if the status has actually changed
     if (previousProStatus != currentProStatus) {
       _isProSubscriber = currentProStatus;
-      if (kDebugMode) {
-        print("SubscriptionProvider: isProSubscriber status changed to $_isProSubscriber. Notifying listeners.");
-      }
-      notifyListeners(); // CRITICAL: Notify listeners of the change
-    } else {
-      if (kDebugMode) {
-        print("SubscriptionProvider: isProSubscriber status ($_isProSubscriber) did not change. No notification needed.");
-      }
+      notifyListeners();
     }
   }
   // Load subscription status from your backend
