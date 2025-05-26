@@ -388,7 +388,7 @@ class ChatBubble extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 12.0),
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.restaurant_menu, size: 18),
-                        label: const Text('Generate Full Recipe'),
+                        label: const Text('Generate Full Recipe With Images'),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           textStyle: const TextStyle(fontSize: 14),

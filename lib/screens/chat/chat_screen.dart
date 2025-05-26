@@ -249,7 +249,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isCurrentlyInitializingGlobal = false;
   bool _isHandlingNewChatFromFab = false;
   Timer? _retryMessageTimer;
-  bool _dialogIsVisible = false; // <<< ERROR FIXED: Added declaration
+  bool _dialogIsVisible = false;
 
   @override
   void initState() {
@@ -339,9 +339,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _isChatInitialized = true;
         });
       }
-      // Start backend creation but don't await it here to keep UI responsive
-      // Set _isCurrentlyInitializingGlobal to false after this async operation completes
-      _initiateNewConversationInBackground().then((_) {
+      await _initiateNewConversationInBackground().then((_) { // Ensure this completes before setting init flags false
         if (mounted) setState(() { _isCurrentlyInitializingGlobal = false; });
       }).catchError((e) {
         if (mounted) setState(() { _isCurrentlyInitializingGlobal = false; });
@@ -365,7 +363,9 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     } else {
       targetConversationIdForThisScreen = forceIdFromProvider ?? widget.conversationId ?? chatProvider.activeConversationId;
-      _isHandlingNewChatFromFab = false;
+      // _isHandlingNewChatFromFab = false; // Reset only if transitioning away from FAB logic specifically
+      if (widget.purpose != 'newChatFromFab') _isHandlingNewChatFromFab = false;
+
       debugPrint("ChatScreen _initialize: Standard/Forced. TargetID: $targetConversationIdForThisScreen "
           "(force: $forceIdFromProvider, widget: ${widget.conversationId}, provider: ${chatProvider.activeConversationId})");
     }
@@ -450,7 +450,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) {
       if (newConvId != null) {
         debugPrint("ChatScreen (FAB): Background creation complete. New ID: $newConvId. Provider selected it.");
-        if (_activeLocalConversationId != newConvId) { // Check if it hasn't been updated by listener already
+        if (_activeLocalConversationId != newConvId) { // Sync if listener hasn't updated it yet
           setState(() {
             _activeLocalConversationId = newConvId;
             _activeMessages = List.from(chatProvider.activeMessages);
@@ -474,6 +474,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     _chatProviderListener = null;
     _chatProviderInstance = null;
+
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -492,8 +493,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showUpgradeDialogIfNeeded(String? messageFromProvider) {
-    if (!mounted || _dialogIsVisible) return; // Uses _dialogIsVisible
-    setState(() { _dialogIsVisible = true; }); // Uses _dialogIsVisible
+    if (!mounted || _dialogIsVisible) return;
+    setState(() { _dialogIsVisible = true; });
     showDialog<void>(
       context: context,
       routeSettings: const RouteSettings(name: 'UpgradeDialog'),
@@ -508,7 +509,7 @@ class _ChatScreenState extends State<ChatScreen> {
       barrierDismissible: false,
     ).then((_) {
       if (mounted) {
-        setState(() { _dialogIsVisible = false; }); // Uses _dialogIsVisible
+        setState(() { _dialogIsVisible = false; });
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
         if (authProvider.isAuthenticated && authProvider.token != null) {
@@ -527,42 +528,61 @@ class _ChatScreenState extends State<ChatScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     String? conversationIdForSend = _activeLocalConversationId;
 
-    if (conversationIdForSend == null && widget.purpose == 'newChatFromFab' && _isHandlingNewChatFromFab) {
-      debugPrint("ChatScreen SendMessage: First message for a FAB new chat. Creating conversation first.");
-
-      final tempOptimisticMessage = ChatMessage(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          content: text, type: MessageType.user,
-          timestamp: DateTime.now());
-      if(mounted) {
-        setState(() { _activeMessages.add(tempOptimisticMessage); });
-        _scrollToBottom();
-      }
-
-      final newConvId = await chatProvider.createNewConversation();
-      if (mounted) {
-        _activeMessages.removeWhere((m) => m.id == tempOptimisticMessage.id);
-        if (newConvId != null) {
-          setState(() { _activeLocalConversationId = newConvId; });
-          conversationIdForSend = newConvId;
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to create chat session. Message not sent.'), backgroundColor: Colors.redAccent),
-          );
-          return;
-        }
-      } else { return; }
-    }
+    chatProvider.updateProviders(auth: authProvider, subs: Provider.of<SubscriptionProvider>(context, listen: false));
 
     if (conversationIdForSend == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: No active chat session to send message.'), backgroundColor: Colors.redAccent),
-      );
-      return;
+      // This condition is primarily for a FAB-initiated new chat where the ID isn't established yet.
+      if (widget.purpose == 'newChatFromFab' && _isHandlingNewChatFromFab) {
+        debugPrint("ChatScreen SendMessage: First message for a new FAB chat. Creating conversation context first.");
+
+        final tempOptimisticMessage = ChatMessage(
+            id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+            content: text, type: MessageType.user,
+            timestamp: DateTime.now());
+        if (mounted) {
+          setState(() { _activeMessages.add(tempOptimisticMessage); });
+          _scrollToBottom();
+        }
+
+        final newConvId = await chatProvider.createNewConversation();
+        if (mounted) {
+          _activeMessages.removeWhere((m) => m.id == tempOptimisticMessage.id);
+          if (newConvId != null) {
+            setState(() { _activeLocalConversationId = newConvId; });
+            conversationIdForSend = newConvId;
+            // ChatProvider's activeConversationId is now newConvId
+            debugPrint("ChatScreen SendMessage: New conversation $newConvId created and selected. Proceeding to send.");
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to create chat session. Message not sent.'), backgroundColor: Colors.redAccent),
+            );
+            return;
+          }
+        } else {
+          return;
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: No active chat session to send message.'), backgroundColor: Colors.redAccent),
+        );
+        return;
+      }
     }
 
+    // Ensure ChatProvider's active ID is aligned before calling its sendMessage.
+    // This is vital because createNewConversation (called above) sets the provider's active ID.
     if (chatProvider.activeConversationId != conversationIdForSend) {
-      await chatProvider.selectConversation(conversationIdForSend);
+      debugPrint("ChatScreen SendMessage: Aligning provider's active ID to $conversationIdForSend before sending.");
+      await chatProvider.selectConversation(conversationIdForSend); // Ensure provider is on the right chat
+    }
+
+    // Critical check: After attempting to align, is the provider's activeId correct?
+    if (chatProvider.activeConversationId == null || chatProvider.activeConversationId != conversationIdForSend) {
+      debugPrint("ChatScreen SendMessage: CRITICAL - Provider's active ID is still not set or mismatched after select/create. Aborting send. Provider Active ID: ${chatProvider.activeConversationId}, Expected: $conversationIdForSend");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Chat session mismatch. Please try again.'), backgroundColor: Colors.redAccent),
+      );
+      return;
     }
 
     if (chatProvider.isSendingMessage || chatProvider.retryAfterSeconds > 0) {
@@ -574,19 +594,20 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    chatProvider.updateProviders(auth: authProvider, subs: Provider.of<SubscriptionProvider>(context, listen: false));
-
     final originalMessageInController = _messageController.text;
-    if (_messageController.text.trim() == text) { _messageController.clear(); }
+    if (_messageController.text.trim() == text) {
+      _messageController.clear();
+    }
 
     final localUserMessage = ChatMessage(
         id: 'local_${DateTime.now().millisecondsSinceEpoch}',
         content: text, type: MessageType.user, timestamp: DateTime.now());
-    if(mounted) {
+    if (mounted) {
       setState(() { _activeMessages.add(localUserMessage); });
       _scrollToBottom();
     }
 
+    // ChatProvider will handle backend & AI reply. addToUi: false because ChatScreen handles its own optimistic UI for user messages.
     await chatProvider.sendMessage(text, addToUi: false);
 
     if (mounted) {
@@ -598,6 +619,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(chatProvider.sendMessageError!), backgroundColor: Colors.redAccent));
       } else {
+        // Success, provider would have updated its activeMessages with the AI reply. Sync.
         setState(() { _activeMessages = List.from(chatProvider.activeMessages); });
         _scrollToBottom();
       }
@@ -688,6 +710,8 @@ class _ChatScreenState extends State<ChatScreen> {
         const SnackBar(content: Text('Could not start a new chat. Please try again.'), backgroundColor: Colors.redAccent),
       );
     }
+    // If successful, the ChatProvider listener should update _activeLocalConversationId
+    // via _initializeChatScreen(forceIdFromProvider: newId) and ChatScreen will rebuild.
   }
 
   @override
@@ -772,17 +796,26 @@ class _ChatScreenState extends State<ChatScreen> {
     String appBarTitle = "Chat";
     if (_activeLocalConversationId != null) {
       try {
-        currentDisplayConversation = chatProvider.conversations.firstWhere((c) => c.id == _activeLocalConversationId);
+        // Ensure provider instance is available
+        final currentChatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false);
+        currentDisplayConversation = currentChatProvider.conversations.firstWhere((c) => c.id == _activeLocalConversationId);
         appBarTitle = currentDisplayConversation.title ?? "Chat";
       } catch (e) {
-        appBarTitle = (widget.purpose == 'newChatFromFab' && widget.conversationId == null) ? "New Chat" : "Chat";
+        appBarTitle = (widget.purpose == 'newChatFromFab' && widget.conversationId == null && _activeLocalConversationId == null) ? "New Chat" : "Chat";
       }
     } else if (widget.purpose == 'newChatFromFab' && widget.conversationId == null) {
       appBarTitle = "New Chat";
     }
 
-    if (_activeMessages.isNotEmpty && _scrollController.hasClients && _scrollController.position.atEdge) {
-      if(_scrollController.position.pixels != _scrollController.position.minScrollExtent || _activeMessages.last.type == MessageType.user) {
+    if (_activeMessages.isNotEmpty && _scrollController.hasClients) {
+      if (_scrollController.position.atEdge) {
+        if (_scrollController.position.pixels == _scrollController.position.minScrollExtent && _activeMessages.length > 1) {
+          // Don't scroll if at top unless it's a new message making it scrollable
+        } else {
+          _scrollToBottom();
+        }
+      } else if (_activeMessages.last.type == MessageType.user || (_activeMessages.length >1 && _activeMessages.last.type == MessageType.ai) ) {
+        // Scroll if last message is user, or if AI message just arrived
         _scrollToBottom();
       }
     } else if (_activeMessages.isNotEmpty) {
@@ -835,14 +868,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
                   if (confirmDelete == true && mounted && _activeLocalConversationId != null) {
                     final String deletedTitle = currentDisplayConversation?.title ?? 'Chat';
+                    // Store context before async gap
+                    final navContext = Navigator.of(context);
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
                     await chatProvider.deleteConversation(_activeLocalConversationId!);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+
+                    if (mounted) { // Recheck mounted after await
+                      scaffoldMessenger.showSnackBar(
                           SnackBar(content: Text('Conversation "$deletedTitle" deleted.'), duration: const Duration(seconds: 2))
                       );
-                      Provider.of<ChatProvider>(context, listen: false).resetActiveChat();
+                      // Resetting provider's active chat is done in deleteConversation.
+                      // ChatScreen needs to react to this, usually by _initializeChatScreen being called by listener.
+                      // Or, if MainNavigationScreen handles the "after delete" logic better, that's an option.
+                      // For now, re-initialize to pick up new state (e.g. no active chat, or next chat).
                       _initializeChatScreen();
-
                     }
                   }
                 }

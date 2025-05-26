@@ -1,12 +1,12 @@
 // lib/models/conversation.dart
-import 'package:intl/intl.dart'; // Add intl to pubspec.yaml if not already present
+import 'package:intl/intl.dart';
 
 class Conversation {
   final String id;
   final DateTime createdAt;
-  final DateTime updatedAt;
-  String? title; // Can be updated later
-  String? lastMessagePreview; // Optional preview
+  final DateTime updatedAt; // This is final
+  String? title;             // This is mutable in your current model
+  String? lastMessagePreview; // This is mutable in your current model
 
   Conversation({
     required this.id,
@@ -16,32 +16,44 @@ class Conversation {
     this.lastMessagePreview,
   });
 
-  // Factory to create from Supabase Row data (Map<String, dynamic>)
+  // Add this copyWith method:
+  Conversation copyWith({
+    // id and createdAt are typically not changed in a copy-for-update scenario
+    DateTime? updatedAt,
+    String? title,              // Allow updating mutable title via copyWith too
+    bool clearTitle = false,    // Optional: helper to explicitly set title to null
+    String? lastMessagePreview, // Allow updating mutable preview via copyWith
+    bool clearLastMessagePreview = false, // Optional: helper
+  }) {
+    return Conversation(
+      id: this.id,
+      createdAt: this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt, // Use new if provided, else old
+      title: clearTitle ? null : (title ?? this.title), // Handle updates or keep old
+      lastMessagePreview: clearLastMessagePreview ? null : (lastMessagePreview ?? this.lastMessagePreview),
+    );
+  }
+
   factory Conversation.fromJson(Map<String, dynamic> json) {
     DateTime parseDate(String? dateStr) {
       return dateStr != null ? DateTime.parse(dateStr) : DateTime.now();
     }
 
-    // Basic title generation from timestamp if title is null/empty
-    String generateTitle(String? title, DateTime createdAt) {
-      if (title != null && title.isNotEmpty) {
-        return title;
+    String generateTitle(String? dbTitle, DateTime createdAtDate) {
+      if (dbTitle != null && dbTitle.isNotEmpty) {
+        return dbTitle;
       }
-      // Format: "Chat - Apr 18, 8:40 PM"
-      return 'Chat - ${DateFormat.MMMd().add_jm().format(createdAt.toLocal())}';
+      return 'Chat - ${DateFormat.MMMd().add_jm().format(createdAtDate.toLocal())}';
     }
 
-    final createdAt = parseDate(json['created_at']);
+    final createdAtDate = parseDate(json['created_at']);
 
     return Conversation(
       id: json['id'] as String,
-      createdAt: createdAt,
+      createdAt: createdAtDate,
       updatedAt: parseDate(json['updated_at']),
-      // Generate a default title if none is stored
-      title: generateTitle(json['title'] as String?, createdAt),
-      // lastMessagePreview would ideally come from a join or separate query
+      title: generateTitle(json['title'] as String?, createdAtDate),
+      lastMessagePreview: json['last_message_preview'] as String?, // Ensure this key exists if you use it
     );
   }
-
-// Optional: Add toJson if needed later
 }
