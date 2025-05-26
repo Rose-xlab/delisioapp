@@ -19,85 +19,77 @@ class AuthService {
 
   // --- Sign Up using Supabase Auth ---
   Future<void> signUp(String email, String password, String name) async {
-    if (kDebugMode) print("AuthService: Attempting Supabase signUp...");
+    if (kDebugMode) print("AuthService: Attempting Supabase signUp with email: $email...");
     try {
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
-        // Pass user metadata (like name) in the 'data' field
         data: {'name': name}, // Ensure 'name' matches your Supabase trigger/metadata key
       );
 
-      //generate and add a unique user_app_id for revenuecat subscriptions
       final user = response.user;
 
       if (user != null) {
-        final String userAppIdValue = const Uuid().v4(); // Generate a v4 UUID string
+        if (kDebugMode) print("AuthService: Supabase auth.signUp successful for user ${user.id}. Proceeding to profile creation/update.");
 
+        final String userAppIdValue = const Uuid().v4(); // Generate a v4 UUID string
         final profileData = {
-          "id": user.id,
-          "user_app_id": userAppIdValue, // Use the generated string
-          // You might want to include other initial profile data like 'name' here if needed
-          // "name": name, // Example if you have a 'name' column in 'profiles' table
+          "id": user.id, // This should match auth.users.id
+          "user_app_id": userAppIdValue,
+          // 'created_at' and 'updated_at' should now be handled by database defaults (e.g., now())
         };
 
         if (kDebugMode) {
-          debugPrint("AuthService: Attempting to insert into profiles table: $profileData");
+          debugPrint("AuthService: Attempting to UPSERT into profiles table: $profileData");
         }
 
         try {
-          // Insert into 'profiles' table and select the inserted row to confirm/debug
+          // CRITICAL CHANGE: Use .upsert() here
           final profileResponse = await _supabase
               .from("profiles")
-              .insert(profileData)
-              .select() // Optionally select to see the result or catch errors better
-              .single(); // Use .single() if you expect one row and want errors if not
+              .upsert(
+            profileData,
+            onConflict: 'id', // Specify 'id' as the column that might cause a conflict (your primary key)
+          )
+              .select()
+              .single(); // .single() is still useful to ensure one row is affected/returned and to get errors.
 
-          // The 'profileResponse' will contain the data or an error.
-          // Supabase client >= 1.0.0: response.data, response.error
-          // Older versions might differ slightly in how error/data is accessed.
-          // Assuming supabase_flutter is up-to-date:
-          // if (profileResponse.error != null) { // Check for PostgrestError
-          //   if (kDebugMode) {
-          //     debugPrint("AuthService: Error inserting profile: ${profileResponse.error!.message}");
-          //   }
-          //   // Optionally, throw an exception here to indicate sign-up partially failed
-          //   // throw Exception("Failed to create user profile: ${profileResponse.error!.message}");
-          // } else {
-          //   if (kDebugMode) {
-          //     debugPrint("AuthService: Profile created successfully for user ${user.id} with user_app_id $userAppIdValue. Response data: ${profileResponse.data}");
-          //   }
-          // }
-          // Simpler debug print for now as per original code:
           if (kDebugMode) {
-            // If using older supabase client version, the response might be the data directly or needs casting.
-            // For newer, `profileResponse` itself could be an object with `data` and `error` properties.
-            // The original `debugPrint(profile)` was likely trying to print the response from the insert.
-            // Let's assume `profileResponse` holds the relevant info or error.
-            debugPrint("AuthService: Profile insert operation response: ${profileResponse.toString()}");
+            debugPrint("AuthService: Profile created or updated successfully for user ${user.id} with user_app_id $userAppIdValue. Response data: ${profileResponse.toString()}");
           }
-
         } catch (profileError) {
           if (kDebugMode) {
-            debugPrint("AuthService: Exception during profile insertion: ${profileError.toString()}");
+            debugPrint("AuthService: EXCEPTION during profile upsert: ${profileError.toString()}");
+            if (profileError is supabase.PostgrestException) {
+              debugPrint("AuthService: PostgrestException Message: ${profileError.message}");
+              debugPrint("AuthService: PostgrestException Details: ${profileError.details}");
+              debugPrint("AuthService: PostgrestException Code: ${profileError.code}");
+              debugPrint("AuthService: PostgrestException Hint: ${profileError.hint}");
+            }
           }
-          // Handle profile insertion error - e.g., log to Sentry
-          // Decide if this should prevent the sign-up from being considered "successful"
+          throw Exception("Failed to create/update user profile after Supabase auth sign up: ${profileError.toString()}");
+        }
+
+        if (kDebugMode) {
+          debugPrint("AuthService: Full Supabase signUp (auth and profile creation/update) successful. User: ${user.id}, Session: ${response.session != null}");
+        }
+
+      } else {
+        if (kDebugMode) {
+          debugPrint("AuthService: Supabase auth.signUp call completed, but response.user is null. Session present: ${response.session != null}. This might indicate email confirmation is pending without an immediate user object, or an unexpected issue.");
+        }
+        if (response.session == null && response.user == null) {
+          throw Exception("Supabase sign up did not return a user or session. Check email confirmation settings or Supabase logs.");
         }
       }
-
-      if (kDebugMode) {
-        debugPrint("AuthService: Supabase signUp successful. User: ${response.user?.id}, Session: ${response.session != null}");
-        // Note: If email confirmation is enabled, response.session might be null initially.
-        // The onAuthStateChange listener in AuthProvider will handle the final SIGNED_IN state.
-      }
     } on supabase.AuthException catch (e) {
-      // Catch specific Supabase auth errors
       if (kDebugMode) debugPrint("AuthService: Supabase signUp AuthException: ${e.message}");
-      throw Exception(e.message); // Re-throw a generic exception for AuthProvider
+      throw Exception("Supabase authentication error: ${e.message}");
     } catch (e) {
-      // Catch any other errors
       if (kDebugMode) debugPrint("AuthService: Supabase signUp generic error: $e");
+      if (e.toString().startsWith("Exception: Failed to create/update user profile")) { // Adjusted to match new exception message
+        rethrow;
+      }
       throw Exception('An unexpected error occurred during sign up.');
     }
   }
@@ -112,7 +104,6 @@ class AuthService {
       );
       if (kDebugMode) {
         print("AuthService: Supabase signIn successful. User: ${response.user?.id}, Session: ${response.session != null}");
-        // The onAuthStateChange listener in AuthProvider will handle updating the state.
       }
     } on supabase.AuthException catch (e) {
       if (kDebugMode) print("AuthService: Supabase signIn AuthException: ${e.message}");
@@ -124,14 +115,12 @@ class AuthService {
   }
 
   // --- Sign Out using Supabase Auth ---
-  Future<void> signOut() async { // Token no longer needed as argument
+  Future<void> signOut() async {
     if (kDebugMode) print("AuthService: Attempting Supabase signOut...");
     try {
       await _supabase.auth.signOut();
       if (kDebugMode) print("AuthService: Supabase signOut successful.");
-      // The onAuthStateChange listener in AuthProvider will handle clearing the state.
     } on supabase.AuthException catch (e) {
-      // Sign out rarely fails unless network issue, but handle defensively
       if (kDebugMode) print("AuthService: Supabase signOut AuthException: ${e.message}");
       throw Exception(e.message);
     } catch (e) {
@@ -141,33 +130,28 @@ class AuthService {
   }
 
   // --- Get Current User Profile (from custom backend) ---
-  // Assumes your backend /api/auth/me returns detailed profile info,
-  // potentially including data not in Supabase Auth metadata (like preferences)
   Future<User> getCurrentUser() async {
     if (kDebugMode) print("AuthService: Getting current user profile from custom backend...");
-    // Get token from Supabase session
     final token = _supabase.auth.currentSession?.accessToken;
 
     if (token == null) {
       if (kDebugMode) print("AuthService: No auth token found for getCurrentUser.");
-      throw Exception('Not authenticated'); // Or handle appropriately
+      throw Exception('Not authenticated');
     }
 
     try {
       final response = await client.get(
-        Uri.parse('$baseUrl${ApiConfig.me}'), // Uses custom API path
+        Uri.parse('$baseUrl${ApiConfig.me}'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token', // Use Supabase token
+          'Authorization': 'Bearer $token',
         },
       );
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        // Assuming backend returns {'user': { ... user data ... }}
         if (responseData['user'] != null) {
           if (kDebugMode) print("AuthService: Successfully fetched user profile from backend.");
-          // Uses User.fromJson (your custom model factory)
           return User.fromJson(responseData['user']);
         } else {
           throw Exception('User data not found in backend response.');
@@ -185,7 +169,6 @@ class AuthService {
   // --- Update User Preferences (via custom backend) ---
   Future<UserPreferences> updatePreferences(UserPreferences preferences) async {
     if (kDebugMode) print("AuthService: Updating preferences via custom backend...");
-    // Get token from Supabase session
     final token = _supabase.auth.currentSession?.accessToken;
 
     if (token == null) {
@@ -195,17 +178,16 @@ class AuthService {
 
     try {
       final response = await client.put(
-        Uri.parse('$baseUrl${ApiConfig.preferences}'), // Uses custom API path
+        Uri.parse('$baseUrl${ApiConfig.preferences}'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token', // Use Supabase token
+          'Authorization': 'Bearer $token',
         },
-        body: json.encode(preferences.toJson()), // Send preferences data
+        body: json.encode(preferences.toJson()),
       );
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        // Assuming backend returns {'preferences': { ... prefs data ... }}
         if (responseData['preferences'] != null) {
           if (kDebugMode) print("AuthService: Successfully updated preferences via backend.");
           return UserPreferences.fromJson(responseData['preferences']);

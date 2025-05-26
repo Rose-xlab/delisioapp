@@ -1,8 +1,8 @@
-// lib/providers/auth_provider.dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart'; // Required for WidgetsBinding
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
-import 'package:purchases_flutter/purchases_flutter.dart'; // Ensure this is imported
+import 'package:purchases_flutter/purchases_flutter.dart';
 import '../models/user.dart';
 import '../models/user_preferences.dart';
 import '../services/auth_service.dart';
@@ -52,7 +52,7 @@ class AuthProvider with ChangeNotifier {
           }
         } catch (e, stackTrace) {
           if (kDebugMode) print("AuthProvider: Error creating User model from initial Supabase user: $e");
-          captureException(e, stackTrace: stackTrace);
+          captureException(e, stackTrace: stackTrace); // No hint needed here or it's a generic issue
           _user = null; _token = null;
         }
       } else {
@@ -69,10 +69,15 @@ class AuthProvider with ChangeNotifier {
       onError: (error, stackTrace) {
         if (kDebugMode) print("AuthProvider: AuthStateChange Stream Error: $error");
         _setError("Auth listener error: ${error.toString()}");
-        captureException(error, stackTrace: stackTrace);
+        captureException(error, stackTrace: stackTrace); // No hint needed here or it's a generic issue
       },
     );
-    Future.microtask(() => notifyListeners());
+    // Defer initial notification to avoid issues if AuthProvider is created during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (/* check if still relevant, though for a provider it's usually always relevant */ true) {
+        notifyListeners();
+      }
+    });
     if (kDebugMode) print("AuthProvider: Initialization complete. Listening for auth changes.");
   }
 
@@ -105,7 +110,7 @@ class AuthProvider with ChangeNotifier {
           }
           catch (e, stackTrace) {
             if (kDebugMode) print("Auth Listener User Model Error: $e");
-            captureException(e, stackTrace: stackTrace);
+            captureException(e, stackTrace: stackTrace); // No hint needed here or it's a generic issue
             potentialNewUser = null; potentialNewToken = null;
           }
         } else { potentialNewUser = null; potentialNewToken = null; }
@@ -134,7 +139,7 @@ class AuthProvider with ChangeNotifier {
 
       case supabase.AuthChangeEvent.initialSession:
         if (kDebugMode) print("AuthProvider: Received initialSession event again. Session: ${session != null}");
-        if (session != null && _user == null) {
+        if (session != null && _user == null) { // Only update if user wasn't set initially
           final supabaseUser = session.user;
           try {
             User? initialUser = User.fromSupabaseUser(supabaseUser);
@@ -146,7 +151,7 @@ class AuthProvider with ChangeNotifier {
               if (kDebugMode) print("AuthProvider: User re-established from initialSession event.");
             }
           } catch (e, stackTrace) {
-            captureException(e, stackTrace: stackTrace, hint: "Error creating user from initialSession event");
+            captureException(e, stackTrace: stackTrace, hintText: "Error creating user from initialSession event"); // MODIFIED
           }
         }
         break;
@@ -204,10 +209,13 @@ class AuthProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if (kDebugMode) debugPrint("AuthProvider: signUp failed: $e");
       _setError(e.toString());
-      captureException(e, stackTrace: stackTrace);
+      captureException(e, stackTrace: stackTrace); // No hint needed or generic
       rethrow;
     } finally {
-      _isLoading = false; notifyListeners();
+      _isLoading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
@@ -220,10 +228,13 @@ class AuthProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if (kDebugMode) print("AuthProvider: signIn failed: $e");
       _setError(e.toString());
-      captureException(e, stackTrace: stackTrace);
+      captureException(e, stackTrace: stackTrace); // No hint needed or generic
       rethrow;
     } finally {
-      _isLoading = false; notifyListeners();
+      _isLoading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
@@ -234,22 +245,23 @@ class AuthProvider with ChangeNotifier {
     addBreadcrumb(message: 'Sign-out attempt', category: 'auth');
     try {
       if (kDebugMode) print("AuthProvider: Calling Supabase signOut service...");
-      await _authService.signOut(); // This calls Supabase signOut
+      await _authService.signOut();
 
       if (kDebugMode) print("AuthProvider: Calling RevenueCat Purchases.logOut()...");
-      await Purchases.logOut(); // ***** THIS IS THE CRITICAL LINE *****
+      await Purchases.logOut();
       if (kDebugMode) print("AuthProvider: RevenueCat Purchases.logOut() called successfully.");
 
-      clearUser(); // Clear Sentry user
+      clearUser();
       if (kDebugMode) print("AuthProvider: signOut process successful (local state update relies on listener).");
-      // The _handleAuthStateChange listener will set _token and _user to null and notify.
     } catch (e, stackTrace) {
       if (kDebugMode) print("AuthProvider: signOut failed: $e");
       _setError(e.toString());
-      captureException(e, stackTrace: stackTrace, hint: "Error during signOut process");
+      captureException(e, stackTrace: stackTrace, hintText: "Error during signOut process"); // MODIFIED
     } finally {
       _isLoading = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
@@ -258,23 +270,33 @@ class AuthProvider with ChangeNotifier {
       if (kDebugMode) print("AuthProvider: Cannot get current user profile, provider user is null.");
       return;
     }
-    _isLoading = true; _error = null; notifyListeners();
+    _isLoading = true; _error = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+
     addBreadcrumb(message: 'Refreshing user profile', category: 'auth', data: {'userId': _user?.id});
     try {
       final detailedUser = await _authService.getCurrentUser();
-      bool changed = (_user?.id != detailedUser?.id || _user?.email != detailedUser?.email || _user?.name != detailedUser?.name); // More specific check
+      bool changed = (_user?.id != detailedUser?.id ||
+          _user?.email != detailedUser?.email ||
+          _user?.name != detailedUser?.name ||
+          _user?.preferences != detailedUser?.preferences);
       _user = detailedUser;
       if (_user != null && changed) {
         setUser(_user!.id, email: _user!.email, name: _user!.name);
       }
       if (kDebugMode) print("AuthProvider: User profile refreshed: ${_user?.id}");
-      if (changed) notifyListeners();
+      _error = null;
     } catch(e, stackTrace) {
       if (kDebugMode) print("AuthProvider: Failed to refresh user profile: $e");
       _setError("Could not refresh profile: ${e.toString()}");
-      captureException(e, stackTrace: stackTrace);
+      captureException(e, stackTrace: stackTrace); // No hint needed or generic
     } finally {
-      _isLoading = false; notifyListeners();
+      _isLoading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
@@ -298,9 +320,12 @@ class AuthProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       if (kDebugMode) print("AuthProvider: updatePreferences failed: $e");
       _setError(e.toString());
-      captureException(e, stackTrace: stackTrace);
+      captureException(e, stackTrace: stackTrace); // No hint needed or generic
     } finally {
-      _isLoading = false; notifyListeners();
+      _isLoading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 }

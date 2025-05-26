@@ -1,4 +1,3 @@
-// lib/providers/theme_provider.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/sentry_config.dart'; // Import Sentry config
@@ -50,7 +49,7 @@ class ThemeProvider with ChangeNotifier {
       // Log error to Sentry
       captureException(e,
           stackTrace: StackTrace.current,
-          hint: 'Error loading theme preferences'
+          hintText: 'Error loading theme preferences' // MODIFIED
       );
 
       // Default to system theme on error
@@ -83,7 +82,7 @@ class ThemeProvider with ChangeNotifier {
       // Log error to Sentry
       captureException(e,
           stackTrace: StackTrace.current,
-          hint: 'Error saving theme preference'
+          hintText: 'Error saving theme preference' // MODIFIED
       );
     } finally {
       _isLoading = false;
@@ -116,7 +115,7 @@ class ThemeProvider with ChangeNotifier {
       // Log error to Sentry
       captureException(e,
           stackTrace: StackTrace.current,
-          hint: 'Error setting system theme'
+          hintText: 'Error setting system theme' // MODIFIED
       );
     } finally {
       _isLoading = false;

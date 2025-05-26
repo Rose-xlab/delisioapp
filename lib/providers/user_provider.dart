@@ -1,4 +1,3 @@
-// providers/user_provider.dart
 import 'package:flutter/foundation.dart';
 import '../models/user_preferences.dart';
 import '../services/user_service.dart';
@@ -48,13 +47,13 @@ class UserProvider with ChangeNotifier {
           category: 'user',
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) { // Added stackTrace
       _error = e.toString();
 
       // Log to Sentry
       captureException(e,
-          stackTrace: StackTrace.current,
-          hint: 'Error loading user preferences'
+          stackTrace: stackTrace, // Pass stackTrace
+          hintText: 'Error loading user preferences' // MODIFIED: hint to hintText
       );
     } finally {
       _isLoading = false;
@@ -88,13 +87,13 @@ class UserProvider with ChangeNotifier {
         message: 'User preferences updated successfully',
         category: 'user',
       );
-    } catch (e) {
+    } catch (e, stackTrace) { // Added stackTrace
       _error = e.toString();
 
       // Log to Sentry
       captureException(e,
-          stackTrace: StackTrace.current,
-          hint: 'Error updating user preferences'
+          stackTrace: stackTrace, // Pass stackTrace
+          hintText: 'Error updating user preferences' // MODIFIED: hint to hintText
       );
     } finally {
       _isLoading = false;

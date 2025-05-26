@@ -1,16 +1,18 @@
 // lib/screens/chat/chat_screen.dart
+
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode
-import 'dart:math' as math;           // For math.min/max
+import 'package:flutter/services.dart';
+import 'dart:math' as math;
 import 'package:provider/provider.dart';
 
 import '../../providers/chat_provider.dart';
-import '../../providers/recipe_provider.dart'; // For _generateRecipeFromChat
+import '../../providers/recipe_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/subscription_provider.dart'; // For injecting into ChatProvider
-
+import '../../providers/subscription_provider.dart';
+import '../../models/recipe.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 
@@ -18,10 +20,10 @@ import '../../widgets/chat/chat_bubble.dart';
 import '../../widgets/chat/message_input.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
-import '../../widgets/common/upgrade_prompt_dialog.dart'; // Import the dialog
-// import '../../constants/myofferings.dart'; // Dialog uses MyOfferings directly
+import '../../widgets/common/upgrade_prompt_dialog.dart';
 
-// --- ConversationsDrawer (Your Full Original Code as provided before) ---
+
+// --- ConversationsDrawer (remains unchanged from your provided code) ---
 class ConversationsDrawer extends StatelessWidget {
   final String? currentConversationId;
 
@@ -110,7 +112,6 @@ class ConversationsDrawer extends StatelessWidget {
   }
 
   Widget _buildEmptyConversationsState(ThemeData theme, BuildContext context) {
-    // Your original _buildEmptyConversationsState implementation
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -138,7 +139,6 @@ class ConversationsDrawer extends StatelessWidget {
       ChatProvider chatProvider,
       String? currentConversationId,
       ) {
-    // Your original _buildConversationsList implementation
     return ListView.separated(
       itemCount: conversations.length,
       separatorBuilder: (context, index) => Divider(height: 1, indent: 16, endIndent: 16, color: Theme.of(context).dividerColor.withOpacity(0.5)),
@@ -155,7 +155,7 @@ class ConversationsDrawer extends StatelessWidget {
         else if (difference.inDays < 1 && now.day - 1 == conversation.updatedAt.toLocal().day) timeText = 'Yesterday';
         else if (difference.inDays < 7) timeText = DateFormat('EEE').format(conversation.updatedAt.toLocal());
         else if (now.year == conversation.updatedAt.toLocal().year) timeText = DateFormat('MMM d').format(conversation.updatedAt.toLocal());
-        else timeText = DateFormat('MMM d, yyyy').format(conversation.updatedAt.toLocal());
+        else timeText = DateFormat('MMM d, yy').format(conversation.updatedAt.toLocal());
 
         return Dismissible(
           key: Key(conversation.id),
@@ -170,7 +170,13 @@ class ConversationsDrawer extends StatelessWidget {
             return await showDialog<bool>(context: context, builder: (BuildContext ctx) => AlertDialog(title: const Text("Delete Conversation?"), content: const Text("This will permanently delete the chat history."), actions: [TextButton(onPressed: ()=>Navigator.of(ctx).pop(false), child: const Text("CANCEL")), TextButton(onPressed: ()=>Navigator.of(ctx).pop(true), child: Text("DELETE", style: TextStyle(color: Colors.red.shade700)))],)) ?? false;
           },
           onDismissed: (direction) async {
+            final String title = conversation.title ?? 'Chat';
             await chatProvider.deleteConversation(conversation.id);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Conversation "$title" deleted'), duration: const Duration(seconds: 2))
+              );
+            }
           },
           child: ListTile(
             leading: CircleAvatar(
@@ -232,52 +238,63 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isGeneratingRecipeFromChat = false;
 
   String? _activeLocalConversationId;
+  List<ChatMessage> _activeMessages = [];
+  bool _isLoadingMessages = false;
+
   bool _isChatInitialized = false;
 
-  // ***** MODIFICATION FOR DISPOSE FIX *****
-  ChatProvider? _chatProviderInstance; // Store instance for dispose
+  ChatProvider? _chatProviderInstance;
   VoidCallback? _chatProviderListener;
-  // ***** END MODIFICATION *****
 
-  bool _dialogIsVisible = false;
-  bool _isCurrentlyInitializing = false;
+  bool _isCurrentlyInitializingGlobal = false;
+  bool _isHandlingNewChatFromFab = false;
+  Timer? _retryMessageTimer;
+  bool _dialogIsVisible = false; // <<< ERROR FIXED: Added declaration
 
   @override
   void initState() {
     super.initState();
-    // Defer provider access and initialization until after the first frame
+    debugPrint("ChatScreen initState: convId=${widget.conversationId}, purpose=${widget.purpose}, key=${widget.key}");
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
 
-        // ***** MODIFICATION FOR DISPOSE FIX *****
         _chatProviderInstance = Provider.of<ChatProvider>(context, listen: false);
-        // ***** END MODIFICATION *****
-
         _chatProviderInstance!.updateProviders(auth: authProvider, subs: subscriptionProvider);
         _initializeChatScreen();
 
         _chatProviderListener = () {
-          if (!mounted || _chatProviderInstance == null) return; // Check instance too
-          // Use the stored instance or get a fresh one if absolutely necessary, but stored is safer for listener context
+          if (!mounted || _chatProviderInstance == null) return;
           final currentChatProvider = _chatProviderInstance!;
           final providerActiveId = currentChatProvider.activeConversationId;
 
           if (providerActiveId != _activeLocalConversationId && providerActiveId != null) {
             if (kDebugMode) {
-              print("ChatScreen Listener: Provider activeId ($providerActiveId) differs from local activeId ($_activeLocalConversationId). Re-initializing.");
+              print("ChatScreen Listener: Provider activeId ($providerActiveId) changed from local activeId ($_activeLocalConversationId). Re-initializing ChatScreen.");
             }
-            setState(() {
-              _activeLocalConversationId = providerActiveId;
-              _isChatInitialized = false;
-            });
             _initializeChatScreen(forceIdFromProvider: providerActiveId);
+          } else if (providerActiveId == _activeLocalConversationId && mounted){
+            bool needsSetState = false;
+            if (!listEquals(_activeMessages, currentChatProvider.activeMessages)) {
+              _activeMessages = List.from(currentChatProvider.activeMessages);
+              needsSetState = true;
+            }
+            if (_isLoadingMessages != currentChatProvider.isLoadingMessages) {
+              _isLoadingMessages = currentChatProvider.isLoadingMessages;
+              needsSetState = true;
+            }
+            if (needsSetState) setState(() {});
           }
 
           if (mounted && currentChatProvider.aiReplyLimitReachedError && !_dialogIsVisible) {
             if (kDebugMode) print("ChatScreen Listener: Detected aiReplyLimitReachedError. Attempting to show dialog.");
             _showUpgradeDialogIfNeeded(currentChatProvider.sendMessageError);
+          }
+
+          if (mounted && currentChatProvider.retryAfterSeconds > 0 && currentChatProvider.sendMessageError != null && !currentChatProvider.aiReplyLimitReachedError) {
+            if (kDebugMode) print("ChatScreen Listener: Rate limit hit. Retry after ${currentChatProvider.retryAfterSeconds}s. Error: ${currentChatProvider.sendMessageError}");
+            setState(() {});
           }
         };
         _chatProviderInstance!.addListener(_chatProviderListener!);
@@ -286,123 +303,183 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initializeChatScreen({String? forceIdFromProvider}) async {
-    // ... (Implementation from previous full file version, with loop fixes) ...
-    if (!mounted || (_isCurrentlyInitializing && forceIdFromProvider == null) ) return;
-    if (mounted) setState(() { _isCurrentlyInitializing = true; });
+    if (!mounted) return;
 
-    if (kDebugMode) print("ChatScreen (_initializeChatScreen): Start. Forced ID: $forceIdFromProvider, Widget ID: ${widget.conversationId}, Current Local ID: $_activeLocalConversationId");
-
-    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false); // Use stored instance
-    chatProvider.updateProviders(
-        auth: Provider.of<AuthProvider>(context, listen: false),
-        subs: Provider.of<SubscriptionProvider>(context, listen: false)
-    );
-
-    String? targetConversationId = forceIdFromProvider ?? widget.conversationId ?? chatProvider.activeConversationId;
-
-    if (kDebugMode) print("ChatScreen: Target Conversation ID for init: $targetConversationId");
-
-    if (targetConversationId != null) {
-      if (_activeLocalConversationId != targetConversationId || forceIdFromProvider != null) {
-        if (mounted) {
-          setState(() {
-            _activeLocalConversationId = targetConversationId;
-            _isChatInitialized = false;
-          });
-        } else {
-          _activeLocalConversationId = targetConversationId;
-        }
-      }
-      if (chatProvider.activeConversationId != targetConversationId ||
-          (chatProvider.activeConversationId == targetConversationId && chatProvider.activeMessages.isEmpty && !chatProvider.isLoadingMessages) ||
-          forceIdFromProvider != null ) {
-        if (kDebugMode) print("ChatScreen: Calling selectConversation for $targetConversationId");
-        await chatProvider.selectConversation(targetConversationId);
-      } else {
-        if (kDebugMode) print("ChatScreen: Conversation $targetConversationId already active in provider or being loaded.");
-      }
-    } else {
-      if (kDebugMode) print("ChatScreen: No explicit conversation ID. Purpose: ${widget.purpose}.");
-      if (widget.purpose == 'generateRecipe' && widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
-        if (kDebugMode) print("ChatScreen: Creating new conversation for 'generateRecipe' purpose.");
-        targetConversationId = await chatProvider.createNewConversation();
-        if (targetConversationId == null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Could not start a new chat session.')));
-          setState(() { _activeLocalConversationId = null; _isChatInitialized = true; _isCurrentlyInitializing = false; });
-          return;
-        }
-        // If created, listener will pick up the change in activeConversationId and re-init with it.
-        // Or, we can set _activeLocalConversationId here, but it might race with listener.
-        // For now, rely on listener or next build cycle.
-      } else {
-        if (kDebugMode) print("ChatScreen: No conversation ID to initialize with and no specific purpose to create new.");
-        if (mounted) {
-          setState(() {
-            _activeLocalConversationId = null;
-            _isChatInitialized = true;
-          });
-        }
-      }
-    }
-
-    if (!mounted) {
-      if(mounted) setState(() => _isCurrentlyInitializing = false); else _isCurrentlyInitializing = false;
+    if (_isCurrentlyInitializingGlobal && forceIdFromProvider == null && !(widget.purpose == 'newChatFromFab' && !_isHandlingNewChatFromFab && widget.conversationId == null) ) {
+      debugPrint("ChatScreen _initialize: Skipping due to ongoing initialization and no forceId or new FAB intent.");
       return;
     }
 
-    bool initialQueryWasAttempted = false;
+    if(mounted) {
+      setState(() {
+        _isCurrentlyInitializingGlobal = true;
+        if (!(widget.purpose == 'newChatFromFab' && widget.conversationId == null && !_isHandlingNewChatFromFab)) {
+          _isChatInitialized = false;
+        }
+      });
+    }
+
+    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false);
+    chatProvider.updateProviders(
+        auth: Provider.of<AuthProvider>(context, listen: false),
+        subs: Provider.of<SubscriptionProvider>(context, listen: false));
+
+    String? targetConversationIdForThisScreen;
+
+    if (widget.purpose == 'newChatFromFab' && widget.conversationId == null && !_isHandlingNewChatFromFab) {
+      debugPrint("ChatScreen _initialize: First-time setup for 'newChatFromFab'.");
+      _isHandlingNewChatFromFab = true;
+      targetConversationIdForThisScreen = null;
+
+      if (mounted) {
+        setState(() {
+          _activeLocalConversationId = null;
+          _activeMessages = [];
+          _isLoadingMessages = false;
+          _isChatInitialized = true;
+        });
+      }
+      // Start backend creation but don't await it here to keep UI responsive
+      // Set _isCurrentlyInitializingGlobal to false after this async operation completes
+      _initiateNewConversationInBackground().then((_) {
+        if (mounted) setState(() { _isCurrentlyInitializingGlobal = false; });
+      }).catchError((e) {
+        if (mounted) setState(() { _isCurrentlyInitializingGlobal = false; });
+        debugPrint("Error in background new conversation creation: $e");
+      });
+      return;
+
+    } else if (widget.purpose == 'newChatFromFab' && widget.conversationId == null && _isHandlingNewChatFromFab) {
+      debugPrint("ChatScreen _initialize: Already in/processed 'newChatFromFab' state. LocalID: $_activeLocalConversationId. ProviderID: ${chatProvider.activeConversationId}");
+      if (mounted) {
+        setState(() {
+          if (chatProvider.activeConversationId != null && _activeLocalConversationId != chatProvider.activeConversationId) {
+            _activeLocalConversationId = chatProvider.activeConversationId;
+            _activeMessages = List.from(chatProvider.activeMessages);
+            _isLoadingMessages = chatProvider.isLoadingMessages;
+          }
+          _isChatInitialized = true;
+          _isCurrentlyInitializingGlobal = false;
+        });
+      }
+      return;
+    } else {
+      targetConversationIdForThisScreen = forceIdFromProvider ?? widget.conversationId ?? chatProvider.activeConversationId;
+      _isHandlingNewChatFromFab = false;
+      debugPrint("ChatScreen _initialize: Standard/Forced. TargetID: $targetConversationIdForThisScreen "
+          "(force: $forceIdFromProvider, widget: ${widget.conversationId}, provider: ${chatProvider.activeConversationId})");
+    }
+
+    if (targetConversationIdForThisScreen != null) {
+      bool needsProviderSelect = chatProvider.activeConversationId != targetConversationIdForThisScreen ||
+          (chatProvider.activeConversationId == targetConversationIdForThisScreen && chatProvider.activeMessages.isEmpty && !chatProvider.isLoadingMessages);
+
+      if (_activeLocalConversationId != targetConversationIdForThisScreen || forceIdFromProvider != null || !_isChatInitialized || needsProviderSelect) {
+        debugPrint("ChatScreen _initialize: Updating to/loading for $targetConversationIdForThisScreen.");
+        if (mounted) {
+          setState(() {
+            _activeLocalConversationId = targetConversationIdForThisScreen;
+            _activeMessages = [];
+            _isLoadingMessages = true;
+            _isChatInitialized = false;
+          });
+        }
+
+        await chatProvider.selectConversation(targetConversationIdForThisScreen);
+
+        if (mounted) {
+          setState(() {
+            _activeMessages = List.from(chatProvider.activeMessages);
+            _isLoadingMessages = chatProvider.isLoadingMessages;
+            _isChatInitialized = true;
+          });
+        }
+      } else {
+        debugPrint("ChatScreen _initialize: Already on target $targetConversationIdForThisScreen and initialized. Syncing state.");
+        if (mounted) {
+          bool changed = false;
+          if (!listEquals(_activeMessages, chatProvider.activeMessages)) { _activeMessages = List.from(chatProvider.activeMessages); changed = true; }
+          if (_isLoadingMessages != chatProvider.isLoadingMessages) { _isLoadingMessages = chatProvider.isLoadingMessages; changed = true; }
+          if (changed) setState((){});
+          if (!_isChatInitialized) setState(() => _isChatInitialized = true );
+        }
+      }
+    } else {
+      debugPrint("ChatScreen _initialize: No targetId. Displaying empty/welcome.");
+      if (mounted) {
+        setState(() {
+          _activeLocalConversationId = null;
+          _activeMessages = [];
+          _isLoadingMessages = false;
+          _isChatInitialized = true;
+        });
+      }
+    }
+
     if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty &&
         _activeLocalConversationId != null &&
-        forceIdFromProvider == null) {
-      final bool alreadySentAsLast = chatProvider.activeMessages.isNotEmpty &&
-          chatProvider.activeMessages.last.type == MessageType.user &&
-          chatProvider.activeMessages.last.content == widget.initialQuery &&
-          DateTime.now().difference(chatProvider.activeMessages.last.timestamp).inSeconds < 15;
+        forceIdFromProvider == null &&
+        _isChatInitialized ) {
+
+      final bool alreadySentAsLast = _activeMessages.isNotEmpty &&
+          _activeMessages.last.type == MessageType.user &&
+          _activeMessages.last.content == widget.initialQuery &&
+          DateTime.now().difference(_activeMessages.last.timestamp).inSeconds < 15;
+
       if (!alreadySentAsLast) {
-        if (kDebugMode) print("ChatScreen: Processing initial query: '${widget.initialQuery}' for $_activeLocalConversationId");
+        debugPrint("ChatScreen _initialize: Processing initial query: '${widget.initialQuery}' for $_activeLocalConversationId");
         await _sendMessage(widget.initialQuery!);
-        initialQueryWasAttempted = true;
       } else {
-        if (kDebugMode) print("ChatScreen: Initial query '${widget.initialQuery}' appears to be very recently sent. Skipping.");
+        debugPrint("ChatScreen _initialize: Initial query '${widget.initialQuery}' appears recently sent. Skipping.");
       }
     }
 
     if (mounted) {
-      setState(() {
-        _isChatInitialized = true;
-        _isCurrentlyInitializing = false;
-      });
-      if (_activeLocalConversationId != null && (initialQueryWasAttempted || chatProvider.activeMessages.isNotEmpty)) {
+      setState(() { _isCurrentlyInitializingGlobal = false; });
+      if (_activeLocalConversationId != null && _activeMessages.isNotEmpty) {
         _scrollToBottom();
       }
-    } else {
-      _isCurrentlyInitializing = false;
+    }
+  }
+
+  Future<void> _initiateNewConversationInBackground() async {
+    debugPrint("ChatScreen (FAB): Starting background new conversation creation.");
+    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false);
+    final newConvId = await chatProvider.createNewConversation();
+
+    if (mounted) {
+      if (newConvId != null) {
+        debugPrint("ChatScreen (FAB): Background creation complete. New ID: $newConvId. Provider selected it.");
+        if (_activeLocalConversationId != newConvId) { // Check if it hasn't been updated by listener already
+          setState(() {
+            _activeLocalConversationId = newConvId;
+            _activeMessages = List.from(chatProvider.activeMessages);
+            _isLoadingMessages = false;
+          });
+        }
+      } else {
+        debugPrint("ChatScreen (FAB): Background creation failed.");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error starting new chat. Please try again.'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    // ***** MODIFICATION FOR DISPOSE FIX *****
+    _retryMessageTimer?.cancel();
     if (_chatProviderListener != null && _chatProviderInstance != null) {
-      try {
-        _chatProviderInstance!.removeListener(_chatProviderListener!);
-        if (kDebugMode) print("ChatScreen dispose: Successfully removed _chatProviderListener.");
-      } catch (e) {
-        if (kDebugMode) print("ChatScreen dispose: Error removing listener: $e");
-        // Log to Sentry if needed, but avoid using context here.
-      }
+      _chatProviderInstance!.removeListener(_chatProviderListener!);
     }
-    _chatProviderListener = null; // Clear the callback
-    _chatProviderInstance = null; // Clear the instance
-    // ***** END MODIFICATION *****
-
+    _chatProviderListener = null;
+    _chatProviderInstance = null;
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _scrollToBottom() {
-    // ... (Your original _scrollToBottom implementation)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _scrollController.hasClients && _scrollController.position.hasContentDimensions) {
         _scrollController.animateTo(
@@ -415,10 +492,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showUpgradeDialogIfNeeded(String? messageFromProvider) {
-    // ... (Your original _showUpgradeDialogIfNeeded implementation)
-    if (!mounted || _dialogIsVisible) return;
-    if (kDebugMode) print("ChatScreen: _showUpgradeDialogIfNeeded called. Message: $messageFromProvider");
-    setState(() { _dialogIsVisible = true; });
+    if (!mounted || _dialogIsVisible) return; // Uses _dialogIsVisible
+    setState(() { _dialogIsVisible = true; }); // Uses _dialogIsVisible
     showDialog<void>(
       context: context,
       routeSettings: const RouteSettings(name: 'UpgradeDialog'),
@@ -433,11 +508,10 @@ class _ChatScreenState extends State<ChatScreen> {
       barrierDismissible: false,
     ).then((_) {
       if (mounted) {
-        setState(() { _dialogIsVisible = false; });
+        setState(() { _dialogIsVisible = false; }); // Uses _dialogIsVisible
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
         if (authProvider.isAuthenticated && authProvider.token != null) {
-          if (kDebugMode) print("ChatScreen: Upgrade dialog dismissed. Refreshing subscription status.");
           subscriptionProvider.revenueCatSubscriptionStatus(authProvider.token!);
           subscriptionProvider.loadSubscriptionStatus(authProvider.token!);
         }
@@ -445,113 +519,332 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Future<void> _sendMessage(String message) async {
-    // ... (Your original _sendMessage implementation, ensure it uses passed 'message' or controller.text)
-    final text = message.trim();
-    if (!mounted) return;
-    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false); // Use stored instance
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  Future<void> _sendMessage(String messageContent) async {
+    final text = messageContent.trim();
+    if (!mounted || text.isEmpty) return;
 
-    if (text.isEmpty || chatProvider.isSendingMessage || _activeLocalConversationId == null) {
+    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    String? conversationIdForSend = _activeLocalConversationId;
+
+    if (conversationIdForSend == null && widget.purpose == 'newChatFromFab' && _isHandlingNewChatFromFab) {
+      debugPrint("ChatScreen SendMessage: First message for a FAB new chat. Creating conversation first.");
+
+      final tempOptimisticMessage = ChatMessage(
+          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+          content: text, type: MessageType.user,
+          timestamp: DateTime.now());
+      if(mounted) {
+        setState(() { _activeMessages.add(tempOptimisticMessage); });
+        _scrollToBottom();
+      }
+
+      final newConvId = await chatProvider.createNewConversation();
+      if (mounted) {
+        _activeMessages.removeWhere((m) => m.id == tempOptimisticMessage.id);
+        if (newConvId != null) {
+          setState(() { _activeLocalConversationId = newConvId; });
+          conversationIdForSend = newConvId;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to create chat session. Message not sent.'), backgroundColor: Colors.redAccent),
+          );
+          return;
+        }
+      } else { return; }
+    }
+
+    if (conversationIdForSend == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: No active chat session to send message.'), backgroundColor: Colors.redAccent),
+      );
       return;
     }
+
+    if (chatProvider.activeConversationId != conversationIdForSend) {
+      await chatProvider.selectConversation(conversationIdForSend);
+    }
+
+    if (chatProvider.isSendingMessage || chatProvider.retryAfterSeconds > 0) {
+      if (chatProvider.retryAfterSeconds > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Please wait ~${chatProvider.retryAfterSeconds}s before sending."),
+            backgroundColor: Colors.orangeAccent, duration: const Duration(seconds: 2)));
+      }
+      return;
+    }
+
     chatProvider.updateProviders(auth: authProvider, subs: Provider.of<SubscriptionProvider>(context, listen: false));
 
-    final String messageToSend = _messageController.text.trim().isNotEmpty ? _messageController.text.trim() : text;
-    if(_messageController.text.isNotEmpty && _messageController.text.trim() == messageToSend) {
-      _messageController.clear();
+    final originalMessageInController = _messageController.text;
+    if (_messageController.text.trim() == text) { _messageController.clear(); }
+
+    final localUserMessage = ChatMessage(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        content: text, type: MessageType.user, timestamp: DateTime.now());
+    if(mounted) {
+      setState(() { _activeMessages.add(localUserMessage); });
+      _scrollToBottom();
     }
 
-    chatProvider.clearAiReplyLimitError();
-    await chatProvider.sendMessage(messageToSend);
-    _scrollToBottom();
+    await chatProvider.sendMessage(text, addToUi: false);
 
-    if (mounted && chatProvider.aiReplyLimitReachedError && !_dialogIsVisible) {
-      if (kDebugMode) print("ChatScreen (_sendMessage): AI Reply limit was hit. Showing UpgradePromptDialog.");
-      _showUpgradeDialogIfNeeded(chatProvider.sendMessageError);
+    if (mounted) {
+      if (chatProvider.sendMessageError != null) {
+        setState(() {
+          _activeMessages.removeWhere((m) => m.id == localUserMessage.id);
+          if(_messageController.text.isEmpty) _messageController.text = originalMessageInController;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(chatProvider.sendMessageError!), backgroundColor: Colors.redAccent));
+      } else {
+        setState(() { _activeMessages = List.from(chatProvider.activeMessages); });
+        _scrollToBottom();
+      }
+
+      if (chatProvider.retryAfterSeconds > 0 && !chatProvider.aiReplyLimitReachedError) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(chatProvider.sendMessageError ?? "Rate limit. Wait ~${chatProvider.retryAfterSeconds}s."),
+            backgroundColor: Colors.orangeAccent));
+        _retryMessageTimer?.cancel();
+        _retryMessageTimer = Timer(Duration(seconds: chatProvider.retryAfterSeconds), () {
+          if (mounted) chatProvider.clearAiReplyLimitError();
+        });
+      }
     }
   }
 
-  // --- Your original helper methods for UI (ensure these are fully implemented) ---
-  String _extractRecipeName(String text) { /* ... Your implementation ... */ return text.substring(0, math.min(text.length, 50)); }
-  void _onSuggestionSelected(String suggestion, bool generateRecipe) { /* ... Your implementation, ensure it calls _sendMessage for non-recipe ... */
-    if (generateRecipe) _generateRecipeFromChat(suggestion); else _sendMessage(suggestion);
+  String _extractRecipeName(String text) {
+    const maxLength = 50;
+    if (text.length <= maxLength) return text;
+    int endIndex = text.lastIndexOf('.', maxLength);
+    if (endIndex == -1) endIndex = text.lastIndexOf(' ', maxLength);
+    return text.substring(0, endIndex == -1 ? maxLength : endIndex + 1);
   }
-  Future<void> _generateRecipeFromChat(String? suggestedQuery) async { /* ... Your implementation ... */ }
-  Future<void> _handleStartNewChatInTab() async { /* ... Your implementation ... */ }
+
+  void _onSuggestionSelected(String suggestion, bool generateRecipe) {
+    if (kDebugMode) print("Suggestion selected: '$suggestion', Generate Recipe: $generateRecipe");
+    if (generateRecipe) {
+      _generateRecipeFromChat(suggestion);
+    } else {
+      _sendMessage(suggestion);
+    }
+  }
+
+  Future<void> _generateRecipeFromChat(String? suggestedQuery) async {
+    if (_isGeneratingRecipeFromChat) return;
+    if (!mounted) return;
+
+    final query = suggestedQuery?.trim() ?? _messageController.text.trim();
+    if (query.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter what recipe you want to generate.')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) setState(() { _isGeneratingRecipeFromChat = true; });
+
+    final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    try {
+      final Recipe? recipe = await recipeProvider.generateRecipe(
+        query,
+        save: authProvider.isAuthenticated,
+        token: authProvider.token,
+        conversationId: _activeLocalConversationId,
+      );
+
+      if (recipe != null && mounted && !recipeProvider.wasCancelled) {
+        Navigator.of(context).pushNamed('/recipe');
+      } else if (recipeProvider.wasCancelled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe generation from chat cancelled.'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print("Error generating recipe from chat: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating recipe: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { _isGeneratingRecipeFromChat = false; });
+      }
+    }
+  }
+
+  Future<void> _handleStartNewChatInTab() async {
+    if (!mounted) return;
+    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false);
+    final newConversationId = await chatProvider.createNewConversation();
+    if (newConversationId == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start a new chat. Please try again.'), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ... (Your existing build method, ensure it uses _activeLocalConversationId for its primary logic) ...
     final authProvider = Provider.of<AuthProvider>(context);
-    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context); // Use stored instance or lookup
-    final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
-
-    // It's good practice to ensure ChatProvider has the latest references,
-    // especially if this build method is triggered by other provider changes.
-    chatProvider.updateProviders(auth: authProvider, subs: subscriptionProvider);
+    final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context);
 
     final theme = Theme.of(context);
     double screenWidth = MediaQuery.sizeOf(context).width;
 
     if (!authProvider.isAuthenticated || authProvider.user == null) {
-      return Scaffold(appBar: AppBar(title: const Text('Chat Assistant')), body: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [ Icon(Icons.chat_bubble_outline_rounded, size: 60, color: theme.dividerColor), const SizedBox(height: 20), const Text('Please log in to use the AI Chat Assistant.', textAlign: TextAlign.center, style: TextStyle(fontSize: 17)), const SizedBox(height: 24), ElevatedButton(style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12)), onPressed: () => Navigator.of(context).pushReplacementNamed('/login'), child: const Text('Login / Sign Up', style: TextStyle(fontSize: 16)))]))));
+      return Scaffold(
+          appBar: AppBar(
+            title: const Text('Chat Assistant'),
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
+            elevation: 0,
+            shape: Border(bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5), width: 0.5)),
+            systemOverlayStyle: SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.dark,
+              statusBarBrightness: Brightness.light,
+            ),
+          ),
+          body: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [ Icon(Icons.chat_bubble_outline_rounded, size: 60, color: theme.dividerColor), const SizedBox(height: 20), const Text('Please log in to use the AI Chat Assistant.', textAlign: TextAlign.center, style: TextStyle(fontSize: 17)), const SizedBox(height: 24), ElevatedButton(style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12)), onPressed: () => Navigator.of(context).pushReplacementNamed('/login'), child: const Text('Login / Sign Up', style: TextStyle(fontSize: 16)))]))));
     }
 
-    if (!_isChatInitialized || (_activeLocalConversationId == null && !chatProvider.isLoadingConversations && chatProvider.activeConversationId == null) ) {
-      String appBarText = widget.purpose == 'generateRecipe' && widget.conversationId == null ? "Recipe Ideas Chat" : "Chat";
+    bool showScreenLoader = !_isChatInitialized || _isCurrentlyInitializingGlobal;
+    if (widget.purpose == 'newChatFromFab' && widget.conversationId == null && _isChatInitialized && !_isCurrentlyInitializingGlobal) {
+      showScreenLoader = false;
+    }
+
+    if (showScreenLoader) {
+      String appBarText = (widget.purpose == 'generateRecipe' && widget.conversationId == null) ? "Recipe Ideas Chat" : "Chat";
+      if(_activeLocalConversationId != null) {
+        try {
+          final tempChatProvider = Provider.of<ChatProvider>(context, listen: false);
+          final currentConv = tempChatProvider.conversations.firstWhere((c) => c.id == _activeLocalConversationId,
+              orElse: () => Conversation(id: _activeLocalConversationId!, createdAt: DateTime.now(), updatedAt: DateTime.now(), title: "Chat"));
+          appBarText = currentConv.title ?? "Chat";
+        } catch(e) { /* keep default appBarText */ }
+      }
       return Scaffold(
-        appBar: AppBar(title: Text(appBarText)),
-        body: const LoadingIndicator(message: 'Initializing chat session...'),
+        appBar: AppBar(
+          title: Text(appBarText),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
+          elevation: 0,
+          shape: Border(bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5), width: 0.5)),
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+          ),
+        ),
+        body: LoadingIndicator(message: _activeLocalConversationId == null && widget.purpose != 'newChatFromFab'
+            ? 'Initializing chat session...'
+            : 'Loading messages...'),
         drawer: ConversationsDrawer(currentConversationId: _activeLocalConversationId),
       );
     }
 
-    final bool isScreenEffectivelyDisplayingActiveChat = chatProvider.activeConversationId == _activeLocalConversationId && _activeLocalConversationId != null;
-
-    final List<ChatMessage> messagesToDisplay = isScreenEffectivelyDisplayingActiveChat ? chatProvider.activeMessages : [];
-    final bool showLoadingForMessages = isScreenEffectivelyDisplayingActiveChat ? chatProvider.isLoadingMessages : (_activeLocalConversationId != null && messagesToDisplay.isEmpty);
-    final bool showSendingIndicator = isScreenEffectivelyDisplayingActiveChat && chatProvider.isSendingMessage && !chatProvider.aiReplyLimitReachedError;
+    final bool actuallyShowLoadingForMessages = _isLoadingMessages && _activeMessages.isEmpty;
+    final bool showSendingIndicator = chatProvider.isSendingMessage && !chatProvider.aiReplyLimitReachedError && chatProvider.retryAfterSeconds == 0;
 
     String? inlineErrorToDisplay;
-    if (isScreenEffectivelyDisplayingActiveChat) {
-      if (chatProvider.sendMessageError != null && !chatProvider.aiReplyLimitReachedError) {
-        inlineErrorToDisplay = chatProvider.sendMessageError;
-      } else if (chatProvider.messagesError != null) {
-        inlineErrorToDisplay = chatProvider.messagesError;
+    if (chatProvider.sendMessageError != null && !chatProvider.aiReplyLimitReachedError && _activeLocalConversationId == chatProvider.activeConversationId) {
+      inlineErrorToDisplay = chatProvider.sendMessageError;
+      if (chatProvider.retryAfterSeconds > 0) {
+        if (chatProvider.sendMessageError!.toLowerCase().contains("too many requests") ||
+            chatProvider.sendMessageError!.toLowerCase().contains("rate limit")) {
+          inlineErrorToDisplay = "Too many requests. Please wait ~${chatProvider.retryAfterSeconds}s.";
+        }
       }
+    } else if (chatProvider.messagesError != null && _activeLocalConversationId == chatProvider.activeConversationId) {
+      inlineErrorToDisplay = chatProvider.messagesError;
     }
 
-    if (isScreenEffectivelyDisplayingActiveChat && messagesToDisplay.isNotEmpty) _scrollToBottom();
-
     Conversation? currentDisplayConversation;
+    String appBarTitle = "Chat";
     if (_activeLocalConversationId != null) {
       try {
         currentDisplayConversation = chatProvider.conversations.firstWhere((c) => c.id == _activeLocalConversationId);
+        appBarTitle = currentDisplayConversation.title ?? "Chat";
       } catch (e) {
-        currentDisplayConversation = Conversation(
-            id: _activeLocalConversationId!, createdAt: DateTime.now(), updatedAt: DateTime.now(),
-            title: (widget.purpose == 'generateRecipe' && widget.conversationId == null) ? "Recipe Ideas" : "Chat"
-        );
+        appBarTitle = (widget.purpose == 'newChatFromFab' && widget.conversationId == null) ? "New Chat" : "Chat";
       }
+    } else if (widget.purpose == 'newChatFromFab' && widget.conversationId == null) {
+      appBarTitle = "New Chat";
     }
-    final String appBarTitle = (widget.purpose == 'generateRecipe' && widget.conversationId == null && (_activeLocalConversationId == currentDisplayConversation?.id || currentDisplayConversation == null))
-        ? "Recipe Ideas Chat"
-        : (currentDisplayConversation?.title?.isNotEmpty == true ? currentDisplayConversation!.title! : "Chat");
+
+    if (_activeMessages.isNotEmpty && _scrollController.hasClients && _scrollController.position.atEdge) {
+      if(_scrollController.position.pixels != _scrollController.position.minScrollExtent || _activeMessages.last.type == MessageType.user) {
+        _scrollToBottom();
+      }
+    } else if (_activeMessages.isNotEmpty) {
+      _scrollToBottom();
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(appBarTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 0,
+        shape: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).dividerColor.withOpacity(0.5),
+            width: 0.5,
+          ),
+        ),
+        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
+        titleTextStyle: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: 18,
+            fontWeight: FontWeight.w500
+        ),
+        title: Text(appBarTitle),
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
+        actionsIconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
         actions: [
           IconButton(icon: const Icon(Icons.add_comment_outlined), tooltip: 'New Chat', onPressed: _handleStartNewChatInTab),
           if (_activeLocalConversationId != null)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
               onSelected: (value) async {
-                if (value == 'rename') { if (kDebugMode) print('Rename action for $_activeLocalConversationId');}
-                else if (value == 'delete') {
-                  if (kDebugMode) print('Delete action for $_activeLocalConversationId');
-                  // Your confirm delete dialog and chatProvider.deleteConversation call
+                if (value == 'rename') {
+                  // Implement rename logic
+                } else if (value == 'delete') {
+                  final bool? confirmDelete = await showDialog<bool>(
+                      context: context,
+                      builder: (BuildContext ctx) => AlertDialog(
+                        title: const Text("Delete Conversation?"),
+                        content: const Text("This will permanently delete this chat history."),
+                        actions: [
+                          TextButton(onPressed: ()=>Navigator.of(ctx).pop(false), child: const Text("CANCEL")),
+                          TextButton(onPressed: ()=>Navigator.of(ctx).pop(true), child: Text("DELETE", style: TextStyle(color: Colors.red.shade700)))
+                        ],
+                      )
+                  ) ?? false;
+
+                  if (confirmDelete == true && mounted && _activeLocalConversationId != null) {
+                    final String deletedTitle = currentDisplayConversation?.title ?? 'Chat';
+                    await chatProvider.deleteConversation(_activeLocalConversationId!);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Conversation "$deletedTitle" deleted.'), duration: const Duration(seconds: 2))
+                      );
+                      Provider.of<ChatProvider>(context, listen: false).resetActiveChat();
+                      _initializeChatScreen();
+
+                    }
+                  }
                 }
               },
               itemBuilder: (context) => [
@@ -564,10 +857,23 @@ class _ChatScreenState extends State<ChatScreen> {
       drawer: ConversationsDrawer(currentConversationId: _activeLocalConversationId),
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.fromLTRB(
-              screenWidth > 700 ? (screenWidth * 0.15) : (screenWidth > 500 ? (screenWidth * 0.05) : 8),8,
-              screenWidth > 700 ? (screenWidth * 0.15) : (screenWidth > 500 ? (screenWidth * 0.05) : 8),8
-          ),
+          padding: () {
+            const double mobileOuterPadding = 0.0;
+            const double tabletOuterPadding = 8.0;
+            const double maxChatColumnWidth = 768.0;
+
+            if (screenWidth <= 500) {
+              return EdgeInsets.symmetric(horizontal: mobileOuterPadding, vertical: 8.0);
+            } else if (screenWidth <= 800) {
+              return EdgeInsets.symmetric(horizontal: tabletOuterPadding, vertical: 8.0);
+            } else {
+              final double horizontalPaddingForCentering = (screenWidth - maxChatColumnWidth) / 2;
+              return EdgeInsets.symmetric(
+                  horizontal: horizontalPaddingForCentering > tabletOuterPadding ? horizontalPaddingForCentering : tabletOuterPadding,
+                  vertical: 8.0
+              );
+            }
+          }(),
           child: Column(
             children: [
               Expanded(
@@ -577,13 +883,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: theme.colorScheme.surface.withOpacity(kIsWeb ? 0.03 : 0.05),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: (showLoadingForMessages && messagesToDisplay.isEmpty)
-                      ? const LoadingIndicator(message: 'Loading messages...')
-                      : (inlineErrorToDisplay != null && messagesToDisplay.isEmpty)
-                      ? Center(child: Padding(padding: const EdgeInsets.all(16.0), child: ErrorDisplay(message: "Error: $inlineErrorToDisplay")))
-                      : (messagesToDisplay.isEmpty && !showSendingIndicator)
-                      ? _buildWelcomePrompt()
-                      : _buildMessagesList(messagesToDisplay),
+                  child: (actuallyShowLoadingForMessages && _activeMessages.isEmpty)
+                      ? LoadingIndicator(message: 'Loading messages...')
+                      : (inlineErrorToDisplay != null && _activeMessages.isEmpty && !chatProvider.aiReplyLimitReachedError)
+                      ? Center(child: Padding(padding: const EdgeInsets.all(16.0), child: ErrorDisplay(message: "$inlineErrorToDisplay")))
+                      : (_activeMessages.isEmpty && !showSendingIndicator)
+                      ? _buildWelcomePrompt(isNewChat: _activeLocalConversationId == null)
+                      : _buildMessagesList(_activeMessages),
                 ),
               ),
               if (showSendingIndicator)
@@ -597,14 +903,13 @@ class _ChatScreenState extends State<ChatScreen> {
                         SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(width: 8),
                         Text('Assistant is thinking...', style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
-                      ],
-                      ),
+                      ],),
                     ),
-                  ],
-                  ),
+                  ],),
                 ),
-
-              if (inlineErrorToDisplay != null && isScreenEffectivelyDisplayingActiveChat && !showSendingIndicator)
+              if (inlineErrorToDisplay != null &&
+                  !showSendingIndicator &&
+                  !chatProvider.aiReplyLimitReachedError)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 4.0),
                   child: Text(inlineErrorToDisplay, textAlign: TextAlign.center, style: TextStyle(color: theme.colorScheme.error, fontSize: 13)),
@@ -612,7 +917,7 @@ class _ChatScreenState extends State<ChatScreen> {
               MessageInput(
                 controller: _messageController,
                 onSend: _sendMessage,
-                isLoading: chatProvider.isSendingMessage || _isGeneratingRecipeFromChat,
+                isLoading: chatProvider.isSendingMessage || _isGeneratingRecipeFromChat || (chatProvider.retryAfterSeconds > 0 && !chatProvider.aiReplyLimitReachedError),
                 hintText: 'Ask your kitchen assistant...',
               ),
             ],
@@ -622,8 +927,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // --- Your original UI helper methods (ensure these are fully implemented in your file) ---
-  Widget _buildWelcomePrompt() {
+  Widget _buildWelcomePrompt({bool isNewChat = false}) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -640,7 +944,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Icon(Icons.soup_kitchen_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 24),
-          Text('Kitchen Assistant AI', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+          Text(isNewChat ? 'New Chat Session' : 'Kitchen Assistant AI', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
           const SizedBox(height: 12),
           Text('How can I help with your cooking today?', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).hintColor), textAlign: TextAlign.center),
           const SizedBox(height: 32),
@@ -727,7 +1031,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (messageDate == today) dateText = 'Today';
     else if (messageDate == yesterday) dateText = 'Yesterday';
     else if (now.year == timestamp.year) dateText = DateFormat('MMMM d').format(timestamp);
-    else dateText = DateFormat('MMMM d, yyyy').format(timestamp);
+    else dateText = DateFormat('MMMM d, yy').format(timestamp);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16.0),

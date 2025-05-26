@@ -1,4 +1,3 @@
-// lib/widgets/chat/chat_bubble.dart
 import 'package:flutter/material.dart';
 import '../../models/chat_message.dart'; // Ensure this has the new fields/types
 
@@ -83,15 +82,19 @@ class ChatBubble extends StatelessWidget {
   }
   // --- End Helpers ---
 
-
-  // Helper function to render formatted content with styled lists
+  // Helper function to render formatted content with styled lists - UPDATED
   Widget _buildFormattedContent(String content, MessageType type, BuildContext context) {
     final isUser = type == MessageType.user;
     final Color textColor = isUser ? Colors.white : Colors.black87;
     final List<String> lines = content.split('\n');
 
-    // Special case for simple messages or placeholder
-    if (lines.length <= 1 || type == MessageType.recipePlaceholder) {
+    // Handle empty content
+    if (lines.isEmpty || content.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Special case for simple single-line messages or placeholders
+    if (lines.length == 1 || type == MessageType.recipePlaceholder) {
       return Text(
         content,
         style: TextStyle(
@@ -103,35 +106,61 @@ class ChatBubble extends StatelessWidget {
       );
     }
 
-    bool containsList = lines.any((line) =>
-    line.trim().startsWith('-') ||
-        line.trim().startsWith('•') ||
-        RegExp(r'^\d+\.\s').hasMatch(line.trim())); // Look for number followed by dot and space
+    List<Widget> childrenWidgets = [];
+    int linesToSkipForMainProcessing = 0;
 
-    // RichText approach for more complex formatting if needed later
-    // For now, continue with Column + Container for list styling
+    // 1. Check if the first line should be treated as a distinct header paragraph
+    bool firstLineIsPotentiallyHeader = lines.first.isNotEmpty &&
+        !lines.first.trim().startsWith('-') &&
+        !lines.first.trim().startsWith('•') &&
+        !RegExp(r'^\d+\.\s').hasMatch(lines.first.trim());
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Render header/intro text before the list
-        if (lines.first.isNotEmpty && !lines.first.trim().startsWith('-') &&
-            !lines.first.trim().startsWith('•') && !RegExp(r'^\d+\.\s').hasMatch(lines.first.trim()))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: Text(
-              lines.first,
-              style: TextStyle( color: textColor, fontSize: 16, height: 1.4),
-            ),
+    if (firstLineIsPotentiallyHeader) {
+      childrenWidgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0), // Matches original header bottom padding
+          child: Text(
+            lines.first,
+            style: TextStyle(color: textColor, fontSize: 16, height: 1.4), // Matches original header style
           ),
+        ),
+      );
+      linesToSkipForMainProcessing = 1;
+    }
 
-        // Build the list items with enhanced styling inside a container
-        if (containsList)
+    // 2. Prepare the lines for the main content processing (after the optional header)
+    List<String> linesForMainContent = lines.sublist(linesToSkipForMainProcessing);
+
+    // Skip any leading empty lines in what's considered main content
+    // This handles structures like "Header\n\nContent"
+    int leadingEmptyLinesInMain = 0;
+    for (String line in linesForMainContent) {
+      if (line.trim().isEmpty) {
+        leadingEmptyLinesInMain++;
+      } else {
+        break;
+      }
+    }
+    // If a header was rendered and there were empty lines (like \n\n) immediately after it,
+    // the natural spacing from the header's bottom padding and the next element's top margin/padding
+    // will create the gap. No explicit SizedBox needed here unless more spacing is desired.
+    linesForMainContent = linesForMainContent.sublist(leadingEmptyLinesInMain);
+
+
+    // 3. Process the (remaining) main content lines
+    if (linesForMainContent.isNotEmpty) {
+      bool containsListInMainContent = linesForMainContent.any((line) =>
+      line.trim().startsWith('-') ||
+          line.trim().startsWith('•') ||
+          RegExp(r'^\d+\.\s').hasMatch(line.trim()));
+
+      if (containsListInMainContent) {
+        childrenWidgets.add(
           Container(
-            decoration: BoxDecoration(
+            decoration: BoxDecoration( // Styling copied from original
               color: isUser
                   ? Theme.of(context).primaryColor.withOpacity(0.3)
-                  : Colors.grey[50], // Lighter background for list
+                  : Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isUser
@@ -140,15 +169,18 @@ class ChatBubble extends StatelessWidget {
                 width: 1.0,
               ),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-            margin: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0), // Copied from original
+            margin: const EdgeInsets.only(top: 4.0, bottom: 8.0), // Copied from original
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: lines.skip(lines.first.contains(':') && !containsList ? 1 : 0).map((line) { // Skip first line if it's a title before list starts
-                if (line.trim().isEmpty) return const SizedBox(height: 4); // Small space for empty lines
+              children: linesForMainContent.map((line) {
+                // Handle empty lines within this block, similar to original
+                if (line.trim().isEmpty) {
+                  return const SizedBox(height: 4.0); // Consistent with original empty line handling
+                }
 
                 bool isBulletItem = line.trim().startsWith('- ') || line.trim().startsWith('• ');
-                RegExp numberedListRegex = RegExp(r'^(\d+)\.\s+(.*)'); // Matches "1. Text"
+                RegExp numberedListRegex = RegExp(r'^(\d+)\.\s+(.*)');
                 final numberedMatch = numberedListRegex.firstMatch(line.trim());
                 bool isNumberedItem = numberedMatch != null;
 
@@ -158,20 +190,19 @@ class ChatBubble extends StatelessWidget {
 
                   if (isBulletItem) {
                     prefix = '• ';
-                    itemContent = line.trim().substring(2).trim(); // Get content after "- " or "• "
+                    itemContent = line.trim().substring(2).trim();
                   } else if (isNumberedItem) {
                     prefix = '${numberedMatch!.group(1)!}. ';
-                    itemContent = numberedMatch.group(2)!.trim(); // Get content after "1. "
+                    itemContent = numberedMatch.group(2)!.trim();
                   }
 
-                  return Padding(
+                  return Padding( // Structure and styling copied from original
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // List marker (bullet or number)
-                        SizedBox(
-                          width: 24, // Fixed width for alignment
+                        SizedBox( // Copied from original
+                          width: 24,
                           child: Text(
                             prefix,
                             style: TextStyle(
@@ -181,8 +212,7 @@ class ChatBubble extends StatelessWidget {
                             ),
                           ),
                         ),
-                        // List item content
-                        Expanded(
+                        Expanded( // Copied from original
                           child: Text(
                             itemContent,
                             style: TextStyle(
@@ -196,12 +226,12 @@ class ChatBubble extends StatelessWidget {
                     ),
                   );
                 } else {
-                  // Regular non-list text line within the list block (e.g., notes)
-                  return Padding(
+                  // Regular non-list text line (e.g., "Main Ingredients:", or notes within the list block)
+                  return Padding( // Copied from original
                     padding: const EdgeInsets.symmetric(vertical: 3.0),
                     child: Text(
-                      line, // Keep original indentation if any
-                      style: TextStyle(
+                      line,
+                      style: TextStyle( // Style copied from original for this case
                         color: textColor,
                         fontSize: 15,
                         height: 1.3,
@@ -212,24 +242,48 @@ class ChatBubble extends StatelessWidget {
               }).toList(),
             ),
           ),
+        );
+      } else {
+        // No list in main content, render linesForMainContent as plain paragraphs
+        for (final line in linesForMainContent) {
+          if (line.trim().isNotEmpty) {
+            childrenWidgets.add(
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0), // Spacing for paragraphs
+                  child: Text(
+                    line,
+                    style: TextStyle(color: textColor, fontSize: 16, height: 1.4), // Style consistent with original header/non-list text
+                  ),
+                )
+            );
+          } else if (childrenWidgets.isNotEmpty && childrenWidgets.last is! SizedBox) {
+            // Optionally add SizedBox for intentional empty lines between paragraphs
+            // childrenWidgets.add(const SizedBox(height: 4.0));
+          }
+        }
+      }
+    }
 
-        // Render any text that comes *after* the list block
-        if (lines.length > 1 &&
-            lines.last.isNotEmpty &&
-            !lines.last.trim().startsWith('-') &&
-            !lines.last.trim().startsWith('•') &&
-            !RegExp(r'^\d+\.\s').hasMatch(lines.last.trim()) &&
-            containsList) // Only add trailing text if a list was present
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              lines.last,
-              style: TextStyle(color: textColor, fontSize: 16, height: 1.4),
-            ),
-          ),
-      ],
+    // Fallback if, after all processing, no widgets were generated but original content was not empty.
+    // This can happen if content was just whitespace, or if logic paths didn't add anything.
+    // The initial `content.trim().isEmpty` check should handle most purely empty cases.
+    if (childrenWidgets.isEmpty && content.trim().isNotEmpty) {
+      return Text(
+        content.trim(), // Render trimmed original content as a last resort
+        style: TextStyle(color: textColor, fontSize: 16, height: 1.4),
+      );
+    }
+    // If truly nothing to show (e.g. original content was only whitespace lines that got trimmed out)
+    if (childrenWidgets.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: childrenWidgets,
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +317,7 @@ class ChatBubble extends StatelessWidget {
       iconBgColor = Theme.of(context).primaryColorLight;
     }
     // Determine text color
-    final Color textColor = isUser ? Colors.white : Colors.black87;
+    // final Color textColor = isUser ? Colors.white : Colors.black87; // Defined in _buildFormattedContent
 
 
     return Padding(
