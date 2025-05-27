@@ -5,15 +5,15 @@ import '../../models/subscription.dart';
 class SubscriptionPlanCard extends StatelessWidget {
   final SubscriptionPlan plan;
   final bool isCurrentPlan;
-  // MODIFIED: onSubscribe now takes the full plan
   final ValueChanged<SubscriptionPlan>? onSubscribe;
-
+  final String buttonText; // <-- Add this
 
   const SubscriptionPlanCard({
     Key? key,
     required this.plan,
     required this.isCurrentPlan,
     this.onSubscribe,
+    this.buttonText = 'Subscribe', // <-- Default value
   }) : super(key: key);
 
   @override
@@ -22,13 +22,10 @@ class SubscriptionPlanCard extends StatelessWidget {
 
     Color planColor;
     switch (plan.tier) {
-      case SubscriptionTier.pro: // MODIFIED
-        planColor = Colors.deepPurple; // Example color for Pro
+      case SubscriptionTier.pro:
+        planColor = Colors.deepPurple;
         break;
-    // case SubscriptionTier.basic: // REMOVED
-    //   planColor = Colors.blue;
-    //   break;
-      default: // free tier
+      default:
         planColor = Colors.green;
     }
 
@@ -49,15 +46,14 @@ class SubscriptionPlanCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: planColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: planColor),
                   ),
                   child: Text(
-                    plan.name, // Will display "Pro Monthly", "Pro Annual"
+                    plan.name,
                     style: TextStyle(
                       color: planColor,
                       fontWeight: FontWeight.bold,
@@ -68,7 +64,6 @@ class SubscriptionPlanCard extends StatelessWidget {
                 Text(
                   plan.price == 0
                       ? 'Free'
-                  // Display interval for Pro plans
                       : '\$${plan.price.toStringAsFixed(2)}/${plan.interval}',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
@@ -106,22 +101,21 @@ class SubscriptionPlanCard extends StatelessWidget {
               width: double.infinity,
               child: isCurrentPlan
                   ? ElevatedButton(
-                onPressed: null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[300],
-                ),
-                child: const Text('Current Plan'),
-              )
-                  : isCurrentPlan == false && plan.price == 0 ? const Text("") :ElevatedButton(
-                // MODIFIED: Pass the full plan to the callback
-                onPressed: onSubscribe != null ? () => onSubscribe!(plan) : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: planColor,
-                ),
-                child: const Text(
-                  'Subscribe',
-                ),
-              ),
+                      onPressed: null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                      ),
+                      child: const Text('Current Plan'),
+                    )
+                  : plan.price == 0
+                      ? const SizedBox.shrink()
+                      : ElevatedButton(
+                          onPressed: onSubscribe != null ? () => onSubscribe!(plan) : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: planColor,
+                          ),
+                          child: Text(buttonText), // <-- Use custom text
+                        ),
             ),
           ],
         ),

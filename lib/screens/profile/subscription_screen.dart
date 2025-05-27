@@ -222,57 +222,34 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: subscriptionProvider.plans.length,
           itemBuilder: (context, index) {
-
             final plan = subscriptionProvider.plans[index];
-            bool isPro = false;
+            final isPro = subscriptionProvider.isProSubscriber;
+            final currentPackage = subscriptionProvider.package;
 
-            if(plan.tier.name == "pro" && subscriptionProvider.isProSubscriber == true){
-               isPro = true;
+            // Determine if this plan is the current active plan
+            bool isCurrentPlan = false;
+            if (plan.tier == SubscriptionTier.free && !isPro) {
+              isCurrentPlan = true;
+            } else if (plan.tier == SubscriptionTier.pro && isPro && plan.planIdentifier == currentPackage) {
+              isCurrentPlan = true;
             }
-            if(plan.tier.name == "free" && subscriptionProvider.isProSubscriber == false){
-               isPro = false;
+
+            // Disable subscribe button for current plan
+            final disableSubscribeButton = isCurrentPlan;
+
+            // Button text: "Upgrade" for all paid plans that are not current
+            String buttonText = "Subscribe";
+            if (plan.tier == SubscriptionTier.pro && !isCurrentPlan) {
+              buttonText = "Upgrade";
             }
-            
-
-            // bool isCurrentPlan = false;
-            bool isCurrentRevenueCatPlan = isPro;
-
-            // bool disableSubscribeButton = false;
-
-            // if (currentSubInfo != null) {
-            //   if (currentSubInfo.tier == plan.tier) {
-            //     // If the tiers match, it's the current tier.
-            //     // For Pro plans, we need to check if it's the *exact* same interval (monthly/annually)
-            //     // to disable the button. This requires knowing the current plan's interval.
-            //     // Assuming SubscriptionInfo might eventually hold plan.planIdentifier or interval for the active sub.
-            //     isCurrentPlan = true;
-            //     if (plan.tier == SubscriptionTier.pro) {
-            //       // Heuristic: if current plan is active, not cancelling, and its interval matches this card's interval
-            //       // then disable button. This is still imperfect without explicit current planIdentifier in SubscriptionInfo.
-            //       // For now, if it's a Pro plan and user is on Pro, we mark `isCurrentPlan` true.
-            //       // Button will be disabled if it's a paid plan and marked `isCurrentPlan`.
-            //       if ((currentSubInfo.status == SubscriptionStatus.active || currentSubInfo.status == SubscriptionStatus.trialing) &&
-            //           !currentSubInfo.cancelAtPeriodEnd) {
-            //         // A more robust check for exact plan (e.g. Pro Monthly vs Pro Annual)
-            //         // would involve comparing plan.planIdentifier if available in currentSubInfo
-            //         // For simplicity here, if current tier is Pro, and this card is Pro, consider it the active tier
-            //         // The button is disabled if isCurrentPlan is true and price > 0
-            //       }
-            //     }
-            //     if (plan.price > 0) { // For any paid plan that is current
-            //       disableSubscribeButton = true;
-            //     }
-            //   }
-            // }
-
 
             return SubscriptionPlanCard(
               plan: plan,
-              isCurrentPlan:isCurrentRevenueCatPlan,
-              // CORRECTED LINE:
-              onSubscribe: (plan.tier == SubscriptionTier.free || plan.planIdentifier == null || plan.planIdentifier == 'free')
+              isCurrentPlan: isCurrentPlan,
+              onSubscribe: (plan.tier == SubscriptionTier.free || plan.planIdentifier == null || plan.planIdentifier == 'free' || disableSubscribeButton)
                   ? null
                   : _subscribeToPlan,
+              buttonText: buttonText,
             );
           },
         ),

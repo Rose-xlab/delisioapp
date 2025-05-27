@@ -1,4 +1,5 @@
 // lib/screens/auth/login_screen.dart
+import 'dart:io'; 
 import 'package:kitchenassistant/widgets/auth/social_auth_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +8,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/auth/auth_form.dart';
 
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -92,26 +92,6 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 
-
-//////////////// FACEBOOK LOGIN //////////////
-
-  Future<void> signInWithFacebook() async {
-     try{
-       final LoginResult result = await FacebookAuth.instance.login(); // by default we request the email and the public profile
-      // or FacebookAuth.i.login()
-      if (result.status == LoginStatus.success) {
-          // you are logged
-          final AccessToken accessToken = result.accessToken!;
-           debugPrint("====================TOKEN:$accessToken");
-      } else {
-          debugPrint(result.status.toString());
-          debugPrint(result.message);
-      }
-     }
-     catch(e){
-        debugPrint(e.toString());
-     }
-  }
 
 
 
@@ -241,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       SocialAuthButton(
-                        onTap: (){
+                        onTap: () {
                           debugPrint("Social one");
                           var res = signInWithGoogle();
                           debugPrint("============================== ${res.toString()}");
@@ -249,21 +229,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         image: "assets/google_logo.png",
                       ),
                       const SizedBox(width: 10,),
-                      SocialAuthButton(
-                        onTap: (){
-                          debugPrint("Social two");
-                          signInWithFacebook();
-                        },
-                        image: "assets/facebook_logo.png",
-                      ),
-
-                      const SizedBox(width: 10,),
-                      SocialAuthButton(
-                        onTap: (){
-                          debugPrint("Social three");
-                        },
-                        image: "assets/apple_logo.png",
-                      ),
+                      // Only show Apple button on iOS
+                      if (Platform.isIOS) ...[
+                        SocialAuthButton(
+                          onTap: () {
+                            debugPrint("Social three");
+                          },
+                          image: "assets/apple_logo.png",
+                        ),
+                        const SizedBox(width: 10,),
+                      ],
                     ],
                   )
 
