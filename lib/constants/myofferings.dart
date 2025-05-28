@@ -1,6 +1,19 @@
-//C:\Users\mukas\StudioProjects\delisio\lib\constants\myofferings.dart
+// lib/constants/myofferings.dart
+enum MyOfferings {
+  pro, // This enum member represents the conceptual "Pro" offering you want to display
+}
 
-class MyOfferings {
-  static const pro = "Pro"; // Pro in production TestPro in dev
-  
-} 
+extension MyOfferingsExtension on MyOfferings {
+  String get identifier { // This getter returns the *Offering Identifier*
+    switch (this) {
+      case MyOfferings.pro:
+      // Using the Offering Identifier you confirmed from your dashboard
+        return 'Offerings';
+    }
+  }
+
+  static String get proEntitlement {
+    // This was confirmed from your earlier screenshot of the Entitlements page
+    return 'Pro';
+  }
+}

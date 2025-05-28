@@ -1,10 +1,15 @@
+// lib/providers/subscription_provider.dart
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/subscription.dart'; // Assuming this correctly defines SubscriptionInfo, SubscriptionTier, SubscriptionPlan
+import 'package:collection/collection.dart';
+
+// Corrected relative import paths assuming 'delisio' project structure for providers
+import '../models/subscription.dart';
 import '../services/subscription_service.dart';
-import '../config/sentry_config.dart'; // Import the Sentry config
-import '../constants/myofferings.dart'; // Import MyOfferings
+import '../config/sentry_config.dart';
+import '../constants/myofferings.dart';
 
 class SubscriptionProvider with ChangeNotifier {
   final SubscriptionService _subscriptionService = SubscriptionService();
@@ -12,388 +17,235 @@ class SubscriptionProvider with ChangeNotifier {
   SubscriptionInfo? _subscriptionInfo;
   bool _isLoading = false;
   String? _error;
+  CustomerInfo? _customerInfo;
 
-  // RevenueCat subscription status
-  bool _isProSubscriber = false; // Default to false
-
-  // Predefined subscription plans
   final List<SubscriptionPlan> _plans = [
     SubscriptionPlan(
       tier: SubscriptionTier.free,
       name: 'Free',
       description: 'Basic access to Kitchen Assistant',
-      price: 0,
-      currency: 'USD',
-      interval: 'month', // Or appropriate interval for free if it matters
+      price: 0, currency: 'USD', interval: 'month',
       features: [
-        '1 recipe generation per month', // This should ideally come from backend config
-        'Standard image quality',
-        'Access to recipe library',
-        'Basic chat assistance',
-        // 'Limited to 3 active chat conversations', // Example, if you want to list it
+        'Limited recipe generations (e.g., 1/month)',
+        'Limited AI chat replies (e.g., 3/month)',
+        'Standard image quality', 'Access to a selection of recipes', 'Basic chat assistance',
       ],
-      planIdentifier: 'free', // Or null if not needed for checkout
+      planIdentifier: 'free',
     ),
     SubscriptionPlan(
-      tier: SubscriptionTier.pro,
-      name: 'Pro Weekly',
-      description: 'Unlock all features with Pro weekly',
-      price: 10.00,
-      currency: 'USD',
-      interval: 'week',
+      tier: SubscriptionTier.pro, name: 'Pro Weekly', description: 'Unlock all features with Pro weekly',
+      price: 10.00, currency: 'USD', interval: 'week',
       features: [
-        'Unlimited recipe generations',
-        'HD image quality',
-        'Full access to recipe library',
-        'Priority chat assistance',
-        'Save unlimited favorite recipes',
-        'Exclusive premium recipes (now Pro)',
-        'Custom recipe modifications',
-        'All features unlimited',
-        'Unlimited chat conversations', // Example feature
+        'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
+        'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
+        'Exclusive premium recipes', 'Custom recipe modifications',
       ],
-      planIdentifier: 'pro-weekly', // This should match your Stripe Price ID or equivalent
+      planIdentifier: 'week:r-weekly',
     ),
     SubscriptionPlan(
-      tier: SubscriptionTier.pro,
-      name: 'Pro Monthly',
-      description: 'Unlock all features with Pro monthly',
-      price: 20.00,
-      currency: 'USD',
-      interval: 'month',
+      tier: SubscriptionTier.pro, name: 'Pro Monthly', description: 'Unlock all features with Pro monthly',
+      price: 20.00, currency: 'USD', interval: 'month',
       features: [
-        'Unlimited recipe generations',
-        'HD image quality',
-        'Full access to recipe library',
-        'Priority chat assistance',
-        'Save unlimited favorite recipes',
-        'Exclusive premium recipes (now Pro)',
-        'Custom recipe modifications',
-        'All features unlimited',
-        'Unlimited chat conversations', // Example feature
+        'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
+        'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
+        'Exclusive premium recipes', 'Custom recipe modifications',
       ],
-      planIdentifier: 'pro-monthly', // This should match your Stripe Price ID or equivalent
+      planIdentifier: 'rc_pro:rc',
     ),
     SubscriptionPlan(
-      tier: SubscriptionTier.pro,
-      name: 'Pro Annual',
-      description: 'Get the best value with Pro annually',
-      price: 179.99,
-      currency: 'USD',
-      interval: 'year',
+      tier: SubscriptionTier.pro, name: 'Pro Annual', description: 'Get the best value with Pro annually',
+      price: 179.99, currency: 'USD', interval: 'year',
       features: [
-        'Unlimited recipe generations',
-        'HD image quality',
-        'Full access to recipe library',
-        'Priority chat assistance',
-        'Save unlimited favorite recipes',
-        'Exclusive premium recipes (now Pro)',
-        'Custom recipe modifications',
-        'All features unlimited',
-        'Discounted annual rate (save \$60/year)',
-        'Unlimited chat conversations', // Example feature
+        'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
+        'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
+        'Exclusive premium recipes', 'Custom recipe modifications', 'Discounted annual rate (Best Value!)',
       ],
-      planIdentifier: 'pro-annual', // This should match your Stripe Price ID or equivalent
+      planIdentifier: 'rc_annualy:annually',
     ),
   ];
 
-  // Getters
   SubscriptionInfo? get subscriptionInfo => _subscriptionInfo;
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<SubscriptionPlan> get plans => _plans;
+  bool get isProSubscriber => _customerInfo?.entitlements.active.containsKey(MyOfferingsExtension.proEntitlement) ?? false;
+  CustomerInfo? get customerInfo => _customerInfo;
+  String? get package {
+    if (_customerInfo != null && isProSubscriber) {
+      final entitlement = _customerInfo!.entitlements.all[MyOfferingsExtension.proEntitlement];
+      return entitlement?.productIdentifier;
+    }
+    return null;
+  }
 
-  // Check if user is on free plan (based on backend info)
-  bool get isFreeTier => _subscriptionInfo?.tier == SubscriptionTier.free;
-
-  // Check if user is on paid plan (based on backend info)
-  bool get isPaidTier => _subscriptionInfo?.tier == SubscriptionTier.pro;
-
-  // RevenueCat specific getter
-  bool get isProSubscriber => _isProSubscriber;
-  CustomerInfo? customerInfo; // Store it for later use
-
-  String? _package = "free"; // Holds the current RevenueCat package identifier
-
-  String? get package => _package;
+  void updateLocalRevenueCatStatus(CustomerInfo customerInfo) {
+    _customerInfo = customerInfo;
+    debugPrint("SubscriptionProvider: Local RevenueCat CustomerInfo updated. isPro: $isProSubscriber, activeEntitlements: ${customerInfo.entitlements.active.keys.join(',')}, productID: ${customerInfo.entitlements.all[MyOfferingsExtension.proEntitlement]?.productIdentifier}");
+    addBreadcrumb( message: 'Local RevenueCat CustomerInfo updated', category: 'subscription_rc_local', data: {'isPro': isProSubscriber, 'activeEntitlements': customerInfo.entitlements.active.keys.join(',')}, level: SentryLevel.info);
+    notifyListeners();
+  }
 
   Future<void> revenueCatSubscriptionStatus(String token) async {
-    bool previousProStatus = _isProSubscriber;
-    bool currentProStatus = false;
-    CustomerInfo? customerInfo;
+    // Check if already loading to prevent concurrent operations
+    if (_isLoading) return;
+
+    _isLoading = true;
+    notifyListeners(); // Notify loading start
+
+    addBreadcrumb(message: 'Fetching RevenueCat subscription status and syncing', category: 'subscription_rc_sync', level: SentryLevel.info);
 
     try {
-      customerInfo = await Purchases.getCustomerInfo();
-      final entitlement = customerInfo.entitlements.all[MyOfferings.pro];
+      _customerInfo = await Purchases.getCustomerInfo();
+      // Update _isProSubscriber based on the fetched info *before* using it in breadcrumb or sync
+      // (The getter already does this, so this is fine)
+      notifyListeners(); // Notify that _customerInfo (and thus isProSubscriber) might have changed
 
-      debugPrint("==================================== SUB STATUS ========================");
-      debugPrint(customerInfo.toString());
+      addBreadcrumb(message: 'RevenueCat CustomerInfo fetched', category: 'subscription_rc_sync', data: {'isPro': isProSubscriber, 'activeEntitlements': _customerInfo?.entitlements.active.keys.join(',')}, level: SentryLevel.debug);
 
-      // Check if the entitlement exists and then if it's active
-      if (entitlement != null && entitlement.isActive == true) {
-        currentProStatus = true;
-        // Assign the RevenueCat package identifier
-        _package = entitlement.productIdentifier; // This is the RevenueCat product/package id
-        if (kDebugMode) {
-          print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is ACTIVE. Package: $_package");
-        }
-      } else {
-        currentProStatus = false;
-        _package = null; // No active package
-        if (kDebugMode) {
-          print("SubscriptionProvider: RevenueCat entitlement '${MyOfferings.pro}' is NOT active or does not exist.");
-        }
+      final entitlement = _customerInfo?.entitlements.all[MyOfferingsExtension.proEntitlement];
+      final bool isActiveFromRC = entitlement?.isActive ?? false;
+
+      final String tierForBackend = isActiveFromRC ? 'pro' : 'free';
+      String statusForBackend = 'inactive';
+      if (isActiveFromRC) {
+        statusForBackend = entitlement?.periodType == PeriodType.trial ? 'trialing' : 'active';
       }
+
+      final String? currentPeriodStartForBackend = entitlement?.latestPurchaseDate;
+      final String? currentPeriodEndForBackend = entitlement?.expirationDate;
+      final bool cancelAtPeriodEndForBackend = !(entitlement?.willRenew ?? true);
+
+      debugPrint("SubscriptionProvider: Syncing to backend - Tier: $tierForBackend, Status: $statusForBackend, Start: $currentPeriodStartForBackend, End: $currentPeriodEndForBackend, Cancel@End: $cancelAtPeriodEndForBackend");
+
+      await _subscriptionService.subscriptionSync(
+        tier: tierForBackend, status: statusForBackend,
+        currentPeriodStart: currentPeriodStartForBackend, currentPeriodEnd: currentPeriodEndForBackend,
+        cancelAtPeriodEnd: cancelAtPeriodEndForBackend, token: token,
+      );
+      addBreadcrumb(message: 'Backend sync with RC data finished', category: 'subscription_rc_sync', level: SentryLevel.info);
+      debugPrint("SubscriptionProvider: Backend sync call completed.");
+
     } catch (e, stackTrace) {
-      if (kDebugMode) {
-        debugPrint("SubscriptionProvider: Error fetching RevenueCat CustomerInfo: ${e.toString()}");
-      }
-      currentProStatus = false;
-      _package = null;
-      captureException(e, stackTrace: stackTrace, hintText: 'Error in revenueCatSubscriptionStatus (Fetch)');
-      customerInfo = null;
-    }
-
-
-    // Only try to sync if we successfully fetched CustomerInfo
-    if (customerInfo != null) {
-      try {
-        // --- Get User ID and Token ---
-        // You NEED to implement these functions to get the
-        // currently authenticated user's ID and auth token.
-
-
-        if (token == null) {
-          print("SubscriptionProvider: Cannot sync - Auth Token missing.");
-        } else {
-          final entitlement = customerInfo.entitlements.all[MyOfferings.pro];
-          final bool isActive = entitlement?.isActive ?? false;
-
-          // Map RevenueCat data to your backend's format
-          final String tier = isActive ? 'pro' : 'free'; // <-- Adjust to match your backend tiers
-          final String status = isActive ? 'active' : 'inactive'; // <-- Or map more finely if needed
-
-          // Use .toIso8601String() and handle nulls.
-          final String? currentPeriodStart = entitlement?.latestPurchaseDate;
-          final String? currentPeriodEnd = entitlement?.expirationDate;
-
-          // If willRenew is false, it means the user has cancelled.
-          // We assume if willRenew is null or true, it's not cancelled.
-          final bool cancelAtPeriodEnd = !(entitlement?.willRenew ?? true);
-
-          if (kDebugMode) {
-            print("SubscriptionProvider: Syncing to backend - Tier: $tier, Status: $status, Start: $currentPeriodStart, End: $currentPeriodEnd, Cancel?: $cancelAtPeriodEnd");
-          }
-
-          // Call the updated subscriptionSyc function
-
-          await _subscriptionService.subscriptionSync(
-            tier: tier,
-            status: status,
-            currentPeriodStart: currentPeriodStart,
-            currentPeriodEnd: currentPeriodEnd,
-            cancelAtPeriodEnd: cancelAtPeriodEnd,
-            token: token,
-          );
-
-          if (kDebugMode) {
-            print("SubscriptionProvider: Backend sync attempt finished.");
-          }
-        }
-      } catch (e, stackTrace) {
-        // Handle errors during the API call itself
-        if (kDebugMode) {
-          debugPrint("SubscriptionProvider: Error syncing subscription to backend: ${e.toString()}");
-        }
-        captureException(e, stackTrace: stackTrace, hintText: 'Error calling subscriptionSyc'); // MODIFIED
-      }
-    }
-    // --- End of NEW ---
-
-    // Only update and notify if the status has actually changed
-    if (previousProStatus != currentProStatus) {
-      _isProSubscriber = currentProStatus;
-      notifyListeners();
+      _error = "Failed to update subscription from source: ${e.toString()}";
+      if (kDebugMode) print('SubscriptionProvider: Error in revenueCatSubscriptionStatus (Fetch/Sync): $_error');
+      captureException(e, stackTrace: stackTrace, hintText: 'Error in revenueCatSubscriptionStatus (Fetch/Sync)');
+      // No notifyListeners here, finally block will handle it
+    } finally {
+      // Always reload from our backend after attempting a sync or fetching RC info
+      // This ensures _subscriptionInfo reflects the canonical state from our DB
+      // The loadSubscriptionStatus method will set _isLoading = false and notifyListeners.
+      await loadSubscriptionStatus(token);
     }
   }
-  // Load subscription status from your backend
+
   Future<void> loadSubscriptionStatus(String token) async {
     _isLoading = true;
     _error = null;
-    notifyListeners(); // Notify for loading start
+    // Do not notify here if part of a larger flow like revenueCatSubscriptionStatus
+    // unless this is the only indicator of loading for this specific operation.
+    // For standalone calls, a notifyListeners() here might be ok.
+    // However, the finally block will notify.
 
-    addBreadcrumb(
-      message: 'Loading subscription status (backend)',
-      category: 'subscription',
-    );
-
+    addBreadcrumb(message: 'Loading subscription status (backend)', category: 'subscription_backend', level: SentryLevel.info);
     try {
       final info = await _subscriptionService.getSubscriptionStatus(token);
       _subscriptionInfo = info;
-      if (kDebugMode) {
-        print("SubscriptionProvider: Backend subscription status loaded - Tier: ${info.tier}, Gens Remaining: ${info.recipeGenerationsRemaining}");
-      }
-      addBreadcrumb(
-        message: 'Backend subscription status loaded',
-        category: 'subscription',
-        data: {
-          'tier': info.tier.toString(),
-          'status': info.status.toString(),
-          'recipeGenerationsRemaining': info.recipeGenerationsRemaining,
-        },
-      );
-    } catch (e, stackTrace) {
-      _error = e.toString().replaceFirst("Exception: ", "");
-      if (kDebugMode) {
-        print('SubscriptionProvider: Error loading backend subscription: $_error');
-      }
-      captureException(e, stackTrace: stackTrace, hintText: 'Error loading backend subscription status'); // MODIFIED
-    } finally {
-      _isLoading = false;
-      notifyListeners(); // Notify for loading end and data update (or error)
-    }
-  }
-
-  // Subscribe to a plan (via Stripe Checkout)
-  Future<bool> subscribeToPlan(String token, SubscriptionPlan plan) async {
-    if (plan.planIdentifier == null || plan.planIdentifier == 'free') {
-      _error = 'Cannot subscribe to this plan type via checkout.';
-      notifyListeners();
-      return false;
-    }
-
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    addBreadcrumb(
-      message: 'Attempting to subscribe to plan',
-      category: 'subscription',
-      data: {'planIdentifier': plan.planIdentifier!},
-    );
-
-    try {
-      // These URLs should be configured in your environment variables or a config file
-      final successUrl = 'https://delisio.app/subscription/success'; // Replace with your actual success URL
-      final cancelUrl = 'https://delisio.app/subscription/cancel';   // Replace with your actual cancel URL
-
-      final checkoutUrl = await _subscriptionService.createCheckoutSession(
-        token,
-        plan.planIdentifier!, // This should be the Stripe Price ID
-        successUrl,
-        cancelUrl,
-      );
-
-      final url = Uri.parse(checkoutUrl);
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-        addBreadcrumb(
-          message: 'Launched Stripe checkout URL',
-          category: 'subscription',
-          data: {'planIdentifier': plan.planIdentifier!},
-        );
-        return true;
+      if (info != null) {
+        addBreadcrumb(message: 'Backend subscription status loaded', category: 'subscription_backend', data: {'tier': info.tier.toString(), 'status': info.status.toString()}, level: SentryLevel.info);
+        debugPrint("SubscriptionProvider: Backend subscription status loaded - Tier: ${info.tier}, Status: ${info.status}, Recipe Rem: ${info.recipeGenerationsRemaining}");
       } else {
-        throw Exception('Could not launch checkout URL: $checkoutUrl');
+        addBreadcrumb(message: 'Backend subscription status returned null', category: 'subscription_backend', level: SentryLevel.warning);
+        debugPrint("SubscriptionProvider: Backend subscription status returned null.");
       }
     } catch (e, stackTrace) {
       _error = e.toString().replaceFirst("Exception: ", "");
-      if (kDebugMode) {
-        print('SubscriptionProvider: Error subscribing to plan: $_error');
-      }
-      captureException(e, stackTrace: stackTrace, hintText: 'Error subscribing to plan'); // MODIFIED
-      return false;
+      captureException(e, stackTrace: stackTrace, hintText: 'Error loading backend subscription status');
+      _subscriptionInfo = null;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Manage subscription (via Stripe Customer Portal)
-  Future<bool> manageSubscription(String token) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  Future<bool> subscribeToPlan(String token, SubscriptionPlan selectedDisplayPlan) async {
+    if (selectedDisplayPlan.planIdentifier == null || selectedDisplayPlan.planIdentifier == 'free') {
+      _error = 'This plan cannot be purchased directly.';
+      notifyListeners();
+      return false;
+    }
 
-    addBreadcrumb(
-      message: 'Opening Stripe customer portal',
-      category: 'subscription',
-    );
+    _isLoading = true; _error = null; notifyListeners();
+    addBreadcrumb(message: 'Attempting to subscribe to RevenueCat package', category: 'subscription_rc_purchase', data: {'planIdentifier': selectedDisplayPlan.planIdentifier!});
 
     try {
-      // This URL should be configured in your environment variables or a config file
-      final returnUrl = 'https://delisio.app/subscription/return'; // Replace with your actual return URL
+      Offerings offerings = await Purchases.getOfferings();
+      Package? packageToPurchase;
+      Offering? currentOffering = offerings.all[MyOfferings.pro.identifier];
 
-      final portalUrl =
-      await _subscriptionService.createCustomerPortalSession(
-        token,
-        returnUrl,
-      );
+      if (currentOffering != null) {
+        packageToPurchase = currentOffering.availablePackages.firstWhereOrNull(
+              (pkg) => pkg.storeProduct.identifier == selectedDisplayPlan.planIdentifier,
+        );
+      } else {
+        _error = "No active RevenueCat offering found (ID: ${MyOfferings.pro.identifier}). Please check configuration.";
+        debugPrint("SubscriptionProvider: No RC offering found with ID: ${MyOfferings.pro.identifier}");
+      }
 
+      if (packageToPurchase == null) {
+        _error = "Selected plan ('${selectedDisplayPlan.name}' with product ID '${selectedDisplayPlan.planIdentifier}') not found in the current RevenueCat offering ('${currentOffering?.identifier}'). Check planIdentifiers.";
+        if(kDebugMode && currentOffering != null) { currentOffering.availablePackages.forEach((pkg) => print("Available RC Pkg in '${currentOffering?.identifier}': RC Pkg ID: ${pkg.identifier}, StoreProduct ID: ${pkg.storeProduct.identifier}, Type: ${pkg.packageType}")); }
+        // No direct notifyListeners here, finally block will handle it.
+        return false;
+      }
+      debugPrint("Attempting to purchase RevenueCat Package: ${packageToPurchase.identifier} (StoreProduct ID: ${packageToPurchase.storeProduct.identifier})");
+      CustomerInfo customerInfo = await Purchases.purchasePackage(packageToPurchase);
+      _customerInfo = customerInfo; // Update local immediately
+      // After purchase, refresh ALL data from backend, which is now the source of truth for SubscriptionInfo
+      await revenueCatSubscriptionStatus(token); // This also calls loadSubscriptionStatus
+
+      addBreadcrumb(message: 'RevenueCat package purchase flow completed', category: 'subscription_rc_purchase', data: {'packageId': packageToPurchase.identifier, 'isPro': isProSubscriber});
+      return _customerInfo?.entitlements.active.containsKey(MyOfferingsExtension.proEntitlement) ?? false;
+
+    } on PlatformException catch (e) {
+      if (e.code == "1") { _error = "Purchase cancelled by user."; addBreadcrumb(message: 'RevenueCat package purchase cancelled by user', category: 'subscription_rc_purchase');
+      } else { _error = "Purchase failed: ${e.message ?? 'Unknown error'} (Code: ${e.code})"; captureException(e, stackTrace: StackTrace.current, hintText: 'Error subscribing to RC package - PlatformException ${e.code}');}
+      return false;
+    } catch (e, stackTrace) { _error = "Purchase error: ${e.toString()}"; captureException(e, stackTrace: stackTrace, hintText: 'Error subscribing to RC package'); return false;
+    } finally { _isLoading = false; notifyListeners(); }
+  }
+
+  Future<bool> manageSubscription(String token) async {
+    _isLoading = true; _error = null; notifyListeners();
+    addBreadcrumb(message: 'Opening Stripe customer portal', category: 'subscription_stripe', level: SentryLevel.info);
+    try {
+      final returnUrl = 'https://delisio.app/subscription/return'; // Ensure this is your actual URL
+      final portalUrl = await _subscriptionService.createCustomerPortalSession(token, returnUrl);
       final url = Uri.parse(portalUrl);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
-        addBreadcrumb(
-          message: 'Launched Stripe customer portal',
-          category: 'subscription',
-        );
         return true;
-      } else {
-        throw Exception('Could not launch customer portal URL: $portalUrl');
-      }
+      } else { throw Exception('Could not launch customer portal URL: $portalUrl'); }
     } catch (e, stackTrace) {
       _error = e.toString().replaceFirst("Exception: ", "");
-      if (kDebugMode) {
-        print('SubscriptionProvider: Error managing subscription: $_error');
-      }
-      captureException(e, stackTrace: stackTrace, hintText: 'Error managing subscription'); // MODIFIED
+      captureException(e, stackTrace: stackTrace, hintText: 'Error managing subscription (Stripe)');
       return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    } finally { _isLoading = false; notifyListeners(); }
   }
 
-  // Cancel subscription (via your backend)
   Future<bool> cancelSubscription(String token) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    addBreadcrumb(
-      message: 'Attempting to cancel subscription (backend)',
-      category: 'subscription',
-    );
-
+    _isLoading = true; _error = null; notifyListeners();
+    addBreadcrumb(message: 'Attempting to cancel subscription (backend)', category: 'subscription_backend_cancel', level: SentryLevel.info);
     try {
       final success = await _subscriptionService.cancelSubscription(token);
-
-      if (success) {
-        // Reload subscription status from backend to get updated info
-        await loadSubscriptionStatus(token);
-        // Also refresh RevenueCat status, as backend cancellation might affect entitlements
-        await revenueCatSubscriptionStatus(token);
-        addBreadcrumb(
-          message: 'Subscription cancelled successfully (backend)',
-          category: 'subscription',
-          data: {'newBackendTier': _subscriptionInfo?.tier.toString(), 'newRCProStatus': _isProSubscriber.toString()},
-        );
-      }
+      if (success) { await revenueCatSubscriptionStatus(token); }
       return success;
     } catch (e, stackTrace) {
       _error = e.toString().replaceFirst("Exception: ", "");
-      if (kDebugMode) {
-        print('SubscriptionProvider: Error canceling subscription: $_error');
-      }
-      captureException(e, stackTrace: stackTrace, hintText: 'Error cancelling subscription'); // MODIFIED
+      captureException(e, stackTrace: stackTrace, hintText: 'Error cancelling subscription (backend)');
       return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    } finally { _isLoading = false; notifyListeners(); }
   }
 
-  // Reset error message
   void resetError() {
     if (_error != null) {
       _error = null;

@@ -1,7 +1,9 @@
 // lib/widgets/common/upgrade_prompt_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // For RevenueCat Paywall
-import 'package:kitchenassistant/constants/myofferings.dart'; // Import MyOfferings
+
+// Corrected to relative import path
+import '../../../constants/myofferings.dart'; // Assumes myofferings.dart is in lib/constants/
 
 class UpgradePromptDialog extends StatelessWidget {
   final String titleText;
@@ -29,25 +31,22 @@ class UpgradePromptDialog extends StatelessWidget {
 
     final primaryColor = theme.colorScheme.primary;
     final onPrimaryColor = theme.colorScheme.onPrimary;
-    final surfaceColor = theme.colorScheme.surface;
-    final onSurfaceColor = theme.colorScheme.onSurface;
-    final onSurfaceVariantColor = theme.colorScheme.onSurfaceVariant;
-    final successColor = Colors.green.shade600;
+    final surfaceColor = theme.colorScheme.surface; // Dialog background
+    final onSurfaceColor = theme.colorScheme.onSurface; // Main text on dialog
+    final onSurfaceVariantColor = theme.colorScheme.onSurfaceVariant; // Secondary text, icons
+    final successColor = Colors.green.shade600; // For checkmark icons
 
     return AlertDialog(
       backgroundColor: surfaceColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
       elevation: isDarkMode ? 4.0 : 8.0,
-
-      // Define the title as a Row to include the icon, text, and close button
       title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes title to left, close button to right
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Icon and Title Text (wrapped in a Row and Flexible to handle long text)
-          Expanded( // Allow title part to take available space, pushing close button to the edge
+          Expanded(
             child: Row(
-              mainAxisSize: MainAxisSize.min, // Don't let this inner Row expand unnecessarily
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.rocket_launch_outlined,
@@ -55,30 +54,29 @@ class UpgradePromptDialog extends StatelessWidget {
                   size: 28,
                 ),
                 const SizedBox(width: 12),
-                Flexible( // Ensures title text wraps or truncates if too long
+                Flexible(
                   child: Text(
                     titleText,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       color: onSurfaceColor,
                       fontWeight: FontWeight.bold,
                     ),
-                    overflow: TextOverflow.ellipsis, // Good for very long titles
-                    maxLines: 2, // Allow title to wrap to two lines if needed
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                 ),
               ],
             ),
           ),
-          // Close Button
-          Material( // Ensures InkWell splash effect is visible
+          Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(20), // Circular tap area
+              borderRadius: BorderRadius.circular(20),
               onTap: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: Padding(
-                padding: const EdgeInsets.all(6.0), // Padding around the icon to increase tap area
+                padding: const EdgeInsets.all(6.0),
                 child: Icon(
                   Icons.close,
                   color: onSurfaceVariantColor.withOpacity(0.8),
@@ -89,21 +87,17 @@ class UpgradePromptDialog extends StatelessWidget {
           ),
         ],
       ),
-      titlePadding: const EdgeInsets.fromLTRB(20.0, 16.0, 12.0, 12.0), // Adjusted padding for the title area
-      contentPadding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 16.0), // Top padding is reduced as title handles it
-
+      titlePadding: const EdgeInsets.fromLTRB(20.0, 16.0, 12.0, 12.0),
+      contentPadding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 16.0),
       content: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.55, // Max height for scrollable content
+          maxHeight: MediaQuery.of(context).size.height * 0.55,
         ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // The title is now handled by AlertDialog's 'title' property.
-              // Add a little space if the title's bottom padding isn't enough.
-              // const SizedBox(height: 4), // Optional: if more space needed below title
               Text(
                 messageText,
                 style: theme.textTheme.bodyLarge?.copyWith(
@@ -145,8 +139,9 @@ class UpgradePromptDialog extends StatelessWidget {
                 elevation: 2.0,
               ),
               onPressed: () {
-                Navigator.of(context).pop();
-                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro);
+                Navigator.of(context).pop(); // Close this dialog first
+                // Corrected: Use the offering identifier string
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier);
               },
             ),
             const SizedBox(height: 10),

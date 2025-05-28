@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,7 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'app.dart'; // Assuming DelisioApp is here
+
+// Your original relative imports for files within lib/
+import 'app.dart';
 import 'providers/auth_provider.dart';
 import 'providers/recipe_provider.dart';
 import 'providers/chat_provider.dart';
@@ -16,7 +19,7 @@ import 'providers/theme_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'config/sentry_config.dart';
 
-// Global navigator key
+// Global navigator key (from your original)
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
@@ -29,6 +32,7 @@ Future<void> main() async {
   String? revenueCatIOSApiKey;
   bool dotEnvLoadFailed = false;
 
+  // --- Your .env loading logic (preserved) ---
   try {
     await dotenv.load(fileName: ".env");
     if (kDebugMode) {
@@ -43,22 +47,18 @@ Future<void> main() async {
     if (kDebugMode) {
       print('CRITICAL: Error loading .env file: $e');
     }
-    // Sentry might not be initialized yet, so this might not always work
-    // but it's worth a try if initSentry has already run or if it handles this case.
-    await captureException(e, // Capture the original error
+    await captureException(e,
         stackTrace: StackTrace.current,
-        hintText: 'Critical: .env file loading failed during app startup.' // MODIFIED
+        hintText: 'Critical: .env file loading failed during app startup.'
     );
   }
 
-  // Initialize Sentry as early as possible, but after .env load attempt for DSN
+  // --- Your Sentry initialization (preserved) ---
   try {
     await initSentry((options) {
       if (kDebugMode) {
         print('Sentry init callback executed (options: ${options != null})');
       }
-      // If appRunner needed to do something with options, it would be here.
-      // For this setup, appRunner doesn't seem to use the options directly.
     });
     if (kDebugMode) {
       print("Sentry initialization process attempted.");
@@ -67,40 +67,40 @@ Future<void> main() async {
     if (kDebugMode) {
       print("Error during Sentry initialization process: $e");
     }
-    // At this point, if Sentry init failed, captureException might also fail.
-    // Consider a simpler, local fallback logging if Sentry is critical this early.
   }
 
+  // --- Your .env failure handling (preserved) ---
   if (dotEnvLoadFailed) {
     if (kDebugMode) {
       print('ERROR: Cannot initialize Supabase because .env file failed to load.');
     }
-    // This captureException might not reach Sentry if Sentry init also failed due to no DSN from .env
     await captureException(
         'Supabase init skipped due to .env loading failure',
         stackTrace: StackTrace.current,
-        hintText: 'Supabase initialization skipped: .env loading failed prior to Sentry DSN availability.' // MODIFIED
+        hintText: 'Supabase initialization skipped: .env loading failed prior to Sentry DSN availability.'
     );
-    FlutterNativeSplash.remove(); // Ensure splash is removed on early exit
-    runApp(ErrorAppWidget(errorMessage: "Failed to load critical app configurations from .env. Please check setup.")); // Show a minimal error UI
+    FlutterNativeSplash.remove();
+    runApp(ErrorAppWidget(errorMessage: "Failed to load critical app configurations from .env. Please check setup."));
     return;
   }
 
+  // --- Your Supabase URL/Key check (preserved) ---
   if (supabaseUrl == null || supabaseAnonKey == null) {
     final errorMsg = 'ERROR: SUPABASE_URL or SUPABASE_ANON_KEY not found in environment variables.';
     if (kDebugMode) {
       print(errorMsg);
     }
     await captureException(
-        errorMsg, // Send the message as the exception
+        errorMsg,
         stackTrace: StackTrace.current,
-        hintText: 'Missing Supabase credentials in environment' // MODIFIED
+        hintText: 'Missing Supabase credentials in environment'
     );
     FlutterNativeSplash.remove();
     runApp(ErrorAppWidget(errorMessage: "Supabase configuration missing. App cannot start."));
     return;
   }
 
+  // --- Your Supabase initialization (preserved) ---
   try {
     await Supabase.initialize(
       url: supabaseUrl,
@@ -109,23 +109,23 @@ Future<void> main() async {
     if (kDebugMode) {
       print('Supabase initialized successfully.');
     }
-  } catch (e, stackTrace) { // Added stackTrace
+  } catch (e, stackTrace) {
     if (kDebugMode) {
       print('CRITICAL: Error initializing Supabase: $e');
     }
-    await captureException(e, stackTrace: stackTrace, hintText: 'Supabase initialization failed'); // MODIFIED
+    await captureException(e, stackTrace: stackTrace, hintText: 'Supabase initialization failed');
     FlutterNativeSplash.remove();
     runApp(ErrorAppWidget(errorMessage: "Failed to initialize core service (Supabase). App cannot start. Error: $e"));
     return;
   }
 
+  // --- Your RevenueCat initialization (preserved) ---
   if (revenueCatAndroidApiKey != null && revenueCatAndroidApiKey.isNotEmpty &&
       revenueCatIOSApiKey != null && revenueCatIOSApiKey.isNotEmpty) {
     try {
       final revenueCatConfig = PurchasesConfiguration(
         Platform.isAndroid ? revenueCatAndroidApiKey : revenueCatIOSApiKey,
       );
-      // Configure Purchases before App first build
       await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.warn);
       await Purchases.configure(revenueCatConfig);
       if (kDebugMode) {
@@ -135,29 +135,33 @@ Future<void> main() async {
       if (kDebugMode) {
         print('Error configuring RevenueCat: $e');
       }
-      await captureException(e, stackTrace: stackTrace, hintText: 'RevenueCat configuration failed'); // MODIFIED
+      await captureException(e, stackTrace: stackTrace, hintText: 'RevenueCat configuration failed');
     }
   } else {
     if (kDebugMode) {
       print('WARNING: RevenueCat API keys not found in .env. In-app purchases will not work.');
     }
-    // Optionally capture this warning to Sentry if it's critical for your monitoring
-    // await captureException('RevenueCat API keys missing', level: SentryLevel.warning, hintText: 'RevenueCat keys not found in .env');
   }
 
-  // FlutterNativeSplash.remove(); // Moved removal to the first screen (e.g., SplashScreen or initial route)
+  // FlutterNativeSplash.remove(); // Your comment: Moved removal to the first screen (e.g., SplashScreen or initial route)
+  // This is correctly handled by your SplashScreen.dart now.
+
+  // MODIFICATION: Create AuthProvider instance to be able to call setNavigatorContext on it.
+  final authProviderInstance = AuthProvider();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        // MODIFICATION: Use ChangeNotifierProvider.value for the existing authProviderInstance
+        ChangeNotifierProvider.value(value: authProviderInstance),
         ChangeNotifierProvider(create: (_) => RecipeProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProxyProvider2<AuthProvider, SubscriptionProvider, ChatProvider>(
           create: (context) => ChatProvider(),
           update: (context, auth, subscription, previousChatProvider) {
+            // Your existing debug prints and logic for ChatProvider update
             if (kDebugMode) {
               print("ChangeNotifierProxyProvider: Updating ChatProvider.");
               print("  AuthProvider Authenticated: ${auth.isAuthenticated}");
@@ -173,12 +177,26 @@ Future<void> main() async {
           },
         ),
       ],
-      child: DelisioApp(navigatorKey: navigatorKey),
+      child: DelisioApp(navigatorKey: navigatorKey), // Your original DelisioApp call
     ),
   );
+
+  // MODIFICATION: After runApp, set the navigator context for AuthProvider.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (navigatorKey.currentContext != null) {
+      authProviderInstance.setNavigatorContext(navigatorKey.currentContext!);
+      if (kDebugMode) {
+        print("AuthProvider navigator context set in main.dart.");
+      }
+    } else {
+      if (kDebugMode) {
+        print("AuthProvider: Failed to set navigator context in main.dart, navigatorKey.currentContext is null post-frame.");
+      }
+    }
+  });
 }
 
-// A simple widget to display critical startup errors
+// Your ErrorAppWidget (preserved)
 class ErrorAppWidget extends StatelessWidget {
   final String errorMessage;
   const ErrorAppWidget({Key? key, required this.errorMessage}) : super(key: key);

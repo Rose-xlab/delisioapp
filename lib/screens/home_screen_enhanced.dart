@@ -453,7 +453,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
             TextButton(
               onPressed: () {
                 // Ensure "TestPro" is your Offering Identifier in RevenueCat
-                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro);
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier);
               },
               style: TextButton.styleFrom(
                 backgroundColor: color,
