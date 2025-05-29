@@ -1,13 +1,13 @@
 // lib/models/user.dart
-import 'package:supabase_flutter/supabase_flutter.dart' as supabase; // Import Supabase User type
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import 'user_preferences.dart'; // Ensure this path is correct
 
 class User {
   final String id;
-  final String email;
-  final String name; // Assuming 'name' comes from user_metadata
+  final String email; // Made non-nullable assuming email is always present for a User object
+  final String name;
   final DateTime createdAt;
-  UserPreferences? preferences; // Assuming this comes from a separate table/query
+  UserPreferences? preferences;
 
   User({
     required this.id,
@@ -17,53 +17,43 @@ class User {
     this.preferences,
   });
 
-  // Existing factory from your custom JSON structure (e.g., from your own backend API)
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] ?? '', // Added null checks
-      email: json['email'] ?? '',
-      name: json['name'] ?? 'User',
+      id: json['id'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      name: json['name'] as String? ?? 'User',
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+          ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
       preferences: json['preferences'] != null
-          ? UserPreferences.fromJson(json['preferences'])
+          ? UserPreferences.fromJson(json['preferences'] as Map<String, dynamic>)
           : null,
     );
   }
 
-  // --- ADD THIS FACTORY CONSTRUCTOR ---
   factory User.fromSupabaseUser(supabase.User supabaseUser) {
-    // Access metadata - check for nulls carefully!
     final metadata = supabaseUser.userMetadata;
-    // Adjust 'name' key if you store it differently in Supabase user_metadata
-    String extractedName = metadata?['name'] as String? ?? 'User'; // Default name
+    String extractedName = metadata?['name'] as String? ??
+        metadata?['full_name'] as String? ??
+        'New User'; // Default if no name in metadata
 
-    // IMPORTANT: UserPreferences likely need to be fetched separately
-    // after the user is created/loaded, unless stored directly in user_metadata.
-    // We'll initialize it as null here.
     UserPreferences? prefs;
-    // Example if preferences WERE in metadata (adjust if needed):
-    // if (metadata != null && metadata.containsKey('preferences') && metadata['preferences'] != null) {
-    //   try {
-    //      prefs = UserPreferences.fromJson(metadata['preferences'] as Map<String, dynamic>);
-    //   } catch (e) {
-    //      print("Error parsing preferences from user metadata: $e");
-    //   }
-    // }
-
+    if (metadata != null && metadata['preferences'] is Map<String, dynamic>) {
+      try {
+        prefs = UserPreferences.fromJson(metadata['preferences'] as Map<String, dynamic>);
+      } catch (e) {
+        print("Error parsing preferences from Supabase user metadata: $e");
+      }
+    }
 
     return User(
       id: supabaseUser.id,
-      email: supabaseUser.email ?? '', // Handle potentially null email
-      name: extractedName,
-      // Use Supabase user's createdAt, converting from String
+      email: supabaseUser.email ?? '',
+      name: extractedName.isNotEmpty ? extractedName : (supabaseUser.email?.split('@').first ?? 'User'), // Fallback name from email
       createdAt: DateTime.tryParse(supabaseUser.createdAt ?? '') ?? DateTime.now(),
-      preferences: prefs, // Assign null initially, load separately if needed
+      preferences: prefs,
     );
   }
-  // --- END OF ADDITION ---
-
 
   Map<String, dynamic> toJson() {
     return {
@@ -73,5 +63,23 @@ class User {
       'createdAt': createdAt.toIso8601String(),
       'preferences': preferences?.toJson(),
     };
+  }
+
+  // <<< COPYWITH METHOD ADDED HERE >>>
+  User copyWith({
+    String? id,
+    String? email,
+    String? name,
+    DateTime? createdAt,
+    UserPreferences? preferences,
+    // Add other fields if your User model has more that should be copyable
+  }) {
+    return User(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+      preferences: preferences ?? this.preferences,
+    );
   }
 }
