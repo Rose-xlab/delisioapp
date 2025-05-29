@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart'; // For kDebugMode
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase; // Import Supabase client
-import 'package:uuid/uuid.dart';
-import '../config/api_config.dart'; // Still needed for non-auth endpoints
-// import '../config/supabase_config.dart'; // Likely no longer needed here
+import 'package:uuid/uuid.dart'; // Used for userAppIdValue
+import '../config/api_config.dart'; // For API endpoint constants
 import '../models/user.dart'; // Your custom User model
 import '../models/user_preferences.dart'; // Your UserPreferences model
 
@@ -32,11 +31,10 @@ class AuthService {
       if (user != null) {
         if (kDebugMode) print("AuthService: Supabase auth.signUp successful for user ${user.id}. Proceeding to profile creation/update.");
 
-        final String userAppIdValue = const Uuid().v4(); // Generate a v4 UUID string
+        final String userAppIdValue = const Uuid().v4();
         final profileData = {
-          "id": user.id, // This should match auth.users.id
+          "id": user.id,
           "user_app_id": userAppIdValue,
-          // 'created_at' and 'updated_at' should now be handled by database defaults (e.g., now())
         };
 
         if (kDebugMode) {
@@ -44,18 +42,17 @@ class AuthService {
         }
 
         try {
-          // CRITICAL CHANGE: Use .upsert() here
           final profileResponse = await _supabase
               .from("profiles")
               .upsert(
             profileData,
-            onConflict: 'id', // Specify 'id' as the column that might cause a conflict (your primary key)
+            onConflict: 'id',
           )
               .select()
-              .single(); // .single() is still useful to ensure one row is affected/returned and to get errors.
+              .maybeSingle();
 
           if (kDebugMode) {
-            debugPrint("AuthService: Profile created or updated successfully for user ${user.id} with user_app_id $userAppIdValue. Response data: ${profileResponse.toString()}");
+            debugPrint("AuthService: Profile created or updated successfully for user ${user.id}. Response data: ${profileResponse?.toString()}");
           }
         } catch (profileError) {
           if (kDebugMode) {
@@ -74,12 +71,15 @@ class AuthService {
           debugPrint("AuthService: Full Supabase signUp (auth and profile creation/update) successful. User: ${user.id}, Session: ${response.session != null}");
         }
 
-      } else {
+      } else { // This means response.user is null
         if (kDebugMode) {
-          debugPrint("AuthService: Supabase auth.signUp call completed, but response.user is null. Session present: ${response.session != null}. This might indicate email confirmation is pending without an immediate user object, or an unexpected issue.");
+          debugPrint("AuthService: Supabase auth.signUp call completed, but response.user is null. Session present: ${response.session != null}. This might indicate email confirmation is pending.");
         }
+        // If email confirmation is required by your Supabase settings,
+        // response.user and response.session might both be null until the email is confirmed.
+        // This checks for that state or other unexpected issues where neither user nor session is established.
         if (response.session == null && response.user == null) {
-          throw Exception("Supabase sign up did not return a user or session. Check email confirmation settings or Supabase logs.");
+          throw Exception("Supabase sign up did not return a user or session. This may be due to pending email confirmation or other issues. Please check your email or Supabase logs.");
         }
       }
     } on supabase.AuthException catch (e) {
@@ -87,7 +87,7 @@ class AuthService {
       throw Exception("Supabase authentication error: ${e.message}");
     } catch (e) {
       if (kDebugMode) debugPrint("AuthService: Supabase signUp generic error: $e");
-      if (e.toString().startsWith("Exception: Failed to create/update user profile")) { // Adjusted to match new exception message
+      if (e.toString().contains("Failed to create/update user profile")) {
         rethrow;
       }
       throw Exception('An unexpected error occurred during sign up.');
@@ -131,7 +131,7 @@ class AuthService {
 
   // --- Get Current User Profile (from custom backend) ---
   Future<User> getCurrentUser() async {
-    if (kDebugMode) print("AuthService: Getting current user profile from custom backend...");
+    if (kDebugMode) print("AuthService: Getting current user profile from custom backend via ${ApiConfig.me}...");
     final token = _supabase.auth.currentSession?.accessToken;
 
     if (token == null) {
@@ -154,21 +154,26 @@ class AuthService {
           if (kDebugMode) print("AuthService: Successfully fetched user profile from backend.");
           return User.fromJson(responseData['user']);
         } else {
+          if (kDebugMode) print("AuthService: User data key not found in backend response for getCurrentUser.");
           throw Exception('User data not found in backend response.');
         }
       } else {
+        if (kDebugMode) print("AuthService: Failed to get user profile from backend. Status: ${response.statusCode}, Body: ${response.body}");
         final errorData = json.decode(response.body);
-        throw Exception(errorData['error']?['message'] ?? 'Failed to get user profile from backend (${response.statusCode})');
+        throw Exception(errorData['error']?['message'] ?? errorData['message'] ?? 'Failed to get user profile from backend (${response.statusCode})');
       }
     } catch (e) {
       if (kDebugMode) print("AuthService: Error calling custom backend for user profile: $e");
+      if (e is Exception) {
+        rethrow;
+      }
       throw Exception('Failed to get user profile: ${e.toString()}');
     }
   }
 
   // --- Update User Preferences (via custom backend) ---
   Future<UserPreferences> updatePreferences(UserPreferences preferences) async {
-    if (kDebugMode) print("AuthService: Updating preferences via custom backend...");
+    if (kDebugMode) print("AuthService: Updating preferences via custom backend using ${ApiConfig.preferences}...");
     final token = _supabase.auth.currentSession?.accessToken;
 
     if (token == null) {
@@ -192,15 +197,62 @@ class AuthService {
           if (kDebugMode) print("AuthService: Successfully updated preferences via backend.");
           return UserPreferences.fromJson(responseData['preferences']);
         } else {
+          if (kDebugMode) print("AuthService: Preferences data key not found in backend response for updatePreferences.");
           throw Exception('Preferences data not found in backend response.');
         }
       } else {
+        if (kDebugMode) print("AuthService: Failed to update preferences. Status: ${response.statusCode}, Body: ${response.body}");
         final errorData = json.decode(response.body);
-        throw Exception(errorData['error']?['message'] ?? 'Failed to update preferences (${response.statusCode})');
+        throw Exception(errorData['error']?['message'] ?? errorData['message'] ?? 'Failed to update preferences (${response.statusCode})');
       }
     } catch (e) {
       if (kDebugMode) print("AuthService: Error calling custom backend for preferences: $e");
+      if (e is Exception) {
+        rethrow;
+      }
       throw Exception('Failed to update preferences: ${e.toString()}');
+    }
+  }
+
+  // --- Delete Account (via custom backend) ---
+  Future<bool> deleteAccount() async {
+    if (kDebugMode) print("AuthService: Attempting to delete account via custom backend using ${ApiConfig.deleteAccount}...");
+    final token = _supabase.auth.currentSession?.accessToken;
+
+    if (token == null) {
+      if (kDebugMode) print("AuthService: No auth token found for deleteAccount.");
+      throw Exception('Not authenticated. Cannot delete account.');
+    }
+
+    try {
+      final response = await client.delete(
+        Uri.parse('$baseUrl${ApiConfig.deleteAccount}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        if (kDebugMode) print("AuthService: Account successfully marked for deletion by backend.");
+        return true;
+      } else {
+        String errorMessage = 'Failed to delete account';
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['error']?['message'] ?? errorData['message'] ?? 'Failed to delete account (${response.statusCode})';
+        } catch (_) {
+          errorMessage = 'Failed to delete account (${response.statusCode}). Invalid or empty error response from server.';
+        }
+        if (kDebugMode) print("AuthService: Account deletion failed from backend. Status: ${response.statusCode}, Message: $errorMessage, Body: ${response.body}");
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      if (kDebugMode) print("AuthService: Error calling custom backend for account deletion: $e");
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('An unexpected error occurred during account deletion: ${e.toString()}');
     }
   }
 }

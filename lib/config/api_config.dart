@@ -12,6 +12,8 @@ class ApiConfig {
   static const String signout = '$apiVersion/auth/signout';
   static const String me = '$apiVersion/auth/me';
   static const String preferences = '$apiVersion/auth/preferences';
+  static const String deleteAccount = '$apiVersion/auth/me/delete'; // <-- NEWLY ADDED ENDPOINT
+
 
   // Recipe endpoints
   static const String recipes = '$apiVersion/recipes';
