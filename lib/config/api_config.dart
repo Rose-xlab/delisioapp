@@ -40,4 +40,7 @@ class ApiConfig {
 
   // Chat endpoints
   static const String chat = '$apiVersion/chat';
+
+
+
 }

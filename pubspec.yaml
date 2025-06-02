@@ -60,7 +60,7 @@ dependencies:
   flutter_facebook_auth: ^7.1.2
   purchases_flutter: ^8.8.0
   purchases_ui_flutter: ^8.8.0
-  
+
 
 dev_dependencies:
   flutter_test:
