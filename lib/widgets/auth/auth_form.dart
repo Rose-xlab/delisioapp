@@ -1,6 +1,7 @@
 // lib/widgets/auth/auth_form.dart
 import 'package:flutter/material.dart';
 import '../../utils/validators.dart';
+import '../primary_button.dart';
 
 class AuthForm extends StatefulWidget {
   final GlobalKey<FormState> formKey;
@@ -155,19 +156,10 @@ class _AuthFormState extends State<AuthForm> {
           ],
 
           // Submit button
-          ElevatedButton(
-            onPressed: widget.isLoading
-                ? null
-                : () {
-              widget.onSubmit();
-            },
-            child: widget.isLoading
-                ? const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(color: Colors.white),
-            )
-                : Text(widget.isLogin ? 'Login' : 'Sign Up'),
+          PrimaryButton(
+            onPressed: widget.isLoading ? null : () => widget.onSubmit(),
+            isLoading: widget.isLoading,
+            child: Text(widget.isLogin ? 'Login' : 'Sign Up'),
           ),
 
          

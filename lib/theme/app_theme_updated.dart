@@ -1,13 +1,14 @@
 // lib/theme/app_theme_updated.dart
 import 'package:flutter/material.dart';
+import 'app_colors_extension.dart';
 
 class AppTheme {
   // Light Mode Colors
-  static const Color primaryColor = Color(0xFF6200EE);
-  static const Color primaryVariant = Color(0xFF3700B3);
+  static const Color primaryColor = Color(0xFFFD3758);
+  static const Color primaryVariant = Color(0xFFFD3758);
   static const Color secondaryColor = Color(0xFF03DAC6);
   static const Color secondaryVariant = Color(0xFF018786);
-  static const Color lightBackground = Colors.white;
+  static const Color lightBackground = Color(0xFFFDF3F3);
   static const Color lightSurface = Colors.white;
   static const Color error = Color(0xFFB00020);
   static const Color lightOnPrimary = Colors.white;
@@ -29,6 +30,8 @@ class AppTheme {
   static const Color darkOnBackground = Colors.white;
   static const Color darkOnSurface = Colors.white;
   static const Color darkOnError = Colors.black;
+  static const Color gray500 = Color(0xFF4D4D4D);
+  static const Color gray200 = Color(0xFF7C7C7C);
 
   // Text Styles
   static const TextStyle headlineLarge = TextStyle(
@@ -70,6 +73,12 @@ class AppTheme {
       onError: lightOnError,
       brightness: Brightness.light,
     ),
+    extensions: <ThemeExtension<dynamic>>[
+      const AppColorsExtension(
+        gray500: gray500,
+        gray200: gray200,
+      ),
+    ],
     scaffoldBackgroundColor: lightBackground,
     cardTheme: CardTheme(
       color: lightSurface,
@@ -152,6 +161,12 @@ class AppTheme {
       onError: darkOnError,
       brightness: Brightness.dark,
     ),
+    extensions: <ThemeExtension<dynamic>>[
+      const AppColorsExtension(
+        gray500: gray500,
+        gray200: gray200,
+      ),
+    ],
     scaffoldBackgroundColor: darkBackground,
     cardTheme: CardTheme(
       color: darkSurface,

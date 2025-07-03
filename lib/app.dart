@@ -51,8 +51,9 @@ class DelisioApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
-      title: 'Delisio', // Or 'Kitchen Assistant' if that's your app name
-      theme: AppTheme.lightTheme, // Your light theme
+      title: 'Kitchen Assistant', // Or 'Kitchen Assistant' if that's your app name
+      // theme: AppTheme.lightTheme,
+      theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme, // Your dark theme
       themeMode: themeProvider.themeMode,
       debugShowCheckedModeBanner: false,

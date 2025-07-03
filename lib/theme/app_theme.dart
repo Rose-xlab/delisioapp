@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // App Colors
-  static const Color primaryColor = Color(0xFF6200EE);
-  static const Color primaryVariant = Color(0xFF3700B3);
+  //static const Color primaryColor = Color(0xFF6200EE);
+  static const Color primaryColor = Color.fromARGB(255, 175, 28, 28);
+  static const Color primaryVariant = Color.fromARGB(255, 197, 55, 55);
   static const Color secondaryColor = Color(0xFF03DAC6);
   static const Color secondaryVariant = Color(0xFF018786);
   static const Color background = Colors.white;
@@ -15,6 +16,8 @@ class AppTheme {
   static const Color onBackground = Colors.black;
   static const Color onSurface = Colors.black;
   static const Color onError = Colors.white;
+
+
 
   // Text Styles
   static const TextStyle headlineLarge = TextStyle(
@@ -51,6 +54,7 @@ class AppTheme {
     colorScheme: const ColorScheme(
       primary: primaryColor,
       primaryContainer: primaryVariant,
+
       secondary: secondaryColor,
       secondaryContainer: secondaryVariant,
       surface: surface,
@@ -60,6 +64,7 @@ class AppTheme {
       onSurface: onSurface,
       onError: onError,
       brightness: Brightness.light,
+
     ),
     textTheme: const TextTheme(
       displayLarge: headlineLarge,

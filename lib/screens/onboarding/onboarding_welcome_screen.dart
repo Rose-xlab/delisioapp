@@ -1,5 +1,7 @@
 // lib/screens/onboarding/onboarding_welcome_screen.dart
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/theme/app_colors_extension.dart';
+import '../../widgets/primary_button.dart';
 
 class OnboardingWelcomeScreen extends StatelessWidget {
   const OnboardingWelcomeScreen({Key? key}) : super(key: key);
@@ -9,6 +11,7 @@ class OnboardingWelcomeScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
+    final appColors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Scaffold(
       body: Center( // Ensures the content is centered horizontally
@@ -19,66 +22,94 @@ class OnboardingWelcomeScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
-                // Main title part 1 (Larger)
+                // Responsive spacing
+                SizedBox(height: MediaQuery.of(context).size.height * 0.04),
+
+                // App logo or icon (optional, for branding)
+                Image.asset(
+                  'assets/logo.png',
+                  height: MediaQuery.of(context).size.width > 600 ? 80 : 56,
+                  width: MediaQuery.of(context).size.width > 600 ? 80 : 56,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 18),
+
+                 Text(
+                  'Welcome to',
+                  style: textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color:appColors.gray200,
+                    letterSpacing: 0.5,
+                    height:1
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+
+                // Main title (large, bold, centered, with improved line height)
                 Text(
-                  'Welcome to Kitchen Assistant:',
+                  'Kitchen Assistant',
                   style: textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
+                    color: appColors.gray500, // Using a neutral color for better readability
+                    height: 1.15,
+
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 2,
                 ),
-                // Main title part 2 (Smaller, below the first part)
+
+                // Subtitle (smaller, friendlier, with a touch of color)
                 Text(
-                  'Your Personal AI Chef!',
-                  style: textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.primary.withOpacity(0.85),
+                  'Your Personal AI Chef',
+                  style: textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color:appColors.gray200,
+                    letterSpacing: 0.5,
+                    height: 1
                   ),
                   textAlign: TextAlign.center,
                 ),
 
-                // Spacing between title and image - Further Reduced
-                const SizedBox(height: 2.0), // Was 16.0
+                // Spacing before image
+                SizedBox(height: MediaQuery.of(context).size.height * 0.02),
 
+                // Hero image (responsive)
                 Image.asset(
-                  'assets/welcome.png', // Make sure this path is correct
-                  height: 450,
-                  width: 600,
-                  fit: BoxFit.contain, // Recommended
+                  'assets/welcome.png',
+                  height: MediaQuery.of(context).size.width > 600 ? 350 : 220,
+                  width: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
+                  fit: BoxFit.contain,
                 ),
 
-                // Spacing between image and description text - Further Reduced
-                const SizedBox(height: 2.0), // Was 16.0
+                // Spacing before description
+                SizedBox(height: MediaQuery.of(context).size.height * 0.02),
 
-                Text(
-                  'Discover recipes you love and generate new culinary ideas with powerful AI chef.',
-                  style: textTheme.titleMedium?.copyWith(
-                    height: 1.5,
-                    color: textTheme.bodyLarge?.color?.withOpacity(0.8),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                // Spacing between description text and button (remains the same)
-                const SizedBox(height: 48.0),
-
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                // Description (centered, readable, with max width)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Text(
+                    'Discover recipes you love and generate new culinary ideas with your powerful AI chef.',
+                    style: textTheme.titleMedium?.copyWith(
+                      height: 1.5,
+                      color: appColors.gray200, // Using a neutral color for better readability
                     ),
-                    elevation: 5,
+                    textAlign: TextAlign.center,
                   ),
-                  child: const Text('Get Started'),
+                ),
+
+                // Spacing before button
+                SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+
+                PrimaryButton(
                   onPressed: () {
                     Navigator.of(context).pushReplacementNamed('/onboarding_preferences');
                   },
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
+                  child: const Text('Get Started'),
                 ),
+                // Responsive bottom spacing
+                SizedBox(height: MediaQuery.of(context).size.height * 0.04),
               ],
             ),
           ),
