@@ -1,5 +1,6 @@
 // lib/screens/onboarding/onboarding_preferences_screen.dart
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/theme/app_colors_extension.dart';
 import 'package:provider/provider.dart';
 
 // Corrected relative import paths
@@ -23,6 +24,8 @@ class OnboardingPreferencesScreen extends StatefulWidget {
 
   @override
   _OnboardingPreferencesScreenState createState() => _OnboardingPreferencesScreenState();
+
+
 }
 
 class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScreen> {
@@ -106,18 +109,32 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
 
   Widget _buildMultiSelectChipGroup(List<String> options, List<String> selectedOptions, ThemeData theme) {
     // ... (Your existing chip group widget code - no changes needed here)
+    final colorScheme = theme.colorScheme;
+    final appColors = Theme.of(context).extension<AppColorsExtension>()!;
+
     return Wrap(
       spacing: 8.0, runSpacing: 8.0,
       children: options.map((item) {
         final bool isSelected = selectedOptions.contains(item);
         return ChoiceChip(
-          label: Text(item), selected: isSelected,
+          label: Text(item),
+          avatar: null, 
+          showCheckmark: false,
+          selected: isSelected,
           onSelected: (bool selected) { _toggleSelection(selectedOptions, item); },
-          selectedColor: theme.colorScheme.secondary,
-          labelStyle: TextStyle(color: isSelected ? theme.colorScheme.onSecondary : theme.textTheme.bodyLarge?.color, fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal),
-          backgroundColor: theme.chipTheme.backgroundColor ?? Colors.grey.shade200,
+          selectedColor: theme.colorScheme.primary,
+          labelStyle: TextStyle(color: isSelected ? Colors.white : theme.textTheme.bodyLarge?.color, fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal),
+          backgroundColor: theme.chipTheme.backgroundColor ?? Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: StadiumBorder(side: BorderSide(color: isSelected ? theme.colorScheme.secondary : (theme.chipTheme.shape as StadiumBorder?)?.side.color ?? Colors.grey.shade400, width: isSelected ? 1.5 : 1.0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : (theme.chipTheme.shape as RoundedRectangleBorder?)?.side.color ?? appColors.borderLight,
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
         );
       }).toList(),
     );
@@ -136,6 +153,8 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Culinary Profile'),
@@ -169,7 +188,7 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom( padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15), textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), backgroundColor: theme.colorScheme.primary, foregroundColor: theme.colorScheme.onPrimary),
                 onPressed: _savePreferencesAndContinue,
-                child: const Text('Next: Choose Favorite Foods'), // Updated button text
+                child: const Text('Choose Favorite Foods'), // Updated button text
               ),
             ),
             const SizedBox(height: 20),

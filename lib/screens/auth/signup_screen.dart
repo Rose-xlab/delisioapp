@@ -1,6 +1,7 @@
 // lib/screens/auth/signup_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -141,70 +142,126 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final authProvider = Provider.of<AuthProvider>(context); // For error display
+    final colorScheme = Theme.of(context).colorScheme;
+    final authProvider = Provider.of<AuthProvider>(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Sign Up')),
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 24, horizontal: screenWidth > 600 ? 100 : 24),
-          child: Center(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Create Account', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                  const SizedBox(height: 8),
-                  const Text('Sign up to start your cooking journey', style: TextStyle(fontSize: 16, color: Colors.grey), textAlign: TextAlign.center),
-                  const SizedBox(height: 32),
-                  AuthForm(
-                    formKey: _formKey,
-                    nameController: _nameController, // Pass name controller
-                    emailController: _emailController,
-                    passwordController: _passwordController,
-                    confirmPasswordController: _confirmPasswordController, // Pass confirm password
-                    isLogin: false,
-                    onSubmit: _signup,
-                    isLoading: _isSigningUp,
-                    errorMessage: _errorMessage ?? authProvider.error, // Show local or provider error
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Already have an account?'),
-                      TextButton(
-                        onPressed: _isSigningUp ? null : () {
-                          Navigator.of(context).pop(); // Go back to LoginScreen
-                        },
-                        child: const Text('Login'),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: colorScheme.primary, // Set status bar color to primary
+        statusBarIconBrightness: Brightness.light, // Ensure icons are visible on primary
+        statusBarBrightness: Brightness.dark, // For iOS
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white, // Ensures the entire screen background is white
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              //make background white 
+              children: [
+                Stack(
+                  alignment: Alignment.topCenter,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.only(top: 24, bottom: 32),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary,
                       ),
-                    ],
-                  ),
-                  Row( /* ... Divider ... */
-                    children: [ Expanded(child: Divider(thickness: 1,color: Colors.grey[300]),), Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0), child: Text("or create with",style: TextStyle(color: Colors.grey[500]),), ), Expanded(child:Divider(thickness: 1,color: Colors.grey[300],))],
-                  ),
-                  const SizedBox(height: 10,),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SocialAuthButton(
-                        onTap: _isSigningUp ? null : _handleGoogleSignIn,
-                        image: "assets/google_logo.png",
+                      child: Column(
+                        children: [
+                          Image.asset('assets/logo.png', width: 100, height: 100),
+                          SizedBox(height:2),
+                          Text('KITCHEN ASSISTANT', style: TextStyle(fontSize:14, fontWeight: FontWeight.w400,color: Colors.white), textAlign: TextAlign.center),
+                          SizedBox(height: 8),
+                          Text(
+                            'REGISTER',
+                            style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold, color: Colors.white),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 32),
+                        ],
                       ),
-                      if (Platform.isIOS) ...[const SizedBox(width: 10,), SocialAuthButton(onTap: () {debugPrint("Apple Sign Up");}, image: "assets/apple_logo.png",),],
-                    ],
-                  )
+                    ),
+                    Positioned(
+                      top: MediaQuery.of(context).size.height * 0.26,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                          children: [
+                            SizedBox(height:50),
+                            AuthForm(
+                                formKey: _formKey,
+                                nameController: _nameController, // Pass name controller
+                                emailController: _emailController,
+                                passwordController: _passwordController,
+                                confirmPasswordController: _confirmPasswordController, // Pass confirm password
+                                isLogin: false,
+                                onSubmit: _signup,
+                                isLoading: _isSigningUp,
+                                errorMessage: _errorMessage ?? authProvider.error, // Show local or provider error
+                              ),
+                              const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text('Already have an account?'),
+                                      TextButton(
+                                        onPressed: _isSigningUp ? null : () {
+                                          Navigator.of(context).pop(); // Go back to LoginScreen
+                                        },
+                                      child: const Text('Login'),
+                                      ),
+                                    ],
+                                  ),
+
+                             
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // SocialAuthButton(
+                                //   onTap:_handleGoogleSignIn,
+                                //   image: "assets/google_logo.png",
+                                //   text: "Sign in with Google",
+                                // ),
+                                // if (Platform.isIOS) ...[
+                                //   SizedBox(width: 10),
+                                //   SocialAuthButton(
+                                //     onTap: _isLoggingIn ? null : () {
+                                //       // Apple Sign-In logic
+                                //     },
+                                //     image: "assets/apple_logo.png",
+                                //   ),
+                                // ],
+                              ],
+                            )
+
+                          ],
+                        ),
+                        )
+
+                        ),
+                    ),
+
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),
+    ),
     );
   }
 }

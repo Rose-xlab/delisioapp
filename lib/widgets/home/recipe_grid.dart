@@ -20,7 +20,7 @@ class RecipeGrid extends StatelessWidget {
     this.emptyMessage = 'No recipes found',
     this.onRecipeTap,
     this.isLoading = false,
-    this.crossAxisCount = 2,
+    this.crossAxisCount = 1,
     this.childAspectRatio = 0.75, // Adjust aspect ratio if needed
   }) : super(key: key);
 
@@ -161,111 +161,120 @@ class RecipeGridItem extends StatelessWidget {
     final String? thumbnailUrl = recipe.thumbnailUrl;
     final bool hasThumbnail = thumbnailUrl != null && thumbnailUrl.isNotEmpty;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return SizedBox(
+      height: 100,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.all(Radius.circular(10))
+        ),
+        padding: EdgeInsets.all(8.0),
       child: InkWell(
         onTap: onTap,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              flex:3,
+            // Recipe Image
+            AspectRatio(
+              aspectRatio:1,
               child: Hero(
                 tag: 'recipe_image_${recipe.id ?? recipe.hashCode}',
-                child: Container(
-                  color: Colors.grey[100],
-                  child: hasThumbnail
-                      ? CachedNetworkImage(
-                    imageUrl: thumbnailUrl!,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    errorWidget: (context, url, error) {
-                      print("Error loading grid image: $url, Error: $error");
-                      return Center(
+                child: hasThumbnail
+                    ? CachedNetworkImage(
+                        imageUrl: thumbnailUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        errorWidget: (context, url, error) => Center(
+                          child: Icon(
+                            Icons.restaurant_menu,
+                            color: Colors.grey[400],
+                            size: 40,
+                          ),
+                        ),
+                      )
+                    : Center(
                         child: Icon(
                           Icons.restaurant_menu,
-                          color: Colors.grey[400],
                           size: 40,
+                          color: Theme.of(context).primaryColor.withOpacity(0.5),
                         ),
-                      );
-                    } ,
-                  )
-                      : Center(
-                    child: Icon(
-                      Icons.restaurant_menu,
-                      size: 40,
-                      color: Theme.of(context).primaryColor.withOpacity(0.5),
-                    ),
+                      ),
+              ),
+            ),
+            // Title and Attributes
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                recipe.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Servings
+                  Row(
+                    children: [
+                      Icon(Icons.people_outline, size: 16, color: Colors.red[400]),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${recipe.servings}',
+                        style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                      ),
+                    ],
                   ),
-                ),
+                  // Difficulty
+                  Row(
+                    children: [
+                      Icon(Icons.bar_chart, size: 16, color: Colors.red[400]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Easy',
+                        style: TextStyle(color: Colors.red[400], fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  // Time
+                  Row(
+                    children: [
+                      Icon(Icons.timer, size: 16, color: Colors.red[400]),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${recipe.totalTimeMinutes} Mins',
+                        style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      recipe.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${recipe.servings}',
-                              style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.timer_outlined, size: 14, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${recipe.totalTimeMinutes}m',
-                                style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(height:4),
           ],
         ),
       ),
+    ),
     );
   }
+}
+
 
   // _formatCategory helper is not used in RecipeGridItem, so it can be removed
   // if it's not used elsewhere or was just part of an older version.
   // For now, I'll keep it as it was in your provided code.
-  String _formatCategory(String category) {
-    return category.replaceAll('-', ' ').split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return '${word[0].toUpperCase()}${word.substring(1)}';
-    }).join(' ');
-  }
-}
+//   String _formatCategory(String category) {
+//     return category.replaceAll('-', ' ').split(' ').map((word) {
+//       if (word.isEmpty) return '';
+//       return '${word[0].toUpperCase()}${word.substring(1)}';
+//     }).join(' ');
+//   }
+// }

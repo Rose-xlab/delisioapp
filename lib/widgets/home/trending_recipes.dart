@@ -35,22 +35,22 @@ class TrendingRecipes extends StatelessWidget {
       );
     }
 
-    return SizedBox(
-      height: 230, // Adjust height as needed
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: recipes.length,
-        itemBuilder: (context, index) {
-          final recipe = recipes[index];
-          // Use the updated TrendingRecipeItem
-          return TrendingRecipeItem(
-            recipe: recipe,
-            onTap: onRecipeTap != null ? () => onRecipeTap!(recipe) : null,
-          );
-        },
-      ),
-    );
+  return SizedBox(
+  height: 230,
+  child: ListView.separated(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    itemCount: recipes.length,
+    separatorBuilder: (context, index) => const SizedBox(width: 8),
+    itemBuilder: (context, index) {
+      final recipe = recipes[index];
+      return TrendingRecipeItem(
+        recipe: recipe,
+        onTap: onRecipeTap != null ? () => onRecipeTap!(recipe) : null,
+      );
+    },
+  ),
+);
   }
 
   // --- Loading List Method (Unchanged from your original) ---
@@ -80,173 +80,171 @@ class TrendingRecipes extends StatelessWidget {
 }
 
 
-// *** MODIFIED TrendingRecipeItem ***
+// --- MODIFIED WIDGET ---
 class TrendingRecipeItem extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback? onTap;
 
   const TrendingRecipeItem({
-    Key? key,
+    super.key,
     required this.recipe,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    // --- USE THUMBNAIL URL ---
-    final String? thumbnailUrl = recipe.thumbnailUrl; // Get the correct URL
+    // Define the accent color from the image for reusability.
+    const Color accentColor = Color(0xFFF23B5A);
+    final String? thumbnailUrl = recipe.thumbnailUrl;
     final bool hasThumbnail = thumbnailUrl != null && thumbnailUrl.isNotEmpty;
-    // --- END USE THUMBNAIL URL ---
 
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 200, // Width of the trending card
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              fit: StackFit.expand, // Make stack fill the container
-              children: [
-                // Background image - USE THUMBNAIL URL
-                Positioned.fill(
-                    child: Container( // Container for placeholder background
-                      color: Colors.grey[100],
-                      child: hasThumbnail
-                          ? CachedNetworkImage( // Use CachedNetworkImage
-                        imageUrl: thumbnailUrl!, // Use the correct URL
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width:180, // Adjusted width for better proportions
+        height: 280, // Added height for a more vertical card
+        decoration: BoxDecoration(
+          color: Colors.white, // Set a base color for the card
+          borderRadius: BorderRadius.circular(16), // Slightly more rounded corners
+          boxShadow: [ // A softer shadow for a more subtle depth
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // --- Background Image ---
+              Positioned.fill(
+                child: hasThumbnail
+                    ? CachedNetworkImage(
+                        imageUrl: thumbnailUrl!,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[100],
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: accentColor,
+                            ),
+                          ),
                         ),
                         errorWidget: (context, url, error) {
-                          print("Error loading trending image: $url, Error: $error");
-                          return Center( // Error placeholder
-                            child: Icon(
-                              Icons.restaurant_menu,
-                              color: Colors.grey[400],
-                              size: 40,
+                          return Container(
+                            color: Colors.grey[200],
+                            child: Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                color: Colors.grey[400],
+                                size: 40,
+                              ),
                             ),
                           );
                         },
                       )
-                          : Center( // Placeholder icon if no thumbnail URL
-                        child: Icon(
-                          Icons.restaurant_menu,
-                          size: 40,
-                          color: Theme.of(context).primaryColor.withOpacity(0.5),
-                        ),
-                      ),
-                    )
-                ),
-                // Gradient overlay (Unchanged from your original)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [ Colors.transparent, Colors.black.withOpacity(0.7)],
-                        stops: const [0.5, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                // Content (Unchanged from your original)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          recipe.title,
-                          style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16,
-                            shadows: [Shadow(blurRadius: 2, color: Colors.black54)],
+                    : Container( // Placeholder if no image is available
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: Icon(
+                            Icons.restaurant_menu,
+                            size: 40,
+                            color: Colors.grey[400],
                           ),
-                          maxLines: 2, overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0) ...[
-                              const Icon(Icons.timer, color: Colors.white70, size: 14),
-                              const SizedBox(width: 4),
-                              Text('${recipe.totalTimeMinutes} min', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                              const SizedBox(width: 8),
-                            ],
-                            if (recipe.category != null) ...[
-                              const Icon(Icons.restaurant_menu, color: Colors.white70, size: 14),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  _formatCategory(recipe.category!),
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
+                      ),
+              ),
+
+              // --- Content Overlay at the Bottom ---
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  // This container creates the dark, semi-transparent background for the text.
+                  padding: const EdgeInsets.all(12.0),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
                     ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Recipe Title
+                      Text(
+                        recipe.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18, // Slightly larger font for the title
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Info Row (Time and Category)
+                      Row(
+                        children: [
+                          // Time Info
+                          if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
+                            _buildInfoWidget(
+                              icon: Icons.timer_outlined,
+                              text: '${recipe.totalTimeMinutes} mins',
+                              iconColor: accentColor,
+                            ),
+
+                          const SizedBox(width: 16), // Spacer between the two info items
+
+                          // Category Info
+                          if (recipe.category != null)
+                            _buildInfoWidget(
+                              icon: Icons.restaurant_menu_outlined,
+                              text: _formatCategory(recipe.category!),
+                              iconColor: accentColor,
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                // Trending indicator (Unchanged from your original)
-                Positioned(
-                  top: 8, right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(16)),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.trending_up, color: Colors.white, size: 14),
-                        SizedBox(width: 4),
-                        Text('Trending', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ),
-                // Favorite indicator (Unchanged from your original)
-                if (recipe.isFavorite)
-                  Positioned(
-                    top: 8, left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), shape: BoxShape.circle),
-                      child: const Icon(Icons.favorite, color: Colors.red, size: 16),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // Helper to format category name (Unchanged from your original)
+  /// Helper widget to build the icon-text pairs for the info row.
+  Widget _buildInfoWidget({required IconData icon, required String text, required Color iconColor}) {
+    return Row(
+      children: [
+        Icon(icon, color: iconColor, size: 18),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Helper to format category name (e.g., "lunch" -> "Lunch").
   String _formatCategory(String category) {
-    return category.replaceAll('-', ' ').split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return '${word[0].toUpperCase()}${word.substring(1)}';
-    }).join(' ');
+    if (category.isEmpty) return '';
+    return '${category[0].toUpperCase()}${category.substring(1).toLowerCase()}';
   }
 }

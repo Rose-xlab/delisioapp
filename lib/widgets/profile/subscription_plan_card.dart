@@ -1,4 +1,3 @@
-// lib/widgets/profile/subscription_plan_card.dart
 import 'package:flutter/material.dart';
 import '../../models/subscription.dart';
 
@@ -6,116 +5,160 @@ class SubscriptionPlanCard extends StatelessWidget {
   final SubscriptionPlan plan;
   final bool isCurrentPlan;
   final ValueChanged<SubscriptionPlan>? onSubscribe;
-  final String buttonText; // <-- Add this
+  final String buttonText;
 
   const SubscriptionPlanCard({
     Key? key,
     required this.plan,
     required this.isCurrentPlan,
     this.onSubscribe,
-    this.buttonText = 'Subscribe', // <-- Default value
+    this.buttonText = 'Subscribe',
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    Color planColor;
-    switch (plan.tier) {
-      case SubscriptionTier.pro:
-        planColor = Colors.deepPurple;
-        break;
-      default:
-        planColor = Colors.green;
-    }
+    // Colors based on the UI
+    const Color headerColor = Color(0xFFFF7F2D); // Orange
+    const Color priceCircleColor = Colors.white;
+    const Color priceTextColor = Color(0xFFFF7F2D);
+    const Color checkColor = Color(0xFF22C55E); // Green
+    const Color crossColor = Color(0xFFEF4444); // Red
+    const Color borderColor = Color(0xFFF87171); // Light red
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isCurrentPlan
-            ? BorderSide(color: planColor, width: 2)
-            : BorderSide.none,
-      ),
-      elevation: isCurrentPlan ? 3 : 1,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+    return Center(
+      child: Card(
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: borderColor.withOpacity(0.15)),
+        ),
+        elevation: 0,
+        color: const Color(0xFFFFF6F6), // Very light pink
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
+            // Header with orange background
+            Stack(
+              alignment: Alignment.center,
+              // clipBehavior: Clip.none,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: planColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: planColor),
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(top: 24, bottom: 32),
+                  decoration: const BoxDecoration(
+                    color: headerColor,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                   ),
-                  child: Text(
-                    plan.name,
-                    style: TextStyle(
-                      color: planColor,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Column(
+                    children: [
+                      Text(
+                        plan.name,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Text(
+                      //   'Unlock All Pro Features for a week',
+                      //   style: theme.textTheme.bodyMedium?.copyWith(
+                      //     color: Colors.white,
+                      //   ),
+                      // ),
+                    ],
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  plan.price == 0
-                      ? 'Free'
-                      : '\$${plan.price.toStringAsFixed(2)}/${plan.interval}',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                // Price circle
+                Positioned(
+                  bottom:-24,
+                  child: CircleAvatar(
+                    radius:28,
+                    backgroundColor:Colors.white,
+                    child: Text(
+                      plan.price.toString(),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: priceTextColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize:16
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              plan.description,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 8),
-            ...plan.features.map((feature) => Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: planColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(feature),
-                  ),
-                ],
-              ),
-            )),
-            const SizedBox(height: 16),
+            const SizedBox(height: 40), // Space for the price circle overlap
 
-            SizedBox(
-              width: double.infinity,
-              child: isCurrentPlan
-                  ? ElevatedButton(
-                      onPressed: null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                      ),
-                      child: const Text('Current Plan'),
-                    )
-                  : plan.price == 0
-                      ? const SizedBox.shrink()
-                      : ElevatedButton(
-                          onPressed: onSubscribe != null ? () => onSubscribe!(plan) : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: planColor,
-                          ),
-                          child: Text(buttonText), // <-- Use custom text
+            // Feature list
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                children: List.generate(plan.features.length, (index) {
+                  final feature = plan.features[index];
+                  // Example: You can customize which features are "not included"
+                  final isAvailable = !feature.contains('not'); // Adjust logic as needed
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isAvailable ? Icons.check_circle : Icons.cancel,
+                          color: isAvailable ? checkColor : crossColor,
+                          size: 24,
                         ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+
+            // Subscribe button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: borderColor,
+                    side: BorderSide(color: borderColor, width: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: isCurrentPlan
+                      ? null
+                      : onSubscribe != null
+                          ? () => onSubscribe!(plan)
+                          : null,
+                  child: Text(
+                    isCurrentPlan ? 'Current Plan' : buttonText,
+                    style: TextStyle(
+                      color: borderColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),

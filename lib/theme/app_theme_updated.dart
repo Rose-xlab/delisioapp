@@ -9,13 +9,17 @@ class AppTheme {
   static const Color secondaryColor = Color(0xFF03DAC6);
   static const Color secondaryVariant = Color(0xFF018786);
   static const Color lightBackground = Color(0xFFFDF3F3);
-  static const Color lightSurface = Colors.white;
+  static const Color lightSurface = Color(0xFFFDF3F3);
   static const Color error = Color(0xFFB00020);
   static const Color lightOnPrimary = Colors.white;
   static const Color lightOnSecondary = Colors.black;
   static const Color lightOnBackground = Colors.black;
   static const Color lightOnSurface = Colors.black;
   static const Color lightOnError = Colors.white;
+  static const Color gray500 = Color(0xFF4D4D4D);
+  static const Color gray200 = Color(0xFF7C7C7C);
+  static const Color borderLight = Color(0xFFEDE1E1);
+  
 
   // Dark Mode Colors
   static const Color darkPrimaryColor = Color(0xFFBB86FC);
@@ -30,8 +34,7 @@ class AppTheme {
   static const Color darkOnBackground = Colors.white;
   static const Color darkOnSurface = Colors.white;
   static const Color darkOnError = Colors.black;
-  static const Color gray500 = Color(0xFF4D4D4D);
-  static const Color gray200 = Color(0xFF7C7C7C);
+
 
   // Text Styles
   static const TextStyle headlineLarge = TextStyle(
@@ -47,6 +50,7 @@ class AppTheme {
   static const TextStyle titleLarge = TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.w600,
+    color: Color(0xFF4D4D4D)
   );
 
   static const TextStyle bodyLarge = TextStyle(
@@ -55,6 +59,7 @@ class AppTheme {
 
   static const TextStyle bodyMedium = TextStyle(
     fontSize: 14,
+    color: Color(0xFF7C7C7C)
   );
 
   // Light Theme
@@ -77,6 +82,7 @@ class AppTheme {
       const AppColorsExtension(
         gray500: gray500,
         gray200: gray200,
+        borderLight: borderLight
       ),
     ],
     scaffoldBackgroundColor: lightBackground,
@@ -165,6 +171,7 @@ class AppTheme {
       const AppColorsExtension(
         gray500: gray500,
         gray200: gray200,
+        borderLight: borderLight,
       ),
     ],
     scaffoldBackgroundColor: darkBackground,

@@ -112,7 +112,7 @@ class _OnboardingPaywallScreenState extends State<OnboardingPaywallScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Unlock Delisio Pro'),
+        title: const Text('Unlock Pro'),
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),

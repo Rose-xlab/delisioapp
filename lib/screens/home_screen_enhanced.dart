@@ -2,6 +2,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kitchenassistant/constants/myofferings.dart';
+import 'package:kitchenassistant/widgets/home/greetings_card.dart';
+import 'package:kitchenassistant/widgets/home/home_card.dart';
+import 'package:kitchenassistant/widgets/home/new_search_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // Keep RevenueCat UI import
@@ -476,13 +479,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         child: Row(
           children: [
-            Text(
-              'Kitchen Assistant',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.primaryColor,
-              ),
-            ),
             const Spacer(),
             IconButton(
               icon: const Icon(Icons.search),
@@ -525,6 +521,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final trendingRecipes = recipeProvider.trendingRecipes;
     final discoverRecipes = recipeProvider.discoverRecipes;
 
+    final colorScheme = theme.colorScheme;
+
     // isLoading for the search bar should reflect recipeProvider.isLoading when a search is active
     final bool isSearchBarLoading = recipeProvider.isLoading && _searchQuery.isNotEmpty;
     final bool isLoadingMore = recipeProvider.isLoadingMore;
@@ -551,10 +549,41 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
           children: [
             RefreshIndicator(
               onRefresh: _refreshData,
-              child: Column(
+              child:Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child:Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTopBarWidget(context, isSearchBarLoading),
+                  SizedBox(
+                    height: 20,
+                  ),
+                  GreetingCard(),
+
+                  SizedBox(
+                    height:20,
+                  ),
+
+                  NewSearchBar(
+                    hintText: 'What recipe are you looking for ?',
+                    onSearch: (query) {
+                      // In a real app, you would use this query to perform a search
+                      // For this demo, we'll just print it to the console
+                    print('User is searching for: $query');
+                },
+              ),
+              
+               SizedBox(
+                    height:20,
+                  ),
+              HomeCard(
+                onGenerateNow: () {
+                  // This function is called when the button is pressed.
+                  // You can add your navigation or state update logic here.
+                  print('Generate Now button was tapped!');
+                },
+              ),
+
+                  // _buildTopBarWidget(context, isSearchBarLoading),
 
                   // Show banner if user is authenticated AND NOT Pro (according to RevenueCat)
                   // OR if backend info is available and shows them as free (as a fallback display)
@@ -589,7 +618,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                           height: 110,
                           child: _isLoadingCategories
                               ? _buildCategoriesLoadingList()
-                              : _buildCategoriesList(categories, _activeCategory),
+                              : _buildCategoriesList(categories, _activeCategory, colorScheme),
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -649,6 +678,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                           onRecipeTap: _viewRecipe,
                           // Pass true if loading and list is NOT empty (e.g. refreshing)
                           isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
+            
                         ),
                         SizedBox(height: navigationBarHeight + 10), // Padding for bottom nav bar
                         if (isLoadingMore)
@@ -665,6 +695,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   ),
                 ],
               ),
+                )
+              
             ),
             // Show progress indicator for recipe generation if RecipeProvider is loading
             // and it's not a cancellation process.
@@ -707,7 +739,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     );
   }
 
-  Widget _buildCategoriesList(List<RecipeCategory> categories, String? activeCategory) {
+  Widget _buildCategoriesList(List<RecipeCategory> categories, String? activeCategory, ColorScheme colorScheme) {
     if (categories.isEmpty && !_isLoadingCategories) {
       return const Center(child: Padding(
         padding: EdgeInsets.all(8.0),
@@ -739,21 +771,18 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: isActive ? category.color : category.color.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                    border: isActive ? Border.all(color: category.color, width: 2) : null,
-                    boxShadow: isActive
-                        ? [BoxShadow(color: category.color.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))]
-                        : null,
+                    color: isActive ? colorScheme.primary : Colors.white,
+                    shape: BoxShape.rectangle,
+                    border: Border.all(color: Colors.grey[200] ?? Colors.grey, width: 2),
                   ),
-                  child: Icon(category.icon, color: isActive ? Colors.white : category.color, size: 28),
+                  child: Icon(category.icon, color: isActive ? Colors.white : colorScheme.primary, size: 28),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   category.name,
                   style: TextStyle(
                     fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    color: isActive ? category.color : Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.87),
+                    color:Colors.grey[800] ,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
