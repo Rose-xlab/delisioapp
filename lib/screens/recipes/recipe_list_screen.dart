@@ -1,5 +1,6 @@
 // screens/recipes/recipe_list_screen.dart
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/theme/app_colors_extension.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recipe_provider.dart';
@@ -17,7 +18,12 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'All'; // Default filter
-  final List<String> _filterOptions = ['All', 'Quick (<30min)', 'Favorites', 'Recently Added'];
+  final List<String> _filterOptions = [
+    'All',
+    'Quick (<30min)',
+    'Favorites',
+    'Recently Added'
+  ];
 
   @override
   void initState() {
@@ -87,13 +93,15 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     // Then apply category filter
     switch (_selectedFilter) {
       case 'Quick (<30min)':
-        return filteredRecipes.where((recipe) =>
-        recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! < 30
-        ).toList();
+        return filteredRecipes
+            .where((recipe) =>
+                recipe.totalTimeMinutes != null &&
+                recipe.totalTimeMinutes! < 30)
+            .toList();
       case 'Favorites':
         return filteredRecipes.where((recipe) => recipe.isFavorite).toList();
       case 'Recently Added':
-      // Sort by creation date (most recent first) and take first 10
+        // Sort by creation date (most recent first) and take first 10
         filteredRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return filteredRecipes.take(10).toList();
       case 'All':
@@ -146,10 +154,10 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : recipes.isEmpty
-                ? _buildEmptyState()
-                : filteredRecipes.isEmpty
-                ? _buildNoResultsState()
-                : _buildRecipeGrid(filteredRecipes, context),
+                    ? _buildEmptyState()
+                    : filteredRecipes.isEmpty
+                        ? _buildNoResultsState()
+                        : _buildRecipeGrid(filteredRecipes, context),
           ),
         ],
       ),
@@ -157,6 +165,9 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Widget _buildSearchAndFilterBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final appColors = Theme.of(context).extension<AppColorsExtension>()!;
+
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.grey[50],
@@ -170,11 +181,11 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  _searchController.clear();
-                },
-              )
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                      },
+                    )
                   : null,
               filled: true,
               fillColor: Colors.white,
@@ -201,21 +212,35 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                   padding: const EdgeInsets.only(right: 8),
                   child: FilterChip(
                     label: Text(filter),
+                    avatar: null,
+                    showCheckmark: false,
                     selected: isSelected,
                     onSelected: (selected) {
                       setState(() {
                         _selectedFilter = filter;
                       });
                     },
-                    selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
-                    checkmarkColor: Theme.of(context).primaryColor,
-                    backgroundColor: Colors.white,
+                    selectedColor: theme.colorScheme.primary,
+                    labelStyle: TextStyle(
+                        color: isSelected
+                            ? Colors.white
+                            : theme.textTheme.bodyLarge?.color,
+                        fontWeight:
+                            isSelected ? FontWeight.w500 : FontWeight.normal),
+                    backgroundColor:
+                        theme.chipTheme.backgroundColor ?? Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(4),
                       side: BorderSide(
                         color: isSelected
-                            ? Theme.of(context).primaryColor
-                            : Colors.grey[300]!,
+                            ? theme.colorScheme.primary
+                            : (theme.chipTheme.shape as RoundedRectangleBorder?)
+                                    ?.side
+                                    .color ??
+                                appColors.borderLight,
+                        width: isSelected ? 1.5 : 1.0,
                       ),
                     ),
                   ),
@@ -229,7 +254,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Widget _buildEmptyState() {
-     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     return Padding(
       padding: const EdgeInsets.all(15.0),
       child: Center(
@@ -265,11 +290,10 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                
-                if(authProvider.isAuthenticated){
-                     Navigator.of(context).pushReplacementNamed('/home');
-                }else{
-                     Navigator.of(context).pushReplacementNamed('/login');
+                if (authProvider.isAuthenticated) {
+                  Navigator.of(context).pushReplacementNamed('/home');
+                } else {
+                  Navigator.of(context).pushReplacementNamed('/login');
                 }
               },
               icon: const Icon(Icons.search),
@@ -323,7 +347,6 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Widget _buildRecipeGrid(List<Recipe> recipes, BuildContext context) {
-
     double screenWidth = MediaQuery.sizeOf(context).width;
 
     return RefreshIndicator(
@@ -342,7 +365,8 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           return RecipeCard(
             recipe: recipe,
             onTap: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
               if (recipe.id != null && authProvider.token != null) {
                 await Provider.of<RecipeProvider>(context, listen: false)
                     .getRecipeById(recipe.id!, authProvider.token!);
@@ -394,39 +418,42 @@ class RecipeCard extends StatelessWidget {
                   aspectRatio: 1.25, // Image takes up most of the card
                   child: imageUrl != null
                       ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[300],
-                        child: const Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            color: Colors.white,
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.grey[200],
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
+                          child: Center(
+                            child: Icon(
+                              Icons.restaurant,
+                              size: 40,
+                              color: Theme.of(context)
+                                  .primaryColor
+                                  .withOpacity(0.5),
+                            ),
                           ),
                         ),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                    },
-                  )
-                      : Container(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    child: Center(
-                      child: Icon(
-                        Icons.restaurant,
-                        size: 40,
-                        color: Theme.of(context).primaryColor.withOpacity(0.5),
-                      ),
-                    ),
-                  ),
                 ),
                 // Favorite indicator
                 if (recipe.isFavorite)
@@ -474,7 +501,8 @@ class RecipeCard extends StatelessWidget {
                         // Servings
                         Row(
                           children: [
-                            const Icon(Icons.people, size: 16, color: Colors.grey),
+                            const Icon(Icons.people,
+                                size: 16, color: Colors.grey),
                             const SizedBox(width: 2),
                             Text(
                               '${recipe.servings}',
@@ -489,7 +517,8 @@ class RecipeCard extends StatelessWidget {
                         if (recipe.totalTimeMinutes != null)
                           Row(
                             children: [
-                              const Icon(Icons.timer, size: 16, color: Colors.grey),
+                              const Icon(Icons.timer,
+                                  size: 16, color: Colors.grey),
                               const SizedBox(width: 2),
                               Text(
                                 '${recipe.totalTimeMinutes}m',
