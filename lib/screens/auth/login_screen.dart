@@ -2,6 +2,7 @@
 import 'dart:async'; // For StreamSubscription
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/widgets/auth/or_divider.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Provides AuthState and OAuthProvider
 import 'package:google_sign_in/google_sign_in.dart';
@@ -153,122 +154,114 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final authProvider = Provider.of<AuthProvider>(context);
+Widget build(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  final authProvider = Provider.of<AuthProvider>(context);
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: colorScheme.primary,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark, 
-      ),
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: SingleChildScrollView(
-            physics: ClampingScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              //make background white 
-              children: [
-                Stack(
-                  alignment: Alignment.topCenter,
-                  clipBehavior: Clip.none,
+  return AnnotatedRegion<SystemUiOverlayStyle>(
+    value: SystemUiOverlayStyle(
+      statusBarColor: colorScheme.primary,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+    ),
+    child: Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: ClampingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.only(top: 24),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                ),
+                child: Column(
                   children: [
+                    Image.asset('assets/logo.png', width: 100, height: 100),
+                    SizedBox(height:2),
+                    Text('KITCHEN ASSISTANT', style: TextStyle(fontSize:14, fontWeight: FontWeight.w400,color: Colors.white), textAlign: TextAlign.center),
+                    SizedBox(height: 8),
+                    Text(
+                      'LOGIN',
+                      style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold, color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height:20),
                     Container(
                       width: double.infinity,
-                      padding: EdgeInsets.only(top: 24, bottom: 32),
                       decoration: BoxDecoration(
-                        color: colorScheme.primary,
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                       ),
-                      child: Column(
+                      child: SizedBox(
+                        height: 30,
+                      ),
+                    )
+                  ],
+                ),
+              ),
+              // Form Card
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      SizedBox(height:50),
+                      AuthForm(
+                        formKey: _formKey,
+                        emailController: _emailController,
+                        passwordController: _passwordController,
+                        isLogin: true,
+                        onSubmit: _login,
+                        isLoading: _isLoggingIn,
+                        errorMessage: _errorMessage ?? authProvider.error,
+                      ),
+                      SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Image.asset('assets/logo.png', width: 100, height: 100),
-                          SizedBox(height:2),
-                          Text('KITCHEN ASSISTANT', style: TextStyle(fontSize:14, fontWeight: FontWeight.w400,color: Colors.white), textAlign: TextAlign.center),
-                          SizedBox(height: 8),
-                          Text(
-                            'LOGIN',
-                            style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold, color: Colors.white),
-                            textAlign: TextAlign.center,
+                          Text("Don't have an account?"),
+                          TextButton(
+                            onPressed: _isLoggingIn ? null : () {
+                              Navigator.of(context).pushNamed('/signup');
+                            },
+                            child: Text('Sign Up'),
                           ),
-                          SizedBox(height: 32),
                         ],
                       ),
-                    ),
-                    Positioned(
-                      top: MediaQuery.of(context).size.height * 0.26,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
+                      // ...SocialAuthButton row if needed...
+                       OrDivider(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(height:50),
-                            AuthForm(
-                              formKey: _formKey,
-                              emailController: _emailController,
-                              passwordController: _passwordController,
-                              isLogin: true,
-                              onSubmit: _login,
-                              isLoading: _isLoggingIn,
-                              errorMessage: _errorMessage ?? authProvider.error,
-                            ),
-                            SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Text("Don't have an account?"),
-                                TextButton(
-                                  onPressed: _isLoggingIn ? null : () {
-                                    Navigator.of(context).pushNamed('/signup');
-                                  },
-                                  child: Text('Sign Up'),
-                                ),
-                              ],
-                            ),
-
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // SocialAuthButton(
-                                //   onTap:_handleGoogleSignIn,
-                                //   image: "assets/google_logo.png",
-                                //   text: "Sign in with Google",
-                                // ),
-                                // if (Platform.isIOS) ...[
-                                //   SizedBox(width: 10),
-                                //   SocialAuthButton(
-                                //     onTap: _isLoggingIn ? null : () {
-                                //       // Apple Sign-In logic
-                                //     },
-                                //     image: "assets/apple_logo.png",
-                                //   ),
-                                // ],
-                              ],
-                            )
-
+                            Expanded(
+                                child: SocialAuthButton(
+                              onTap: _handleGoogleSignIn,
+                              image: "assets/google_logo.png",
+                              text: "Continue with Google",
+                            )),
+                           
                           ],
-                        ),
-                        )
 
                         ),
-                    ),
-
-                ],
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
       ),
     ),
-    );
-  }
+  );
+}
 }

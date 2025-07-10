@@ -23,22 +23,22 @@ class StatItem extends StatelessWidget {
       children: [
         Container(
           width: 64,
-          height: 64,
+          height: 60,
           decoration: BoxDecoration(
-            color: (color ?? theme.primaryColor).withOpacity(0.1),
+            color: Colors.white,
             shape: BoxShape.circle,
           ),
           child: Icon(
             icon,
             color: color ?? theme.primaryColor,
-            size: 28,
+            size: 24,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height:4),
         Text(
           value,
           style: TextStyle(
-            fontSize: 20,
+            fontSize:16,
             fontWeight: FontWeight.bold,
             color: theme.colorScheme.onSurface,
           ),
@@ -47,7 +47,7 @@ class StatItem extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 12,
             color: theme.colorScheme.onSurface.withOpacity(0.7),
           ),
         ),

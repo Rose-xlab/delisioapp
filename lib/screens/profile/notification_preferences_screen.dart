@@ -1,5 +1,6 @@
 // lib/screens/profile/notification_preferences_screen.dart
 import 'package:flutter/material.dart';
+import 'package:kitchenassistant/theme/app_colors_extension.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationPreferencesScreen extends StatefulWidget {
@@ -58,6 +59,9 @@ class _NotificationPreferencesScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final colorSchema = theme.colorScheme;
+    final appColors = Theme.of(context).extension<AppColorsExtension>()!;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notification Preferences'),
@@ -67,19 +71,30 @@ class _NotificationPreferencesScreenState
           : ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            child: Text(
-              'Choose which notifications you\'d like to receive from Delisio.',
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Recipe Recommendations'),
+          // const Padding(
+          //   padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          //   child: Text(
+          //     'Choose which notifications you\'d like to receive',
+          //     style: TextStyle(fontSize: 16),
+          //   ),
+          // ),
+          const SizedBox(height:6),
+          Column(
+            children: [
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(8.0))
+                ),
+                child: SwitchListTile(
+                  title: Text(
+                    'Recipe Recommendations',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:appColors.gray500
+                    ),
+                    ),
                   subtitle: const Text(
                       'Personalized recipe ideas based on your preferences'),
                   value: _recipeRecommendations,
@@ -94,9 +109,22 @@ class _NotificationPreferencesScreenState
                     color: theme.primaryColor,
                   ),
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('Weekly Digest'),
+              ),
+              SizedBox(height:8),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(8.0))
+                ),
+                child: SwitchListTile(
+                  title: Text(
+                    'Weekly Digest',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:appColors.gray500
+                    ),
+                    ),
                   subtitle: const Text(
                       'A roundup of popular recipes and cooking tips'),
                   value: _weeklyDigest,
@@ -111,9 +139,22 @@ class _NotificationPreferencesScreenState
                     color: theme.primaryColor,
                   ),
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('App Updates'),
+              ),
+              SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(8.0))
+                ),
+                child: SwitchListTile(
+                  title: Text(
+                    'App Updates',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:appColors.gray500
+                    ),
+                    ),
                   subtitle: const Text(
                       'Information about new features and improvements'),
                   value: _appUpdates,
@@ -128,9 +169,22 @@ class _NotificationPreferencesScreenState
                     color: theme.primaryColor,
                   ),
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('Cooking Reminders'),
+              ),
+              SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(8.0))
+                ),
+                child: SwitchListTile(
+                  title: Text(
+                    'Cooking Reminders',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:appColors.gray500
+                    ),
+                    ),
                   subtitle: const Text(
                       'Gentle nudges to try your saved recipes'),
                   value: _cookingReminders,
@@ -145,8 +199,8 @@ class _NotificationPreferencesScreenState
                     color: theme.primaryColor,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           const Padding(

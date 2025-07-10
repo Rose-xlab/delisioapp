@@ -51,15 +51,16 @@ class FAQScreen extends StatelessWidget {
   }
 }
 
+
+
 class _FAQItem extends StatefulWidget {
   final String question;
   final String answer;
 
   const _FAQItem({
-    Key? key,
     required this.question,
     required this.answer,
-  }) : super(key: key);
+  });
 
   @override
   State<_FAQItem> createState() => _FAQItemState();
@@ -70,41 +71,78 @@ class _FAQItemState extends State<_FAQItem> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    final colorSchema = Theme.of(context).colorScheme;
+
+    // Using a simple Container with decoration instead of Card for more control.
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12.0),
       ),
-      child: ExpansionTile(
-        title: Text(
-          widget.question,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        trailing: Icon(
-          _expanded ? Icons.expand_less : Icons.expand_more,
-          color: Theme.of(context).primaryColor,
-        ),
-        onExpansionChanged: (expanded) {
-          setState(() {
-            _expanded = expanded;
-          });
-        },
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Text(
-              widget.answer,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.4,
-              ),
+      // ClipRRect ensures the ExpansionTile's background doesn't bleed outside the rounded corners.
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12.0),
+        child: ExpansionTile(
+          // Setting background and collapsed colors to transparent to use the parent Container's color.
+          backgroundColor: Colors.transparent,
+          collapsedBackgroundColor: Colors.transparent,
+          title: Text(
+            widget.question,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600, // Using w600 for a slightly bolder look
+              fontSize: 16,
+              color: Colors.black87,
             ),
           ),
-        ],
+          trailing: Icon(
+            _expanded ? Icons.expand_less : Icons.expand_more,
+            color: colorSchema.primary,
+          ),
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _expanded = expanded;
+            });
+          },
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              // IntrinsicHeight ensures the children of the Row will have the same height.
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch, // Stretches children to fill the cross axis.
+                  children: [
+                    // This is the decorative line on the left.
+                    Container(
+                      width: 4,
+                      decoration: BoxDecoration(
+                        color: colorSchema.primary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Expanded ensures the Text widget takes up the remaining
+                    // horizontal space and wraps its content properly without overflowing.
+                    Expanded(
+                      child: Text(
+                        widget.answer,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.5, // Increased height for better readability
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+  
