@@ -1,12 +1,12 @@
 //delisio\lib\providers\recipe_provider.dart
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart'; // Keep for BuildContext if used for dialogs
+import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:provider/provider.dart'; // Keep if context.read is used
-import 'package:flutter/widgets.dart'; // Required for WidgetsBinding
-import 'package:flutter/scheduler.dart'; // <<< IMPORTED FOR SchedulerPhase
+import 'package:provider/provider.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../models/recipe.dart';
 import '../models/recipe_category.dart';

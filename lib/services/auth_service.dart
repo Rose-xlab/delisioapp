@@ -1,12 +1,12 @@
 // lib/services/auth_service.dart
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // For kDebugMode
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart' as supabase; // Import Supabase client
-import 'package:uuid/uuid.dart'; // Used for userAppIdValue
-import '../config/api_config.dart'; // For API endpoint constants
-import '../models/user.dart'; // Your custom User model
-import '../models/user_preferences.dart'; // Your UserPreferences model
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:uuid/uuid.dart';
+import '../config/api_config.dart';
+import '../models/user.dart';
+import '../models/user_preferences.dart';
 
 class AuthService {
   // Supabase client instance

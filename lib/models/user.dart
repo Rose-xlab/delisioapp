@@ -1,6 +1,6 @@
 // lib/models/user.dart
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
-import 'user_preferences.dart'; // Ensure this path is correct
+import 'user_preferences.dart';
 
 class User {
   final String id;

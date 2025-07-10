@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import '../models/subscription.dart'; // SubscriptionTier enum is not directly used here for checkout
+import '../models/subscription.dart';
 
 class SubscriptionService {
   final String baseUrl = ApiConfig.baseUrl;

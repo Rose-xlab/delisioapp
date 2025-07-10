@@ -2,7 +2,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/user_preferences.dart';
-import '../services/user_service.dart'; // You'll need a UserService to interact with your backend
+import '../services/user_service.dart';
 import '../config/sentry_config.dart';
 
 class UserProvider with ChangeNotifier {

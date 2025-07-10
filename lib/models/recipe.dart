@@ -1,10 +1,10 @@
 // lib/models/recipe.dart
-import 'package:flutter/foundation.dart'; // For kDebugMode print
+import 'package:flutter/foundation.dart';
 import 'dart:math';
 
 // Ensure these point to the correct, updated files
 import 'recipe_step.dart';
-import 'nutrition_info.dart'; // Assumes this is the updated NutritionInfo model
+import 'nutrition_info.dart';
 
 class Recipe {
   final String? id;

@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // Import for kDebugMode
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import '../models/chat_message.dart'; // Now needed for the message history
+import '../models/chat_message.dart';
 
 class ChatService {
   final String baseUrl = ApiConfig.baseUrl;

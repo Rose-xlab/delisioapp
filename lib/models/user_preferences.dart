@@ -1,5 +1,5 @@
 // lib/models/user_preferences.dart
-import 'package:flutter/foundation.dart'; // For listEquals
+import 'package:flutter/foundation.dart';
 
 class UserPreferences {
   final List<String> dietaryRestrictions;

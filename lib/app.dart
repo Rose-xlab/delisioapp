@@ -13,7 +13,7 @@ import 'screens/recipes/recipe_detail_screen.dart';
 import 'screens/recipes/nutrition_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/chat/chat_list_screen.dart';
-import 'screens/chat/chat_history.dart'; // Was in your original
+import 'screens/chat/chat_history.dart';
 import 'screens/profile/notification_preferences_screen.dart';
 import 'screens/profile/faq_screen.dart';
 import 'screens/profile/about_screen.dart';
