@@ -954,11 +954,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 4.0),
                   child: Text(inlineErrorToDisplay, textAlign: TextAlign.center, style: TextStyle(color: theme.colorScheme.error, fontSize: 13)),
                 ),
-              MessageInput(
-                controller: _messageController,
-                onSend: _sendMessage,
-                isLoading: chatProvider.isSendingMessage || _isGeneratingRecipeFromChat || (chatProvider.retryAfterSeconds > 0 && !chatProvider.aiReplyLimitReachedError),
-                hintText: 'Ask your kitchen assistant...',
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: MessageInput(
+                  controller: _messageController,
+                  onSend: _sendMessage,
+                  isLoading: chatProvider.isSendingMessage || _isGeneratingRecipeFromChat || (chatProvider.retryAfterSeconds > 0 && !chatProvider.aiReplyLimitReachedError),
+                  hintText: 'Ask your kitchen assistant...',
+                ),
               ),
             ],
           ),
@@ -981,12 +984,13 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
               borderRadius: BorderRadius.circular(24),
             ),
-            child: Icon(Icons.soup_kitchen_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
+            child: Icon(Icons.assistant, size: 48, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 24),
-          Text(isNewChat ? 'New Chat Session' : 'Kitchen Assistant AI', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+          Text(isNewChat ? 'AI' : 'AI', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
           const SizedBox(height: 12),
-          Text('How can I help with your cooking today?', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).hintColor), textAlign: TextAlign.center),
+          Text('How can I help \nwith your cooking today?', style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color:Colors.grey[500]), textAlign: TextAlign.center),
           const SizedBox(height: 32),
           ..._buildExamplePrompts(),
           const SizedBox(height: 20),
@@ -1013,7 +1017,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildPromptCard(String text, IconData icon) {
     return Card(
       elevation: 0.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.3))),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey[200] ?? Colors.grey)),
       child: InkWell(
         onTap: () => _sendMessage(text),
         borderRadius: BorderRadius.circular(12),
@@ -1023,7 +1028,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 12),
             Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14.5))),
-            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Theme.of(context).hintColor.withOpacity(0.7)),
+            Icon(Icons.send_rounded, size: 16, color: Colors.grey[600]),
           ],
           ),
         ),

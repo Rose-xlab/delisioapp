@@ -52,39 +52,52 @@ class ConversationListHostScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildConversationsList(
-      BuildContext context,
-      List<Conversation> conversations,
-      ChatProvider chatProvider,
-      ) {
-    final theme = Theme.of(context);
-    return ListView.separated(
-      itemCount: conversations.length,
-      separatorBuilder: (context, index) => Divider(height: 1, indent: 16, endIndent: 16, color: theme.dividerColor.withOpacity(0.5)),
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
+ Widget _buildConversationsList(
+    BuildContext context,
+    List<Conversation> conversations,
+    ChatProvider chatProvider,
+    ) {
+  final theme = Theme.of(context);
+  return ListView.separated(
+    itemCount: conversations.length,
+    // Add a SizedBox for spacing between tiles instead of a Divider
+    separatorBuilder: (context, index) => const SizedBox(height: 10), // Space of 10 between tiles
+    itemBuilder: (context, index) {
+      final conversation = conversations[index];
 
-        final now = DateTime.now();
-        final difference = now.difference(conversation.updatedAt.toLocal());
-        String timeText;
+      final now = DateTime.now();
+      final difference = now.difference(conversation.updatedAt.toLocal());
+      String timeText;
 
-        if (difference.inSeconds < 60) {
-          timeText = 'Just now';
-        } else if (difference.inMinutes < 60) {
-          timeText = '${difference.inMinutes}m ago';
-        } else if (difference.inHours < 24 && now.day == conversation.updatedAt.toLocal().day) {
-          timeText = DateFormat.jm().format(conversation.updatedAt.toLocal());
-        } else if (difference.inDays < 1 && now.day -1 == conversation.updatedAt.toLocal().day) {
-          timeText = 'Yesterday';
-        } else if (difference.inDays < 7) {
-          timeText = DateFormat('EEE').format(conversation.updatedAt.toLocal());
-        } else if (now.year == conversation.updatedAt.toLocal().year) {
-          timeText = DateFormat('MMM d').format(conversation.updatedAt.toLocal());
-        } else {
-          timeText = DateFormat('MMM d, yy').format(conversation.updatedAt.toLocal());
-        }
+      if (difference.inSeconds < 60) {
+        timeText = 'Just now';
+      } else if (difference.inMinutes < 60) {
+        timeText = '${difference.inMinutes}m ago';
+      } else if (difference.inHours < 24 && now.day == conversation.updatedAt.toLocal().day) {
+        timeText = DateFormat.jm().format(conversation.updatedAt.toLocal());
+      } else if (difference.inDays < 1 && now.day - 1 == conversation.updatedAt.toLocal().day) {
+        timeText = 'Yesterday';
+      } else if (difference.inDays < 7) {
+        timeText = DateFormat('EEE').format(conversation.updatedAt.toLocal());
+      } else if (now.year == conversation.updatedAt.toLocal().year) {
+        timeText = DateFormat('MMM d').format(conversation.updatedAt.toLocal());
+      } else {
+        timeText = DateFormat('MMM d, yy').format(conversation.updatedAt.toLocal());
+      }
 
-        return ListTile(
+      return Card(
+        // Use a Card widget to provide background, rounded corners, and a slight elevation
+        color: Colors.white, // White background
+        shape: RoundedRectangleBorder(
+          side: BorderSide(
+            color: Colors.grey[200] ?? Colors.grey,
+            width: 1.0
+          ),
+          borderRadius: BorderRadius.circular(8.0), // 8.0 rounded corners
+        ),
+        margin: EdgeInsets.zero, // Remove default Card margin as ListView.separated handles spacing
+        elevation: 0.0, // Optional: gives a slight shadow
+        child: ListTile(
           leading: CircleAvatar(
             backgroundColor: theme.colorScheme.primaryContainer.withOpacity(0.7),
             child: Icon(
@@ -113,10 +126,11 @@ class ConversationListHostScreen extends StatelessWidget {
             }
             onConversationSelected(conversation.id);
           },
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -150,16 +164,19 @@ class ConversationListHostScreen extends StatelessWidget {
               ),
             ],
           ),
-          body: Column(
-            children: [
-              Expanded(
-                child: chatProvider.isLoadingConversations && conversations.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : conversations.isEmpty
-                    ? _buildEmptyConversationsState(theme, context)
-                    : _buildConversationsList(context, conversations, chatProvider),
-              ),
-            ],
+          body: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              children: [
+                Expanded(
+                  child: chatProvider.isLoadingConversations && conversations.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : conversations.isEmpty
+                      ? _buildEmptyConversationsState(theme, context)
+                      : _buildConversationsList(context, conversations, chatProvider),
+                ),
+              ],
+            ),
           ),
         );
       },

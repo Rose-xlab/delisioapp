@@ -33,8 +33,7 @@ class _MessageInputState extends State<MessageInput> {
   void initState() {
     super.initState();
     widget.controller.addListener(_updateHasText);
-    // Initialize _hasText based on controller's initial value
-    _updateHasText();
+    _updateHasText(); // Initialize _hasText based on controller's initial value
   }
 
   @override
@@ -56,114 +55,97 @@ class _MessageInputState extends State<MessageInput> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    // Listen to false here if only using for one-off checks/actions,
-    // but if UI should rebuild when these providers change, listen: true (default) is fine.
     final chatProvider = Provider.of<ChatProvider>(context);
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
 
-    // Determine if the user can send a message or needs to upgrade.
-    // This logic prioritizes the backend's view of subscription limits if available.
     bool userCanChat;
     final subInfo = subscriptionProvider.subscriptionInfo;
 
-    if (subscriptionProvider.isProSubscriber) { // Pro users can always chat
+    if (subscriptionProvider.isProSubscriber) {
       userCanChat = true;
-    } else if (subInfo != null) { // Free user, check backend limits
-      // Using -1 as convention for unlimited
+    } else if (subInfo != null) {
       userCanChat = subInfo.aiChatRepliesLimit == -1 || subInfo.aiChatRepliesRemaining > 0;
     } else {
-      // Fallback if backend subscriptionInfo is not available (e.g., loading or error)
-      // This uses your original logic of limiting free users by conversation count as a fallback.
-      // Consider showing a loading/error state if subInfo is null and expected.
-      userCanChat = chatProvider.conversations.length < 3; // Max 3 conversations for free if no specific reply limit info
+      userCanChat = chatProvider.conversations.length < 3;
       if (chatProvider.conversations.length >= 3) {
         debugPrint("MessageInput: User has ${chatProvider.conversations.length} conversations, fallback limit reached.");
       }
     }
 
-    // For debugging the canChat logic
-    // debugPrint("MessageInput: isProSubscriber: ${subscriptionProvider.isProSubscriber}");
-    // if(subInfo != null) {
-    //   debugPrint("MessageInput: subInfo - Tier: ${subInfo.tier}, Replies Limit: ${subInfo.aiChatRepliesLimit}, Replies Rem: ${subInfo.aiChatRepliesRemaining}");
-    // } else {
-    //   debugPrint("MessageInput: subInfo is null. Conversation count: ${chatProvider.conversations.length}");
-    // }
-    // debugPrint("MessageInput: Calculated userCanChat: $userCanChat");
-
+    // Define the border color from the image, which appears light pink/rose.
+    final Color inputBorderColor = Colors.pink.shade100;
+    // Define the send button background color.
+    final Color sendButtonColor = Colors.grey.shade300; // Light grey for the send button background
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), // Adjust padding
       decoration: BoxDecoration(
-        color: theme.cardColor, // Use theme's card color for better theme adaptability
+        color: Colors.white, // The background of the entire input area is white
+        borderRadius: BorderRadius.circular(8.0), // Rounded corners for the container
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Softer shadow
+            color: Colors.black.withOpacity(0.05),
             spreadRadius: 0,
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
         ],
-        border: Border(
-          top: BorderSide(
-            color: theme.dividerColor.withOpacity(0.5),
-            width: 1,
-          ),
+        border: Border.all(
+          color: inputBorderColor, // Border around the entire container
+          width: 1.0,
         ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center, // Align items vertically in the center
         children: [
+          // Icon on the left side
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Icon(
+              Icons.auto_awesome_rounded, // A star icon, or you can find a more specific one
+              color: Colors.pinkAccent, // A pink color
+              size: 24,
+            ),
+          ),
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.scaffoldBackgroundColor, // Or a slightly different shade
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: theme.dividerColor,
-                  width: 1,
+            child: TextField(
+              controller: widget.controller,
+              decoration: InputDecoration(
+                fillColor: Colors.white,
+                hintText: widget.hintText,
+                hintStyle: TextStyle(color: theme.hintColor),
+                border:InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none, // No border for the TextField itself
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 0, // No horizontal padding here, handled by row
+                  vertical: 12, // Adjust for better vertical centering
                 ),
+                suffixIcon: _hasText
+                    ? IconButton(
+                  icon: Icon(Icons.clear, size: 20, color: theme.iconTheme.color?.withOpacity(0.7)),
+                  onPressed: () {
+                    widget.controller.clear();
+                  },
+                )
+                    : null,
               ),
-              child: TextField(
-                controller: widget.controller,
-                decoration: InputDecoration(
-                  hintText: widget.hintText,
-                  hintStyle: TextStyle(color: theme.hintColor),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12, // Adjust for better vertical centering
-                  ),
-                  suffixIcon: _hasText
-                      ? IconButton(
-                    icon: Icon(Icons.clear, size: 20, color: theme.iconTheme.color?.withOpacity(0.7)),
-                    onPressed: () {
-                      widget.controller.clear();
-                    },
-                  )
-                      : null,
-                ),
-                textCapitalization: TextCapitalization.sentences,
-                keyboardType: TextInputType.multiline, // Allow multiline
-                textInputAction: TextInputAction.newline, // For multiline, send is usually manual
-                minLines: 1,
-                maxLines: 5,
-                enabled: !widget.isLoading && userCanChat, // Disable if loading or cannot chat
-                onSubmitted: (value) {
-                  // For multiline, onSubmitted might not be the primary send trigger.
-                  // The send button is more common.
-                  // if (userCanChat && value.trim().isNotEmpty && !widget.isLoading) {
-                  //   widget.onSend(value);
-                  // }
-                },
-              ),
+              textCapitalization: TextCapitalization.sentences,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              minLines: 1,
+              maxLines: 5,
+              enabled: !widget.isLoading && userCanChat,
             ),
           ),
           const SizedBox(width: 8),
           if (userCanChat)
             Material(
-              color: _hasText && !widget.isLoading ? colorScheme.primary : theme.disabledColor,
-              borderRadius: BorderRadius.circular(24), // Match TextField border radius
-              elevation: _hasText && !widget.isLoading ? 2 : 0,
+              color: _hasText ? colorScheme.primary : sendButtonColor, // Light grey background for the send button
+              borderRadius: BorderRadius.circular(24), // Circular shape
               child: InkWell(
                 borderRadius: BorderRadius.circular(24),
                 onTap: (_hasText && !widget.isLoading)
@@ -173,37 +155,36 @@ class _MessageInputState extends State<MessageInput> {
                   }
                 }
                     : null,
-                child: Padding( // Use Padding for consistent tap area
+                child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: widget.isLoading
                       ? const SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                      color: Colors.white, // Or colorScheme.onPrimary
+                      color: Colors.white,
                       strokeWidth: 2.5,
                     ),
                   )
                       : Icon(
                     Icons.send_rounded,
-                    color: _hasText && !widget.isLoading ? colorScheme.onPrimary : theme.iconTheme.color?.withOpacity(0.5),
+                    color: _hasText && !widget.isLoading ? Colors.white : Colors.white, // Darker grey when enabled
                     size: 24,
                   ),
                 ),
               ),
             )
-          else // Show Upgrade Button if userCanChat is false
+          else
             ElevatedButton.icon(
               icon: const Icon(Icons.workspace_premium_outlined, size: 18),
               label: const Text('Upgrade'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade600, // Or theme.colorScheme.secondary
+                backgroundColor: Colors.green.shade600,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.0)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onPressed: () {
-                // Use the .identifier from your MyOfferings enum
                 RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier);
               },
             ),
