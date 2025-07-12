@@ -40,9 +40,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   static const double _fabHeightHorizontal = 56.0;
   static const double _fabBottomMarginDefault = 20.0;
   static const double _fabSideMargin = 16.0;
-  static const double _fabVerticalButtonBottomOffset = 20.0; // How far from bottom edge for vertical button (if not perfectly centered)
-  // For true vertical center, this isn't used, top/bottom:0 + Align is used.
-
+  static const double _fabVerticalButtonBottomOffset = 20.0;
 
   String? _originatingConversationId;
   bool _creatingConversation = false;
@@ -154,7 +152,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   String _formatRecipeTime(int? totalMinutes, String timeTypeLabel) {
-    // ... (implementation as before)
     if (totalMinutes == null || totalMinutes <= 0) return "";
     final duration = Duration(minutes: totalMinutes);
     final int hours = duration.inHours;
@@ -170,18 +167,40 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return buffer.toString().trim();
   }
 
-  Widget _buildTimeInfo(BuildContext context, IconData icon, String text) {
-    // ... (implementation as before)
+  Widget _buildTimeInfo(BuildContext context, IconData icon, String text, String label) {
     if (text.trim().isEmpty) return const SizedBox.shrink();
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 18, color: Colors.grey[700]),
-      const SizedBox(width: 4),
-      Text(text, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[700])),
-    ]);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFE53E3E)),
+          const SizedBox(width: 6),
+          Text(
+            '$text $label',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showStyledNutritionDialog(BuildContext context, Recipe recipe) {
-    // ... (implementation as before)
     final nutritionInfo = recipe.nutrition;
     showDialog(
       context: context,
@@ -198,34 +217,209 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _deleteRecipe(Recipe recipe) async {
-    // ... (implementation as before)
+    // Implementation as before
   }
 
   Future<void> _toggleFavorite(Recipe recipe) async {
-    // ... (implementation as before)
+    // Implementation as before
   }
 
   Future<void> _shareRecipe(Recipe recipe) async {
-    // ... (implementation as before)
+    // Implementation as before
   }
 
   Future<void> _handleAskAboutRecipe(Recipe recipe) async {
-    // ... (implementation as before)
+    // Implementation as before
   }
 
   Future<void> _startNewChatAboutRecipe(Recipe recipe) async {
-    // ... (implementation as before)
+    // Implementation as before
   }
 
+  Widget _buildHeroSection(Recipe recipe) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final bool isAuthenticated = authProvider.isAuthenticated;
+    
+    return Container(
+      height: 300,
+      child: Stack(
+        children: [
+          // Hero Image
+          Positioned.fill(
+            child: recipe.thumbnailUrl != null
+                ? Image.network(
+                    recipe.thumbnailUrl!,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) => 
+                        progress == null ? child : const Center(child: CircularProgressIndicator()),
+                    errorBuilder: (context, error, stack) => Container(
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                    ),
+                  )
+                : Container(
+                    color: const Color(0xFFE53E3E).withOpacity(0.1),
+                    child: Center(
+                      child: Icon(
+                        Icons.restaurant_menu,
+                        size: 60,
+                        color: const Color(0xFFE53E3E).withOpacity(0.4),
+                      ),
+                    ),
+                  ),
+          ),
+          
+          // Gradient Overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.7),
+                  ],
+                  stops: const [0.3, 1.0],
+                ),
+              ),
+            ),
+          ),
+          
+          // Favorite Button
+          if (isAuthenticated && recipe.id != null)
+            Positioned(
+              top: 16,
+              left: 16,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: recipe.isFavorite ? const Color(0xFFE53E3E) : Colors.grey[600],
+                  ),
+                  onPressed: _isPerformingAction ? null : () => _toggleFavorite(recipe),
+                ),
+              ),
+            ),
+          
+          // Share Button
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(Icons.share_outlined, color: Colors.grey[600]),
+                onPressed: _isPerformingAction ? null : () => _shareRecipe(recipe),
+              ),
+            ),
+          ),
+          
+          // Recipe Title and Info
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    recipe.title,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.people_outline, size: 14, color: Color(0xFFE53E3E)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Serves ${recipe.servings}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.list_alt_outlined, size: 14, color: Color(0xFFE53E3E)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${recipe.steps.length} Steps',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<RecipeProvider>(
       builder: (context, recipeProvider, child) {
-
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final Recipe? recipeToDisplay = recipeProvider.currentRecipe;
-        // ... (rest of your loading, error, and recipe null checks as before) ...
         final partialRecipe = recipeProvider.partialRecipe;
         final isLoading = recipeProvider.isLoading;
         final error = recipeProvider.error;
@@ -234,6 +428,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         final wasCancelled = recipeProvider.wasCancelled;
         final bool isAuthenticated = authProvider.isAuthenticated;
 
+        // Loading states and error handling remain the same as before
         if (isLoading && recipeToDisplay == null && !wasCancelled) {
           if (partialRecipe != null) {
             return Scaffold(
@@ -310,32 +505,25 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(recipe.title, overflow: TextOverflow.ellipsis),
+            title: const Text('Details'),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
             actions: [
               if (isAuthenticated && recipe.id != null)
                 IconButton(
-                    icon: Icon(recipe.isFavorite ? Icons.favorite : Icons.favorite_border, color: recipe.isFavorite ? Colors.redAccent : null),
-                    tooltip: recipe.isFavorite ? 'Remove from favorites' : 'Add to favorites',
-                    onPressed: _isPerformingAction ? null : () => _toggleFavorite(recipe)
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete recipe',
+                  onPressed: _isPerformingAction ? null : () => _deleteRecipe(recipe),
                 ),
               IconButton(
-                  icon: const Icon(Icons.share_outlined),
-                  tooltip: 'Share recipe',
-                  onPressed: _isPerformingAction ? null : () => _shareRecipe(recipe)
-              ),
-              if (isAuthenticated && recipe.id != null)
-                IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Delete recipe',
-                    onPressed: _isPerformingAction ? null : () => _deleteRecipe(recipe)
-                ),
-              IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  tooltip: 'Nutrition Info',
-                  onPressed: () => _showStyledNutritionDialog(context, recipe)
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Nutrition Info',
+                onPressed: () => _showStyledNutritionDialog(context, recipe),
               ),
             ],
           ),
+          backgroundColor: Colors.white,
           body: Stack(
             children: [
               SingleChildScrollView(
@@ -343,174 +531,298 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (recipe.thumbnailUrl != null)
-                      AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Image.network(
-                          recipe.thumbnailUrl!,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator()),
-                          errorBuilder: (context, error, stack) => Container(color: Colors.grey[200], child: const Icon(Icons.broken_image, color: Colors.grey, size: 50)),
-                        ),
-                      )
-                    else
+                    // Hero Section with overlay
+                    _buildHeroSection(recipe),
+                    
+                    // Time Information
+                    if (hasTimeInfo)
                       Container(
-                        height: 150,
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        child: Center(child: Icon(Icons.restaurant_menu, size: 60, color: Theme.of(context).primaryColor.withOpacity(0.4))),
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            if (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0)
+                              _buildTimeInfo(context, Icons.schedule_outlined, 
+                                _formatRecipeTime(recipe.prepTimeMinutes, '').replaceAll(' prep', ''), 'prep'),
+                            if (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0)
+                              _buildTimeInfo(context, Icons.local_fire_department_outlined, 
+                                _formatRecipeTime(recipe.cookTimeMinutes, '').replaceAll(' cook', ''), 'cook'),
+                            if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
+                              _buildTimeInfo(context, Icons.timer_outlined, 
+                                _formatRecipeTime(recipe.totalTimeMinutes, '').replaceAll(' total', ''), 'total'),
+                          ],
+                        ),
                       ),
-                    Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(recipe.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 12),
-                              Row(
-                                  children: [
-                                    Icon(Icons.people_outline, size: 18, color: Colors.grey[700]), const SizedBox(width: 4),
-                                    Text('Serves ${recipe.servings}', style: Theme.of(context).textTheme.titleSmall),
-                                    const SizedBox(width: 16),
-                                    Icon(Icons.list_alt_outlined, size: 18, color: Colors.grey[700]), const SizedBox(width: 4),
-                                    Text('${recipe.steps.length} step${recipe.steps.length != 1 ? 's' : ''}', style: Theme.of(context).textTheme.titleSmall)
-                                  ]
+                    
+                    // Ingredients Section
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Ingredients',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ...recipe.ingredients.map((ingredient) => Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  margin: const EdgeInsets.only(top: 8, right: 12),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFE53E3E),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    ingredient.toString(),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )).toList(),
+                        ],
+                      ),
+                    ),
+                    
+                    // Instructions Section
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Instructions',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (recipe.steps.isEmpty)
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 32.0),
+                                child: Text(
+                                  'No steps available...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
                               ),
-                              if (hasTimeInfo) ...[
-                                const SizedBox(height: 8),
-                                Wrap(
-                                    spacing: 16,
-                                    runSpacing: 4,
-                                    children: [
-                                      if (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0)
-                                        _buildTimeInfo(context, Icons.timer_outlined, _formatRecipeTime(recipe.prepTimeMinutes, 'prep')),
-                                      if (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0)
-                                        _buildTimeInfo(context, Icons.whatshot_outlined, _formatRecipeTime(recipe.cookTimeMinutes, 'cook')),
-                                      if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
-                                        _buildTimeInfo(context, Icons.schedule_outlined, _formatRecipeTime(recipe.totalTimeMinutes, 'total')),
-                                    ]
-                                )
-                              ]
-                            ]
-                        )
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Ingredients', style: Theme.of(context).textTheme.titleLarge),
-                              const SizedBox(height: 12),
-                              IngredientList(ingredients: recipe.ingredients)
-                            ]
-                        )
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Instructions', style: Theme.of(context).textTheme.titleLarge),
-                              const SizedBox(height: 16),
-                              if (recipe.steps.isEmpty)
-                                Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 32.0), child: Text('No steps available...', style: TextStyle(fontSize: 16, color: Colors.grey[600], fontStyle: FontStyle.italic))))
-                              else
-                                ListView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: recipe.steps.length,
-                                    itemBuilder: (context, index) => Padding(
-                                        padding: const EdgeInsets.only(bottom: 16.0),
-                                        child: StepCard(
-                                          step: recipe.steps[index],
-                                          stepNumber: index + 1,
-                                          allSteps: recipe.steps,
-                                        )
-                                    )
-                                )
-                            ]
-                        )
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                        child: Center(
-                            child: ElevatedButton.icon(
-                                icon: Icon(
-                                    (_originatingConversationId != null && _originatingConversationId!.isNotEmpty)
-                                        ? Icons.arrow_back_ios_new
-                                        : Icons.chat_bubble_outline
-                                ),
-                                label: Text(askButtonLabel),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                  textStyle: const TextStyle(fontSize: 16),
-                                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                                  backgroundColor: Theme.of(context).colorScheme.primary,
-                                ),
-                                onPressed: (_creatingConversation || _isPerformingAction) ? null : () => _handleAskAboutRecipe(recipe)
                             )
-                        )
+                          else
+                            ...recipe.steps.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final step = entry.value;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 24),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Step Image (placeholder for now)
+                                    if(step.imageUrl !=  null)
+
+                                      Container(
+                                      width: double.infinity,
+                                      height: 200,
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: AspectRatio(
+                                        aspectRatio:16/9,
+                                        child:Image.network(
+                                          step.imageUrl!,
+                                          fit: BoxFit.cover,
+                                          )
+                                      ),
+                                    )  
+                                    else
+                                     Container(
+                                      width: double.infinity,
+                                      height: 200,
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.image_outlined,
+                                        size: 48,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+
+                                    
+                                    // Step Number and Description
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: 28,
+                                          height: 28,
+                                          margin: const EdgeInsets.only(right: 12, top: 2),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFE53E3E),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '${index + 1}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Step ${index + 1}',
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              IntrinsicHeight(
+                                                child: Row(
+                                                  children: [
+                                                    Container(
+                                                      width:4,
+                                                      height:double.infinity,
+                                                      color:Color(0xFFE53E3E),
+                                                    ),
+                                                    SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Text(
+                                                      step.text,
+                                                      // "Step instruction",
+                                                      style: const TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.black87,
+                                                      height: 1.5,
+                                                                                                        ),
+                                                                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                        ],
+                      ),
                     ),
+                    
+                    // Action Buttons
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          // Cook Mode Button
+                          if (recipe.steps.isNotEmpty)
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.restaurant_menu, color: Colors.white),
+                                label: const Text(
+                                  'Cook Mode',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFE53E3E),
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                onPressed: () {
+                                  // Handle cook mode
+                                },
+                              ),
+                            ),
+                          
+                          // Ask About Recipe Button
+                          Container(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              icon: Icon(
+                                (_originatingConversationId != null && _originatingConversationId!.isNotEmpty)
+                                    ? Icons.arrow_back_ios_new
+                                    : Icons.chat_bubble_outline,
+                                color: const Color(0xFFE53E3E),
+                              ),
+                              label: Text(
+                                askButtonLabel,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFE53E3E),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                side: const BorderSide(color: Color(0xFFE53E3E), width: 1.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: (_creatingConversation || _isPerformingAction) 
+                                  ? null 
+                                  : () => _handleAskAboutRecipe(recipe),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
                     SizedBox(height: scrollBottomPadding),
                   ],
                 ),
               ),
-
-              // Cook Mode Button positioned with AnimatedPositioned
-              if (recipe.steps.isNotEmpty)
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-
-                  // Logic for positioning
-                  top: (_isAtScrollBottom && _showButtonOverall)
-                      ? 0 // Allows Align to vertically center in the full height of the Stack
-                      : null, // Not constrained by top when horizontal or hidden
-
-                  bottom: (_isAtScrollBottom && _showButtonOverall)
-                      ? 0 // Allows Align to vertically center in the full height of the Stack
-                      : (_showButtonOverall
-                      ? _fabBottomMarginDefault // Default bottom margin for horizontal FAB
-                      : -(_fabHeightHorizontal + 40.0)), // Position off-screen when hidden
-
-                  right: (_isAtScrollBottom && _showButtonOverall)
-                      ? _fabSideMargin // Pinned to the right edge
-                      : (!_isAtScrollBottom && _showButtonOverall
-                      ? _fabSideMargin // For horizontal centering with left
-                      : _fabSideMargin), // Maintain right constraint for slide-out from bottom
-                  // Or if sliding out from right: -100.0 (some off-screen value)
-
-                  left: (_isAtScrollBottom && _showButtonOverall)
-                      ? null // Not constrained from left when vertical on right
-                      : (!_isAtScrollBottom && _showButtonOverall
-                      ? _fabSideMargin // For horizontal centering with right
-                      : _fabSideMargin), // Maintain left constraint for slide-out from bottom
-
-                  // Width is null for the vertical button (intrinsic size)
-                  // and for the horizontal button (AnimatedPositioned with left/right handles centering)
-                  width: null,
-
-                  child: AnimatedOpacity(
-                    opacity: _showButtonOverall ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 300),
-                    child: (_isAtScrollBottom && _showButtonOverall)
-                        ? Align(
-                      alignment: Alignment.center, // Vertically centers the button in the right-edge strip
-                      child: FloatingCookModeButton(
-                        steps: recipe.steps,
-                        isAtScrollBottom: true, // Renders vertically
-                      ),
-                    )
-                        : Center( // Ensures the horizontal FAB is centered in its allocated space
-                      child: FloatingCookModeButton(
-                        steps: recipe.steps,
-                        isAtScrollBottom: false, // Renders horizontally
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         );
