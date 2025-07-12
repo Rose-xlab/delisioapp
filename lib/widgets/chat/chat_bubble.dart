@@ -287,6 +287,7 @@ class ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final bool isUser = message.type == MessageType.user;
     final bool hasSuggestions = message.suggestions != null && message.suggestions!.isNotEmpty;
     final bool isRecipeResult = message.type == MessageType.recipeResult;
@@ -331,10 +332,10 @@ class ChatBubble extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: CircleAvatar(
-                backgroundColor: iconBgColor,
+                backgroundColor: colorScheme.primary,
                 child: Icon(
-                  isRecipeResult ? Icons.restaurant_menu : (isRecipePlaceholder ? Icons.hourglass_top : Icons.psychology_alt),
-                  color: iconColor,
+                  isRecipeResult ? Icons.restaurant_menu : (isRecipePlaceholder ? Icons.hourglass_top : Icons.auto_awesome),
+                  color:Colors.white,
                   size: 20,
                 ),
               ),
@@ -346,7 +347,7 @@ class ChatBubble extends StatelessWidget {
               margin: EdgeInsets.only(left: isUser ? 40 : 0, right: isUser ? 0 : 40),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: backgroundColor,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [ // Subtle shadow for depth
                   BoxShadow(
@@ -392,8 +393,8 @@ class ChatBubble extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           textStyle: const TextStyle(fontSize: 14),
-                          backgroundColor: Theme.of(context).colorScheme.secondary, // Use theme secondary color
-                          foregroundColor: Theme.of(context).colorScheme.onSecondary, // Use theme onSecondary color
+                          backgroundColor: Theme.of(context).colorScheme.primary, // Use theme secondary color
+                          foregroundColor: Colors.white, // Use theme onSecondary color
                           elevation: 1,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -409,32 +410,51 @@ class ChatBubble extends StatelessWidget {
                   // --- Existing Suggestions (for standard AI messages) ---
                   // Show suggestions only for standard AI messages, not placeholders or results
                   if (isAi && hasSuggestions && onSuggestionSelected != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: Wrap(
-                        spacing: 8.0, // Horizontal space between chips
-                        runSpacing: 6.0, // Vertical space between rows of chips
-                        children: message.suggestions!.map((suggestion) {
-                          return ActionChip(
-                            label: Text(suggestion),
-                            onPressed: () {
-                              print('Suggestion chip tapped: $suggestion');
-                              // Pass false for generate flag - user wants to discuss/describe first
-                              onSuggestionSelected!(suggestion, false);
-                            },
-                            backgroundColor: Colors.white,
-                            labelStyle: TextStyle(color: Theme.of(context).primaryColor, fontSize: 14),
-                            shape: StadiumBorder(side: BorderSide(color: Theme.of(context).dividerColor)),
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            tooltip: suggestion.toLowerCase() == "something else?"
-                                ? 'Ask for different options'
-                                : 'Learn more about "$suggestion"', // Updated tooltip
-                            elevation: 0.5, // Slight elevation for chips
-                          );
-                        }).toList(),
-                      ),
-                    ),
+  Padding(
+    padding: const EdgeInsets.only(top: 12.0),
+    child: Wrap(
+      spacing: 8.0, // Horizontal space between chips
+      runSpacing: 6.0, // Vertical space between rows of chips
+      children: message.suggestions!.map((suggestion) {
+        return ActionChip(
 
+          // Custom leading widget for the red vertical line
+          avatar: Container(
+            width: 4.0, // Width of the red line
+            height: 24.0, // Height of the red line, adjust as needed
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 248, 132, 123), // Red color for the line
+              borderRadius: BorderRadius.circular(2.0), // Slightly rounded ends for the line
+            ),
+          ),
+          label: Text(
+            suggestion,
+            style: const TextStyle(
+              color: Colors.grey, // Grey text color as in the image
+              fontSize: 16, // Adjust font size as needed
+              fontWeight: FontWeight.normal, // Regular font weight
+            ),
+          ),
+          onPressed: () {
+            print('Suggestion chip tapped: $suggestion');
+            // Pass false for generate flag - user wants to discuss/describe first
+            onSuggestionSelected!(suggestion, false);
+          },
+          backgroundColor: Colors.white, // White background
+          // Use StadiumBorder for rounded rectangular shape and a light pink border
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.0), // Adjust corner radius as in the image
+            side: BorderSide(color: Colors.pink.shade100, width: 1.0), // Light pink border
+          ),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          tooltip: suggestion.toLowerCase() == "something else?"
+              ? 'Ask for different options'
+              : 'Learn more about "$suggestion"',
+          elevation: 0, // No elevation, as the image shows a flat chip
+        );
+      }).toList(),
+    ),
+  ),
                   // --- Optional: Loading indicator inside placeholder bubble ---
                   if (isRecipePlaceholder)
                     Padding(

@@ -840,7 +840,6 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         title: Text(appBarTitle),
         systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
           statusBarBrightness: Brightness.light,
         ),

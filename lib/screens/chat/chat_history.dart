@@ -644,7 +644,7 @@ class ConversationsDrawer extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Your Conversationsx',
+                      'Your Conversations',
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: theme.colorScheme.onPrimary,
                       ),
