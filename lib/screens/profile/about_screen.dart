@@ -77,14 +77,16 @@ class _AboutScreenState extends State<AboutScreen> {
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Image.asset(
-                  'assets/logo.png',
-                  width: 80,
-                  height: 80,
-                  errorBuilder: (ctx, err, _) => Icon(
-                    Icons.restaurant,
-                    size: 60,
-                    color: theme.primaryColor,
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/logo.png',
+                    width: 80,
+                    height: 80,
+                    errorBuilder: (ctx, err, _) => Icon(
+                      Icons.restaurant,
+                      size: 60,
+                      color: theme.primaryColor,
+                    ),
                   ),
                 ),
               ),
@@ -185,7 +187,7 @@ class _AboutScreenState extends State<AboutScreen> {
           width: 60,
           height: 60,
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
+            color: theme.colorScheme.primary,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -198,8 +200,7 @@ class _AboutScreenState extends State<AboutScreen> {
           child: Center(
             child: Image.asset(
               assetPath,
-              width: 40,
-              height: 40,
+              fit: BoxFit.cover,
               errorBuilder: (ctx, err, _) => Icon(
                 fallbackIcon,
                 size: 30,

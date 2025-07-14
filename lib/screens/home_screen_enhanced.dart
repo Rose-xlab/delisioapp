@@ -568,6 +568,8 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   HomeCard(
                     onGenerateNow: () {
                       print('Generate Now button was tapped!');
+                      //navigate to the chat screen with the query
+                      _navigateToChatScreenWithQuery();
                     },
                   ),
                   if (authProvider.isAuthenticated && !subscriptionProvider.isProSubscriber)

@@ -45,6 +45,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+
+    final theme = Theme.of(context);
     // The native splash is shown by FlutterNativeSplash.preserve in main.dart
     // This widget can be minimal or show a secondary branding if needed after preserve.
     // For simplicity, let's keep it as a basic themed container.
@@ -54,10 +56,27 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/logo.png', // Ensure you have this asset
-              width: MediaQuery.of(context).size.width * 0.6,
-              fit: BoxFit.contain,
+             Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: theme.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/logo.png',
+                    width: 80,
+                    height: 80,
+                    errorBuilder: (ctx, err, _) => Icon(
+                      Icons.restaurant,
+                      size: 60,
+                      color: theme.primaryColor,
+                    ),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 20),
             const CircularProgressIndicator(

@@ -1,7 +1,7 @@
 flutter_native_splash:
-  color: "#FEF9E7"  # Match your logo's background color
+  color: "#FD3758"
   image: assets/logo.png
   android_12:
     image: assets/logo.png
-    color: "#FEF9E7"
+    color: "#FD3758"
   fullscreen: true
