@@ -36,17 +36,18 @@ class SubscriptionPlanCard extends StatelessWidget {
         ),
         elevation: 0,
         color: const Color(0xFFFFF6F6), // Very light pink
+        clipBehavior: Clip.none, // Allow overflow for price circle
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header with orange background
             Stack(
               alignment: Alignment.center,
-              // clipBehavior: Clip.none,
+              clipBehavior: Clip.none, // Allow overflow for price circle
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.only(top: 24, bottom: 32),
+                  padding: const EdgeInsets.only(top: 24, bottom: 48), // Increase bottom padding for circle
                   decoration: const BoxDecoration(
                     color: headerColor,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -61,27 +62,27 @@ class SubscriptionPlanCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      // Text(
-                      //   'Unlock All Pro Features for a week',
-                      //   style: theme.textTheme.bodyMedium?.copyWith(
-                      //     color: Colors.white,
-                      //   ),
-                      // ),
+                      Text(
+                        'Unlock All Pro Features for a ${plan.name == 'Pro Weekly' ? 'week' : plan.name == 'Pro Monthly' ? 'month' : plan.name == 'Pro Annual' ? 'year' : plan.name.toLowerCase()}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 // Price circle
                 Positioned(
-                  bottom:-24,
+                  bottom: -24,
                   child: CircleAvatar(
-                    radius:28,
-                    backgroundColor:Colors.white,
+                    radius: 30,
+                    backgroundColor: Colors.white,
                     child: Text(
                       plan.price.toString(),
                       style: theme.textTheme.headlineMedium?.copyWith(
                         color: priceTextColor,
                         fontWeight: FontWeight.bold,
-                        fontSize:16
+                        fontSize: 16,
                       ),
                     ),
                   ),
