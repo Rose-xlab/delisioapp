@@ -1,4 +1,3 @@
-// screens/recipes/recipe_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:kitchenassistant/theme/app_colors_extension.dart';
 import 'package:provider/provider.dart';
@@ -354,10 +353,10 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
       child: GridView.builder(
         padding: const EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: screenWidth > 600 ? 4 : 2, // Two recipes per row
-          childAspectRatio: 0.75, // Card aspect ratio (width/height)
-          crossAxisSpacing: 16, // Horizontal space between items
-          mainAxisSpacing: 16, // Vertical space between items
+          crossAxisCount: screenWidth > 600 ? 4 : 1, // One recipe per row for small screens, four for larger
+          childAspectRatio: 2.8, // Adjusted aspect ratio for the new card design
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
         ),
         itemCount: recipes.length,
         itemBuilder: (context, index) {
@@ -394,148 +393,144 @@ class RecipeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get the first step image URL to use as a recipe thumbnail, if available
     String? imageUrl;
     if (recipe.steps.isNotEmpty && recipe.steps[0].imageUrl != null) {
       imageUrl = recipe.steps[0].imageUrl;
     }
 
     return Card(
-      clipBehavior: Clip.antiAlias, // For clean rounded corners on the image
-      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      elevation: 0.0,
+      color:Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(15), // More rounded corners
       ),
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Recipe image
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 1.25, // Image takes up most of the card
-                  child: imageUrl != null
-                      ? Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey[300],
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: Colors.grey[200],
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          },
-                        )
-                      : Container(
-                          color:
-                              Theme.of(context).primaryColor.withOpacity(0.1),
-                          child: Center(
-                            child: Icon(
-                              Icons.restaurant,
-                              size: 40,
-                              color: Theme.of(context)
-                                  .primaryColor
-                                  .withOpacity(0.5),
-                            ),
-                          ),
-                        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0), // Padding inside the card
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center, // Center items vertically
+            children: [
+              // Image section
+              Container(
+                width: 100, // Fixed width for the image container
+                height: 100, // Fixed height for the image container to make it square
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10), // Rounded corners for the image container
+                  // Removed the primary color with opacity as background, image will cover it
                 ),
-                // Favorite indicator
-                if (recipe.isFavorite)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.favorite,
-                        color: Colors.red,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            // Recipe info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Stack(
                   children: [
-                    // Recipe title
-                    Text(
-                      recipe.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    // Recipe details
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Servings
-                        Row(
-                          children: [
-                            const Icon(Icons.people,
-                                size: 16, color: Colors.grey),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${recipe.servings}',
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                                fontSize: 12,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10), // Apply border radius to the image
+                      child: imageUrl != null
+                          ? Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              width: 100,
+                              height: 100,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey[300],
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                );
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  color: Colors.grey[200],
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              },
+                            )
+                          : Center(
+                              child: Icon(
+                                Icons.restaurant,
+                                size: 40,
+                                color: Theme.of(context).primaryColor.withOpacity(0.5),
                               ),
                             ),
-                          ],
+                    ),
+                    // Favorite indicator
+                    Positioned(
+                      top: 8,
+                      left: 8, // Positioned on the left side
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white, // White background for the icon
+                          borderRadius: BorderRadius.circular(8), // Slightly rounded square background
                         ),
-                        // Time if available
-                        if (recipe.totalTimeMinutes != null)
-                          Row(
-                            children: [
-                              const Icon(Icons.timer,
-                                  size: 16, color: Colors.grey),
-                              const SizedBox(width: 2),
-                              Text(
-                                '${recipe.totalTimeMinutes}m',
-                                style: TextStyle(
-                                  color: Colors.grey[700],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
+                        child: Icon(
+                          Icons.favorite,
+                          color: Colors.red[400], // Red heart color
+                          size: 18,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              // Info section
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12.0), // Padding from the image
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center, // Center text vertically
+                    children: [
+                      // Title
+                      Text(
+                        recipe.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18, // Larger font size for title
+                          color: Colors.black87, // Darker color for title
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 12), // More space between title and details
+                      // Details row
+                      Row(
+                        children: [
+                          const Icon(Icons.people, size: 20, color: Color(0xFFE57373)), // Reddish icon color
+                          const SizedBox(width: 5),
+                          Text(
+                            '${recipe.servings}',
+                            style: const TextStyle(
+                              color: Color(0xFFE57373), // Reddish text color
+                              fontSize: 16, // Larger font size
+                            ),
+                          ),
+                          const SizedBox(width: 15), // More space between servings and time
+                          if (recipe.totalTimeMinutes != null) ...[
+                            const Icon(Icons.timer, size: 20, color: Color(0xFFE57373)), // Reddish icon color
+                            const SizedBox(width: 5),
+                            Text(
+                              '${recipe.totalTimeMinutes} Mins', // "Mins" instead of "m"
+                              style: const TextStyle(
+                                color: Color(0xFFE57373), // Reddish text color
+                                fontSize: 16, // Larger font size
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

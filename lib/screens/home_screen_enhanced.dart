@@ -545,195 +545,127 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
 
     return Scaffold(
       body: SafeArea(
-        child: Stack(
-          children: [
-            RefreshIndicator(
-              onRefresh: _refreshData,
-              child:Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child:Column(
+        child: RefreshIndicator(
+          onRefresh: _refreshData,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    height: 20,
-                  ),
-                  GreetingCard(),
-
-                  SizedBox(
-                    height:20,
-                  ),
-
+                  const SizedBox(height: 20),
+                  if (authProvider.isAuthenticated) GreetingCard(),
+                  const SizedBox(height: 20),
                   NewSearchBar(
                     hintText: 'What recipe are you looking for ?',
                     onSearch: (query) {
-                      // In a real app, you would use this query to perform a search
-                      // For this demo, we'll just print it to the console
-                    print('User is searching for: $query');
-                },
-              ),
-              
-               SizedBox(
-                    height:20,
+                      print('User is searching for: $query');
+                    },
                   ),
-              HomeCard(
-                onGenerateNow: () {
-                  // This function is called when the button is pressed.
-                  // You can add your navigation or state update logic here.
-                  print('Generate Now button was tapped!');
-                },
-              ),
-
-                  // _buildTopBarWidget(context, isSearchBarLoading),
-
-                  // Show banner if user is authenticated AND NOT Pro (according to RevenueCat)
-                  // OR if backend info is available and shows them as free (as a fallback display)
+                  const SizedBox(height: 20),
+                  HomeCard(
+                    onGenerateNow: () {
+                      print('Generate Now button was tapped!');
+                    },
+                  ),
                   if (authProvider.isAuthenticated && !subscriptionProvider.isProSubscriber)
                     _buildSubscriptionBanner(context),
-
-                  // The "Generate Recipe" button section is removed from here as per previous instructions.
-                  // It's now primarily handled via chat or the empty search state.
-
-                  Expanded(
-                    child: ListView(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const SizedBox(height: 8), // Spacing
-
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              if (_isLoadingCategories)
-                                SizedBox(
-                                  width: 16, height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor)),
-                                ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          height: 110,
-                          child: _isLoadingCategories
-                              ? _buildCategoriesLoadingList()
-                              : _buildCategoriesList(categories, _activeCategory, colorScheme),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Trending Now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              if (_isLoadingTrending)
-                                SizedBox(
-                                  width: 16, height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor)),
-                                ),
-                            ],
-                          ),
-                        ),
-                        TrendingRecipes(
-                          recipes: trendingRecipes,
-                          onRecipeTap: _viewRecipe,
-                          isLoading: _isLoadingTrending,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _searchQuery.isNotEmpty
-                                    ? 'Search Results for "$_searchQuery"'
-                                    : (_activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!)),
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                              if (_activeCategory != null && _searchQuery.isEmpty)
-                                TextButton(
-                                  onPressed: () => _onCategorySelected(null), // Select "All"
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: const Size(50, 30),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: const Text('See All'),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Show loading indicator if recipes are loading and the list is currently empty
-                        _isLoadingRecipes && discoverRecipes.isEmpty
-                            ? const Center(child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(),
-                        ))
-                        // Show empty state if not loading and list is empty
-                            : discoverRecipes.isEmpty && !_isLoadingRecipes
-                            ? _buildEmptyState()
-                        // Otherwise, show the recipe grid
-                            : RecipeGrid(
-                          recipes: discoverRecipes,
-                          onRecipeTap: _viewRecipe,
-                          // Pass true if loading and list is NOT empty (e.g. refreshing)
-                          isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
-            
-                        ),
-                        SizedBox(height: navigationBarHeight + 10), // Padding for bottom nav bar
-                        if (isLoadingMore)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
-                              ),
-                            ),
+                        const Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        if (_isLoadingCategories)
+                          const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                       ],
                     ),
                   ),
-                ],
-              ),
-                )
-              
-            ),
-            // Show progress indicator for recipe generation if RecipeProvider is loading
-            // and it's not a cancellation process.
-            if (recipeProvider.isLoading && !recipeProvider.isCancelling && recipeProvider.currentRecipe == null && recipeProvider.partialRecipe == null)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.5),
-                  child: Center(
-                    child: Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(value: recipeProvider.isQueueActive ? recipeProvider.generationProgress : null),
-                            const SizedBox(height: 20),
-                            Text(
-                              recipeProvider.isQueueActive && recipeProvider.generationProgress > 0
-                                  ? "Generating... ${(recipeProvider.generationProgress * 100).toStringAsFixed(0)}%"
-                                  : "Generating recipe...",
-                              style: theme.textTheme.titleMedium,
+                  SizedBox(
+                    height: 110,
+                    child: _isLoadingCategories
+                        ? _buildCategoriesLoadingList()
+                        : _buildCategoriesList(categories, _activeCategory, colorScheme),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Trending Now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        if (_isLoadingTrending)
+                          const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: 220,
+                    child: TrendingRecipes(
+                      recipes: trendingRecipes,
+                      onRecipeTap: _viewRecipe,
+                      isLoading: _isLoadingTrending,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _searchQuery.isNotEmpty
+                              ? 'Search Results for "$_searchQuery"'
+                              : (_activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!)),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        if (_activeCategory != null && _searchQuery.isEmpty)
+                          TextButton(
+                            onPressed: () => _onCategorySelected(null),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(50, 30),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            const SizedBox(height: 10),
-                            TextButton(
-                              onPressed: _cancelRecipeGenerationViaRecipeProvider,
-                              child: const Text("Cancel", style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
+                            child: const Text('See All'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_isLoadingRecipes && discoverRecipes.isEmpty)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    )),
+                  if (discoverRecipes.isEmpty && !_isLoadingRecipes)
+                    _buildEmptyState(),
+                  if (discoverRecipes.isNotEmpty)
+                    RecipeGrid(
+                      recipes: discoverRecipes,
+                      onRecipeTap: _viewRecipe,
+                      isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
+                    ),
+                  SizedBox(height: navigationBarHeight + 10),
+                  if (isLoadingMore)
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
                         ),
                       ),
                     ),
-                  ),
-                ),
+                ],
               ),
-          ],
+            ),
+          ),
         ),
       ),
     );

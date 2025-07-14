@@ -26,11 +26,14 @@ class OnboardingWelcomeScreen extends StatelessWidget {
                 SizedBox(height: MediaQuery.of(context).size.height * 0.04),
 
                 // App logo or icon (optional, for branding)
-                Image.asset(
-                  'assets/logo.png',
-                  height: MediaQuery.of(context).size.width > 600 ? 80 : 56,
-                  width: MediaQuery.of(context).size.width > 600 ? 80 : 56,
-                  fit: BoxFit.contain,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12.0), // Optional: adds a border radius
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: MediaQuery.of(context).size.width > 600 ? 80 : 56,
+                    width: MediaQuery.of(context).size.width > 600 ? 80 : 56,
+                    fit: BoxFit.contain,
+                  ),
                 ),
                 const SizedBox(height: 18),
 
