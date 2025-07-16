@@ -55,12 +55,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!_isInitialRecipeSet && widget.initialRecipe != null) {
-        final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
-        if (recipeProvider.currentRecipe == null || recipeProvider.currentRecipe?.id != widget.initialRecipe!.id) {
-          if (kDebugMode) print("RecipeDetailScreen: Setting initial recipe from arguments: ${widget.initialRecipe!.title}");
+        final recipeProvider =
+            Provider.of<RecipeProvider>(context, listen: false);
+        if (recipeProvider.currentRecipe == null ||
+            recipeProvider.currentRecipe?.id != widget.initialRecipe!.id) {
+          if (kDebugMode)
+            print(
+                "RecipeDetailScreen: Setting initial recipe from arguments: ${widget.initialRecipe!.title}");
           recipeProvider.setCurrentRecipe(widget.initialRecipe!);
         } else {
-          if (kDebugMode) print("RecipeDetailScreen: Provider already has this recipe or a different one, not overriding with initialRecipe argument.");
+          if (kDebugMode)
+            print(
+                "RecipeDetailScreen: Provider already has this recipe or a different one, not overriding with initialRecipe argument.");
         }
         if (mounted) {
           setState(() {
@@ -68,13 +74,19 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           });
         }
       } else if (mounted && !_isInitialRecipeSet) {
-        if (kDebugMode) print("RecipeDetailScreen: No initial recipe provided, relying on provider state.");
-        final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+        if (kDebugMode)
+          print(
+              "RecipeDetailScreen: No initial recipe provided, relying on provider state.");
+        final recipeProvider =
+            Provider.of<RecipeProvider>(context, listen: false);
         if (recipeProvider.currentRecipe == null && !recipeProvider.isLoading) {
-          print("RecipeDetailScreen Error: Reached detail screen but no recipe in provider and not loading.");
+          print(
+              "RecipeDetailScreen Error: Reached detail screen but no recipe in provider and not loading.");
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Recipe details not available.'), backgroundColor: Colors.red));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Error: Recipe details not available.'),
+                  backgroundColor: Colors.red));
               Navigator.of(context).pop();
             }
           });
@@ -97,7 +109,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
     const double atBottomThreshold = 5.0;
     if (scrollPosition.maxScrollExtent > 0) {
-      newIsAtBottomState = (scrollPosition.maxScrollExtent - scrollPosition.pixels) <= atBottomThreshold;
+      newIsAtBottomState =
+          (scrollPosition.maxScrollExtent - scrollPosition.pixels) <=
+              atBottomThreshold;
     } else {
       newIsAtBottomState = true;
     }
@@ -105,7 +119,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     if (!newIsAtBottomState) {
       if (scrollPosition.userScrollDirection == ScrollDirection.reverse) {
         newShowButtonState = true;
-      } else if (scrollPosition.userScrollDirection == ScrollDirection.forward) {
+      } else if (scrollPosition.userScrollDirection ==
+          ScrollDirection.forward) {
         if (scrollPosition.pixels > 50) {
           newShowButtonState = false;
         }
@@ -117,7 +132,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       newShowButtonState = true;
     }
 
-    if (newShowButtonState != _showButtonOverall || newIsAtBottomState != _isAtScrollBottom) {
+    if (newShowButtonState != _showButtonOverall ||
+        newIsAtBottomState != _isAtScrollBottom) {
       setState(() {
         _showButtonOverall = newShowButtonState;
         _isAtScrollBottom = newIsAtBottomState;
@@ -138,15 +154,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     super.didChangeDependencies();
     if (_originatingConversationId == null) {
       final arguments = ModalRoute.of(context)?.settings.arguments;
-      if (arguments is Map && arguments.containsKey('originatingConversationId')) {
+      if (arguments is Map &&
+          arguments.containsKey('originatingConversationId')) {
         if (mounted) {
           setState(() {
-            _originatingConversationId = arguments['originatingConversationId'] as String?;
-            if (kDebugMode) print("RecipeDetailScreen: Received originatingConversationId: $_originatingConversationId");
+            _originatingConversationId =
+                arguments['originatingConversationId'] as String?;
+            if (kDebugMode)
+              print(
+                  "RecipeDetailScreen: Received originatingConversationId: $_originatingConversationId");
           });
         }
       } else {
-        if (kDebugMode) print("RecipeDetailScreen: No originatingConversationId found in arguments.");
+        if (kDebugMode)
+          print(
+              "RecipeDetailScreen: No originatingConversationId found in arguments.");
       }
     }
   }
@@ -167,7 +189,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return buffer.toString().trim();
   }
 
-  Widget _buildTimeInfo(BuildContext context, IconData icon, String text, String label) {
+  Widget _buildTimeInfo(
+      BuildContext context, IconData icon, String text, String label) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (text.trim().isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -185,7 +209,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFFE53E3E)),
+          Icon(icon, size: 16, color: colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             '$text $label',
@@ -206,11 +230,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
         title: const Text('Nutrition Info (Per Serving)'),
-        content: SingleChildScrollView(child: NutritionCard(nutrition: nutritionInfo)),
+        content: SingleChildScrollView(
+            child: NutritionCard(nutrition: nutritionInfo)),
         contentPadding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 0.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
         actions: <Widget>[
-          TextButton(child: const Text('Close'), onPressed: () => Navigator.of(dialogContext).pop()),
+          TextButton(
+              child: const Text('Close'),
+              onPressed: () => Navigator.of(dialogContext).pop()),
         ],
       ),
     );
@@ -239,7 +267,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Widget _buildHeroSection(Recipe recipe) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final bool isAuthenticated = authProvider.isAuthenticated;
-    
+
     return Container(
       height: 300,
       child: Stack(
@@ -250,11 +278,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 ? Image.network(
                     recipe.thumbnailUrl!,
                     fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) => 
-                        progress == null ? child : const Center(child: CircularProgressIndicator()),
+                    loadingBuilder: (context, child, progress) =>
+                        progress == null
+                            ? child
+                            : const Center(child: CircularProgressIndicator()),
                     errorBuilder: (context, error, stack) => Container(
                       color: Colors.grey[200],
-                      child: const Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                      child: const Icon(Icons.broken_image,
+                          color: Colors.grey, size: 50),
                     ),
                   )
                 : Container(
@@ -268,7 +299,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     ),
                   ),
           ),
-          
+
           // Gradient Overlay
           Positioned.fill(
             child: Container(
@@ -285,7 +316,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               ),
             ),
           ),
-          
+
           // Favorite Button
           if (isAuthenticated && recipe.id != null)
             Positioned(
@@ -306,13 +337,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 child: IconButton(
                   icon: Icon(
                     recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: recipe.isFavorite ? const Color(0xFFE53E3E) : Colors.grey[600],
+                    color: recipe.isFavorite
+                        ? const Color(0xFFE53E3E)
+                        : Colors.grey[600],
                   ),
-                  onPressed: _isPerformingAction ? null : () => _toggleFavorite(recipe),
+                  onPressed: _isPerformingAction
+                      ? null
+                      : () => _toggleFavorite(recipe),
                 ),
               ),
             ),
-          
+
           // Share Button
           Positioned(
             top: 16,
@@ -331,11 +366,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               ),
               child: IconButton(
                 icon: Icon(Icons.share_outlined, color: Colors.grey[600]),
-                onPressed: _isPerformingAction ? null : () => _shareRecipe(recipe),
+                onPressed:
+                    _isPerformingAction ? null : () => _shareRecipe(recipe),
               ),
             ),
           ),
-          
+
           // Recipe Title and Info
           Positioned(
             bottom: 0,
@@ -359,7 +395,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.9),
                           borderRadius: BorderRadius.circular(12),
@@ -367,7 +404,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.people_outline, size: 14, color: Color(0xFFE53E3E)),
+                            const Icon(Icons.people_outline,
+                                size: 14, color: Color(0xFFE53E3E)),
                             const SizedBox(width: 4),
                             Text(
                               'Serves ${recipe.servings}',
@@ -382,7 +420,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.9),
                           borderRadius: BorderRadius.circular(12),
@@ -390,7 +429,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.list_alt_outlined, size: 14, color: Color(0xFFE53E3E)),
+                            const Icon(Icons.list_alt_outlined,
+                                size: 14, color: Color(0xFFE53E3E)),
                             const SizedBox(width: 4),
                             Text(
                               '${recipe.steps.length} Steps',
@@ -427,52 +467,114 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         final isCancelling = recipeProvider.isCancelling;
         final wasCancelled = recipeProvider.wasCancelled;
         final bool isAuthenticated = authProvider.isAuthenticated;
+        final colorScheme = Theme.of(context).colorScheme;
 
         // Loading states and error handling remain the same as before
         if (isLoading && recipeToDisplay == null && !wasCancelled) {
           if (partialRecipe != null) {
             return Scaffold(
-              appBar: AppBar(title: Text(partialRecipe.title.isNotEmpty ? partialRecipe.title : 'Generating Recipe...'), actions: [ if (isLoading && !isCancelling) IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: ()=> recipeProvider.cancelRecipeGeneration(), tooltip: "Cancel Generation") ]),
+              appBar: AppBar(
+                  title: Text(partialRecipe.title.isNotEmpty
+                      ? partialRecipe.title
+                      : 'Generating Recipe...'),
+                  actions: [
+                    if (isLoading && !isCancelling)
+                      IconButton(
+                          icon: const Icon(Icons.cancel_outlined),
+                          onPressed: () =>
+                              recipeProvider.cancelRecipeGeneration(),
+                          tooltip: "Cancel Generation")
+                  ]),
               body: RecipeGenerationProgress(
-                partialRecipe: partialRecipe, progress: progress,
-                onCancel: () => recipeProvider.cancelRecipeGeneration(), isCancelling: isCancelling,
+                partialRecipe: partialRecipe,
+                progress: progress,
+                onCancel: () => recipeProvider.cancelRecipeGeneration(),
+                isCancelling: isCancelling,
               ),
             );
           } else {
             return Scaffold(
-              appBar: AppBar(title: const Text('Loading Recipe...'), actions: [ if (isLoading && !isCancelling) IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: ()=> recipeProvider.cancelRecipeGeneration(), tooltip: "Cancel Generation") ]),
-              body: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Center(child: CircularProgressIndicator()),
-                const SizedBox(height: 24),
-                if (recipeProvider.isQueueActive) Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Column(children: [
-                      LinearProgressIndicator(value: progress > 0 ? progress : null, backgroundColor: Colors.grey[300], valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor)),
-                      const SizedBox(height: 16),
-                      if (progress > 0) Text('${(progress * 100).toInt()}% complete', style: TextStyle(color: Theme.of(context).primaryColor)),
-                      const SizedBox(height: 24),
-                    ])
-                ) else const Text("Generating your recipe..."),
+              appBar: AppBar(title: const Text('Loading Recipe...'), actions: [
+                if (isLoading && !isCancelling)
+                  IconButton(
+                      icon: const Icon(Icons.cancel_outlined),
+                      onPressed: () => recipeProvider.cancelRecipeGeneration(),
+                      tooltip: "Cancel Generation")
               ]),
+              body: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Center(child: CircularProgressIndicator()),
+                    const SizedBox(height: 24),
+                    if (recipeProvider.isQueueActive)
+                      Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Column(children: [
+                            LinearProgressIndicator(
+                                value: progress > 0 ? progress : null,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor)),
+                            const SizedBox(height: 16),
+                            if (progress > 0)
+                              Text('${(progress * 100).toInt()}% complete',
+                                  style: TextStyle(
+                                      color: Theme.of(context).primaryColor)),
+                            const SizedBox(height: 24),
+                          ]))
+                    else
+                      const Text("Generating your recipe..."),
+                  ]),
             );
           }
         }
 
         if (wasCancelled) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Generation Cancelled'), leading: IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))),
-            body: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.cancel_outlined, size: 60, color: Colors.orange), const SizedBox(height: 16),
-              Text('Recipe Generation Cancelled', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center,),
-              if (recipeProvider.error != null && recipeProvider.error != 'Recipe generation cancelled') Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(recipeProvider.error!, style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center,)),
-              const SizedBox(height: 20), ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Go Back'))
-            ]))),
+            appBar: AppBar(
+                title: const Text('Generation Cancelled'),
+                leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context))),
+            body: Center(
+                child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.cancel_outlined,
+                              size: 60, color: Colors.orange),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Recipe Generation Cancelled',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                          if (recipeProvider.error != null &&
+                              recipeProvider.error !=
+                                  'Recipe generation cancelled')
+                            Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(
+                                  recipeProvider.error!,
+                                  style: TextStyle(color: Colors.grey[600]),
+                                  textAlign: TextAlign.center,
+                                )),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Go Back'))
+                        ]))),
           );
         }
 
         if (error != null && recipeToDisplay == null) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Recipe Error'), leading: IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))),
+            appBar: AppBar(
+                title: const Text('Recipe Error'),
+                leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context))),
             body: ErrorDisplay(message: error),
           );
         }
@@ -480,25 +582,35 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         if (recipeToDisplay == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipe details are not available.'), backgroundColor: Colors.red));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Recipe details are not available.'),
+                  backgroundColor: Colors.red));
               Navigator.of(context).pop();
             }
           });
           return Scaffold(
-            appBar: AppBar(title: const Text('Recipe Not Found'), leading: IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))),
-            body: const Center(child: LoadingIndicator(message: "Recipe not found...")),
+            appBar: AppBar(
+                title: const Text('Recipe Not Found'),
+                leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context))),
+            body: const Center(
+                child: LoadingIndicator(message: "Recipe not found...")),
           );
         }
 
         final recipe = recipeToDisplay;
-        bool hasTimeInfo = (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0) ||
+        bool hasTimeInfo = (recipe.prepTimeMinutes != null &&
+                recipe.prepTimeMinutes! > 0) ||
             (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0) ||
             (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0);
-        final askButtonLabel = (_originatingConversationId != null && _originatingConversationId!.isNotEmpty)
+        final askButtonLabel = (_originatingConversationId != null &&
+                _originatingConversationId!.isNotEmpty)
             ? 'Return to Chat'
             : 'Ask about this recipe';
 
-        double scrollBottomPadding = _fabBottomMarginDefault + _fabHeightHorizontal + 20.0;
+        double scrollBottomPadding =
+            _fabBottomMarginDefault + _fabHeightHorizontal + 20.0;
         if (_isAtScrollBottom) {
           scrollBottomPadding = 20.0;
         }
@@ -514,7 +626,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   tooltip: 'Delete recipe',
-                  onPressed: _isPerformingAction ? null : () => _deleteRecipe(recipe),
+                  onPressed:
+                      _isPerformingAction ? null : () => _deleteRecipe(recipe),
                 ),
               IconButton(
                 icon: const Icon(Icons.info_outline),
@@ -533,7 +646,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   children: [
                     // Hero Section with overlay
                     _buildHeroSection(recipe),
-                    
+
                     // Time Information
                     if (hasTimeInfo)
                       Container(
@@ -543,23 +656,39 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            if (recipe.prepTimeMinutes != null && recipe.prepTimeMinutes! > 0)
-                              _buildTimeInfo(context, Icons.schedule_outlined, 
-                                _formatRecipeTime(recipe.prepTimeMinutes, '').replaceAll(' prep', ''), 'prep'),
-                            if (recipe.cookTimeMinutes != null && recipe.cookTimeMinutes! > 0)
-                              _buildTimeInfo(context, Icons.local_fire_department_outlined, 
-                                _formatRecipeTime(recipe.cookTimeMinutes, '').replaceAll(' cook', ''), 'cook'),
-                            if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
-                              _buildTimeInfo(context, Icons.timer_outlined, 
-                                _formatRecipeTime(recipe.totalTimeMinutes, '').replaceAll(' total', ''), 'total'),
+                            if (recipe.prepTimeMinutes != null &&
+                                recipe.prepTimeMinutes! > 0)
+                              _buildTimeInfo(
+                                  context,
+                                  Icons.schedule_outlined,
+                                  _formatRecipeTime(recipe.prepTimeMinutes, '')
+                                      .replaceAll(' prep', ''),
+                                  'prep'),
+                            if (recipe.cookTimeMinutes != null &&
+                                recipe.cookTimeMinutes! > 0)
+                              _buildTimeInfo(
+                                  context,
+                                  Icons.local_fire_department_outlined,
+                                  _formatRecipeTime(recipe.cookTimeMinutes, '')
+                                      .replaceAll(' cook', ''),
+                                  'cook'),
+                            if (recipe.totalTimeMinutes != null &&
+                                recipe.totalTimeMinutes! > 0)
+                              _buildTimeInfo(
+                                  context,
+                                  Icons.timer_outlined,
+                                  _formatRecipeTime(recipe.totalTimeMinutes, '')
+                                      .replaceAll(' total', ''),
+                                  'total'),
                           ],
                         ),
                       ),
-                    
+
                     // Ingredients Section
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -572,41 +701,46 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          ...recipe.ingredients.map((ingredient) => Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  margin: const EdgeInsets.only(top: 8, right: 12),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFE53E3E),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    ingredient.toString(),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                      height: 1.5,
+                          ...recipe.ingredients
+                              .map((ingredient) => Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          margin: const EdgeInsets.only(
+                                              top: 8, right: 12),
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.primary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            ingredient.toString(),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.black87,
+                                              height: 1.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )).toList(),
+                                  ))
+                              .toList(),
                         ],
                       ),
                     ),
-                    
+
                     // Instructions Section
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -622,7 +756,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           if (recipe.steps.isEmpty)
                             Center(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 32.0),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 32.0),
                                 child: Text(
                                   'No steps available...',
                                   style: TextStyle(
@@ -643,51 +778,54 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     // Step Image (placeholder for now)
-                                    if(step.imageUrl !=  null)
-
+                                    if (step.imageUrl != null)
                                       Container(
-                                      width: double.infinity,
-                                      height: 200,
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: AspectRatio(
-                                        aspectRatio:16/9,
-                                        child:Image.network(
-                                          step.imageUrl!,
-                                          fit: BoxFit.cover,
-                                          )
-                                      ),
-                                    )  
+                                        width: double.infinity,
+                                        height: 200,
+                                        margin:
+                                            const EdgeInsets.only(bottom: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[200],
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: AspectRatio(
+                                            aspectRatio: 16 / 9,
+                                            child: Image.network(
+                                              step.imageUrl!,
+                                              fit: BoxFit.cover,
+                                            )),
+                                      )
                                     else
-                                     Container(
-                                      width: double.infinity,
-                                      height: 200,
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius: BorderRadius.circular(12),
+                                      Container(
+                                        width: double.infinity,
+                                        height: 200,
+                                        margin:
+                                            const EdgeInsets.only(bottom: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[200],
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Icon(
+                                          Icons.image_outlined,
+                                          size: 48,
+                                          color: Colors.grey[400],
+                                        ),
                                       ),
-                                      child: Icon(
-                                        Icons.image_outlined,
-                                        size: 48,
-                                        color: Colors.grey[400],
-                                      ),
-                                    ),
 
-                                    
                                     // Step Number and Description
                                     Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Container(
                                           width: 28,
                                           height: 28,
-                                          margin: const EdgeInsets.only(right: 12, top: 2),
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFFE53E3E),
+                                          margin: const EdgeInsets.only(
+                                              right: 12, top: 2),
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.primary,
                                             shape: BoxShape.circle,
                                           ),
                                           child: Center(
@@ -703,7 +841,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                         ),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Step ${index + 1}',
@@ -718,21 +857,22 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                                 child: Row(
                                                   children: [
                                                     Container(
-                                                      width:4,
-                                                      height:double.infinity,
-                                                      color:Color(0xFFE53E3E),
+                                                      width: 4,
+                                                      height: double.infinity,
+                                                      color:
+                                                          colorScheme.primary,
                                                     ),
                                                     SizedBox(width: 10),
                                                     Expanded(
                                                       child: Text(
-                                                      step.text,
-                                                      // "Step instruction",
-                                                      style: const TextStyle(
-                                                      fontSize: 16,
-                                                      color: Colors.black87,
-                                                      height: 1.5,
-                                                                                                        ),
-                                                                                                      ),
+                                                        step.text,
+                                                        // "Step instruction",
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          color: Colors.black87,
+                                                          height: 1.5,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -749,76 +889,112 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         ],
                       ),
                     ),
-                    
+
                     // Action Buttons
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          // Cook Mode Button
+                          // Cook Mode Button positioned with AnimatedPositioned
                           if (recipe.steps.isNotEmpty)
-                            Container(
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(bottom: 12),
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.restaurant_menu, color: Colors.white),
-                                label: const Text(
-                                  'Cook Mode',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE53E3E),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                onPressed: () {
-                                  // Handle cook mode
-                                },
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+
+                              // Logic for positioning
+                              top: (_isAtScrollBottom && _showButtonOverall)
+                                  ? 0 // Allows Align to vertically center in the full height of the Stack
+                                  : null, // Not constrained by top when horizontal or hidden
+
+                              bottom: (_isAtScrollBottom && _showButtonOverall)
+                                  ? 0 // Allows Align to vertically center in the full height of the Stack
+                                  : (_showButtonOverall
+                                      ? _fabBottomMarginDefault // Default bottom margin for horizontal FAB
+                                      : -(_fabHeightHorizontal +
+                                          40.0)), // Position off-screen when hidden
+
+                              right: (_isAtScrollBottom && _showButtonOverall)
+                                  ? _fabSideMargin // Pinned to the right edge
+                                  : (!_isAtScrollBottom && _showButtonOverall
+                                      ? _fabSideMargin // For horizontal centering with left
+                                      : _fabSideMargin), // Maintain right constraint for slide-out from bottom
+                              // Or if sliding out from right: -100.0 (some off-screen value)
+
+                              left: (_isAtScrollBottom && _showButtonOverall)
+                                  ? null // Not constrained from left when vertical on right
+                                  : (!_isAtScrollBottom && _showButtonOverall
+                                      ? _fabSideMargin // For horizontal centering with right
+                                      : _fabSideMargin), // Maintain left constraint for slide-out from bottom
+
+                              // Width is null for the vertical button (intrinsic size)
+                              // and for the horizontal button (AnimatedPositioned with left/right handles centering)
+                              width: null,
+
+                              child: AnimatedOpacity(
+                                opacity: _showButtonOverall ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 300),
+                                child: (_isAtScrollBottom && _showButtonOverall)
+                                    ? Align(
+                                        alignment: Alignment
+                                            .center, // Vertically centers the button in the right-edge strip
+                                        child: FloatingCookModeButton(
+                                          steps: recipe.steps,
+                                          isAtScrollBottom:
+                                              true, // Renders vertically
+                                        ),
+                                      )
+                                    : Center(
+                                        // Ensures the horizontal FAB is centered in its allocated space
+                                        child: FloatingCookModeButton(
+                                          steps: recipe.steps,
+                                          isAtScrollBottom:
+                                              false, // Renders horizontally
+                                        ),
+                                      ),
                               ),
                             ),
-                          
+
+                          SizedBox(height: scrollBottomPadding),
+
                           // Ask About Recipe Button
                           Container(
                             width: double.infinity,
                             child: OutlinedButton.icon(
                               icon: Icon(
-                                (_originatingConversationId != null && _originatingConversationId!.isNotEmpty)
+                                (_originatingConversationId != null &&
+                                        _originatingConversationId!.isNotEmpty)
                                     ? Icons.arrow_back_ios_new
                                     : Icons.chat_bubble_outline,
-                                color: const Color(0xFFE53E3E),
+                                color: colorScheme.primary,
                               ),
                               label: Text(
                                 askButtonLabel,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFFE53E3E),
+                                  color: colorScheme.primary,
                                 ),
                               ),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Color(0xFFE53E3E), width: 1.5),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                side: BorderSide(
+                                    color: colorScheme.primary, width: 1.5),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              onPressed: (_creatingConversation || _isPerformingAction) 
-                                  ? null 
-                                  : () => _handleAskAboutRecipe(recipe),
+                              onPressed:
+                                  (_creatingConversation || _isPerformingAction)
+                                      ? null
+                                      : () => _handleAskAboutRecipe(recipe),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    
+
                     SizedBox(height: scrollBottomPadding),
                   ],
                 ),
@@ -847,7 +1023,8 @@ class ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+    final effectiveColor =
+        color ?? Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
 
     return TextButton.icon(
       onPressed: onPressed,
