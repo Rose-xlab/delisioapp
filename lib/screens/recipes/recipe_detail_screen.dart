@@ -216,24 +216,172 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
+
+
+  // Handle deleting a recipe
   Future<void> _deleteRecipe(Recipe recipe) async {
-    // Implementation as before
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+            title: const Text('Delete Recipe?'),
+            content: Text('Are you sure you want to delete "${recipe.title}"? This action cannot be undone.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.of(context).pop(true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete'))
+            ]
+        )
+    ) ?? false;
+
+    if (!confirmed || !mounted) return;
+
+    setState(() => _isPerformingAction = true);
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+      if (!authProvider.isAuthenticated || recipe.id == null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot delete recipe: Not logged in or recipe has no ID.'), backgroundColor: Colors.orange));
+        return;
+      }
+      final success = await recipeProvider.deleteRecipe(recipe.id!, authProvider.token!);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipe deleted successfully'), backgroundColor: Colors.green));
+        // Pop back to the previous screen (likely recipe list or home)
+        Navigator.of(context).pop();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete recipe: ${recipeProvider.error ?? "Unknown error"}'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting recipe: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isPerformingAction = false);
+    }
   }
 
+  // Handle toggling favorite status
   Future<void> _toggleFavorite(Recipe recipe) async {
-    // Implementation as before
+    if (recipe.id == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot favorite recipe: Recipe has no ID.'), backgroundColor: Colors.orange));
+      return;
+    }
+    if (_isPerformingAction) return; // Prevent double taps
+
+    setState(() => _isPerformingAction = true);
+    final bool wasFavorite = recipe.isFavorite; // Check state before action
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+      if (!authProvider.isAuthenticated) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to manage favorites.'), backgroundColor: Colors.orange));
+        return;
+      }
+      final success = await recipeProvider.toggleFavorite(recipe.id!, authProvider.token!);
+
+      if (success && mounted) {
+        // The provider state (_currentRecipe.isFavorite) will be updated by toggleFavorite,
+        // so the button icon will rebuild correctly. Show confirmation.
+        final message = wasFavorite ? 'Removed from favorites' : 'Added to favorites';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update favorites: ${recipeProvider.error ?? "Unknown error"}'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating favorites: $e'), backgroundColor: Colors.red));
+    } finally {
+      // Check mounted again before setting state in finally block
+      if (mounted) {
+        setState(() => _isPerformingAction = false);
+      }
+    }
   }
 
+  // Handle sharing a recipe
   Future<void> _shareRecipe(Recipe recipe) async {
-    // Implementation as before
+    // Prevent action if already performing one
+    if (_isPerformingAction) return;
+    setState(() => _isPerformingAction = true); // Indicate action started
+
+    try {
+      // Use provider's share method which uses the current recipe state
+      await Provider.of<RecipeProvider>(context, listen: false).shareRecipe();
+      // Optional: Show confirmation
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipe ready to share!'), backgroundColor: Colors.blue));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error sharing recipe: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isPerformingAction = false); // Indicate action finished
+    }
   }
 
+  // --- MODIFIED: Navigate back to origin chat or create new chat ---
   Future<void> _handleAskAboutRecipe(Recipe recipe) async {
-    // Implementation as before
+    // Check if we have an originating conversation ID
+    if (_originatingConversationId != null && _originatingConversationId!.isNotEmpty) {
+      // --- Navigate back to the existing chat ---
+      if (kDebugMode) print("RecipeDetailScreen: Navigating back to originating chat: $_originatingConversationId");
+      // Simply pop the current screen, assuming ChatScreen is the previous one
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } else {
+      // --- Original behavior: Start a NEW chat conversation ---
+      if (kDebugMode) print("RecipeDetailScreen: No originating chat ID found, starting a new chat.");
+      await _startNewChatAboutRecipe(recipe);
+    }
   }
 
+
+  // --- RENAMED & KEPT: Function to create a *new* chat ---
   Future<void> _startNewChatAboutRecipe(Recipe recipe) async {
-    // Implementation as before
+    if (_creatingConversation || _isPerformingAction) return; // Prevent double taps
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (!authProvider.isAuthenticated) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to start a chat.'), backgroundColor: Colors.orange));
+      return;
+    }
+
+    setState(() {
+      _creatingConversation = true;
+      _isPerformingAction = true; // Also block other actions
+    });
+    final snackBar = ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Starting chat...'), duration: Duration(seconds: 5))
+    );
+
+    try {
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      final newConversationId = await chatProvider.createNewConversation(); // Creates and selects
+
+      if (newConversationId != null) {
+        // _conversationId = newConversationId; // No longer need to store locally in this screen state
+
+        // Send initial message about the recipe
+        await chatProvider.sendMessage("I'd like to discuss this recipe: ${recipe.title}");
+
+        snackBar.close(); // Close loading indicator
+
+        if (mounted) {
+          // Navigate to the newly created and selected chat screen
+          // Replace current screen if desired, or push
+          Navigator.of(context).pushReplacementNamed('/chat', arguments: newConversationId);
+          // Alternative: Navigator.of(context).pushNamed('/chat', arguments: newConversationId);
+        }
+      } else {
+        snackBar.close();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create chat conversation'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      snackBar.close();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: ${e.toString()}'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _creatingConversation = false;
+          _isPerformingAction = false;
+        });
+      }
+    }
   }
 
   Widget _buildHeroSection(Recipe recipe) {
