@@ -95,7 +95,6 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
 
     if (mounted) {
       setState(() => _isLoading = false);
-      // *** UPDATED NAVIGATION TARGET ***
       Navigator.of(context).pushReplacementNamed('/onboarding_food_selection');
     }
   }
@@ -108,8 +107,6 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
   }
 
   Widget _buildMultiSelectChipGroup(List<String> options, List<String> selectedOptions, ThemeData theme) {
-    // ... (Your existing chip group widget code - no changes needed here)
-    final colorScheme = theme.colorScheme;
     final appColors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Wrap(
@@ -118,7 +115,7 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
         final bool isSelected = selectedOptions.contains(item);
         return ChoiceChip(
           label: Text(item),
-          avatar: null, 
+          avatar: null,
           showCheckmark: false,
           selected: isSelected,
           onSelected: (bool selected) { _toggleSelection(selectedOptions, item); },
@@ -141,7 +138,6 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
   }
 
   Widget _buildSkillDropdown(ThemeData theme) {
-    // ... (Your existing dropdown widget code - no changes needed here)
     return DropdownButtonFormField<String>(
       decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: theme.dividerColor)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: theme.dividerColor)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: theme.colorScheme.primary, width: 2)), filled: true, fillColor: theme.inputDecorationTheme.fillColor ?? Colors.grey.shade50, contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 15.0)),
       value: _selectedCookingSkillDisplay,
@@ -154,12 +150,29 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    
+    // Determine the correct text color for the AppBar based on its background brightness
+    final appBarColor = theme.appBarTheme.backgroundColor ?? theme.colorScheme.primary;
+    final brightness = ThemeData.estimateBrightnessForColor(appBarColor);
+    final textColor = brightness == Brightness.dark ? Colors.white : Colors.black;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Culinary Profile'),
         automaticallyImplyLeading: false,
         centerTitle: true,
+        // *** UPDATED SKIP BUTTON WITH VISIBLE STYLING ***
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: textColor, // Explicitly set text color for visibility
+              ),
+              onPressed: _isLoading ? null : _savePreferencesAndContinue,
+              child: const Text('Skip', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            ),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -188,7 +201,7 @@ class _OnboardingPreferencesScreenState extends State<OnboardingPreferencesScree
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom( padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15), textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), backgroundColor: theme.colorScheme.primary, foregroundColor: theme.colorScheme.onPrimary),
                 onPressed: _savePreferencesAndContinue,
-                child: const Text('Choose Favorite Foods'), // Updated button text
+                child: const Text('Choose Favorite Foods'),
               ),
             ),
             const SizedBox(height: 20),

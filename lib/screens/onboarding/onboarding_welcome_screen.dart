@@ -92,7 +92,7 @@ class OnboardingWelcomeScreen extends StatelessWidget {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 500),
                   child: Text(
-                    'Discover recipes you love and generate new culinary ideas with your powerful AI chef.',
+                    'Unlock endless recipe ideas and pro-level tips—right at your fingertips',
                     style: textTheme.titleMedium?.copyWith(
                       height: 1.5,
                       color: appColors.gray200, // Using a neutral color for better readability

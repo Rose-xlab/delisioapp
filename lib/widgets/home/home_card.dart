@@ -1,3 +1,4 @@
+//C:\Users\mukas\StudioProjects\delisio\lib\widgets\home\home_card.dart
 import 'package:flutter/material.dart';
 
 class HomeCard extends StatelessWidget {
@@ -20,7 +21,7 @@ class HomeCard extends StatelessWidget {
         children: [
           //
           const Text(
-            'Generate your favourite recipe',
+            'Cook Something Amazing!',
             style: TextStyle(
               color: Colors.white,
               fontSize: 22.0,
@@ -35,7 +36,7 @@ class HomeCard extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Text(
-                  'With the help of our AI backed system; generate any recipe in seconds',
+                  'Let our AI craft delicious recipes for you in seconds!',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 14.0,
@@ -81,7 +82,7 @@ class HomeCard extends StatelessWidget {
               color: Color(0xFFF23B5A),
             ),
             label: const Text(
-              'Generate Now',
+              'Create Recipe',
               style: TextStyle(
                 color: Color(0xFFF23B5A),
                 fontWeight: FontWeight.bold,

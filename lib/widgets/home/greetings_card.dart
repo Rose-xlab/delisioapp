@@ -1,3 +1,4 @@
+//greetings_card.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -55,7 +56,7 @@ Widget build(BuildContext context) {
                 ),
               ),
               const Text(
-                'Ready to cook something delicious?',
+                'Time to spark your culinary creativity!',
                 style: TextStyle(
                   fontSize: 14.0,
                   color: Colors.grey,

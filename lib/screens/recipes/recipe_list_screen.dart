@@ -272,20 +272,15 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'No recipes saved yet',
+              'Favorites you save show up right here.',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Your saved recipes will appear here',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
+
+
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
@@ -296,7 +291,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                 }
               },
               icon: const Icon(Icons.search),
-              label: const Text('Find Recipes'),
+              label: const Text('Discover Dishes'),
             ),
           ],
         ),

@@ -479,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
                             child: Text(
-                                'No recipes saved yet...', textAlign: TextAlign
+                                'Save tasty finds and they’ll appear here.', textAlign: TextAlign
                                 .center, style: TextStyle(
                                 color: Colors.grey[600], fontSize: 16)),
                           ),

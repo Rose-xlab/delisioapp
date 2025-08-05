@@ -105,7 +105,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
             // App Description
             Text(
-              'Your AI-Powered Cooking Assistant',
+              'Discover the Joy of Effortless Cooking',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.7),
               ),
@@ -129,7 +129,7 @@ class _AboutScreenState extends State<AboutScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'Kitchen Assistant combines the power of artificial intelligence with your culinary needs to create an unparalleled cooking experience. Generate custom recipes, get cooking advice, and explore new dishes tailored to your preferences.',
+                'Kitchen Assistant is your personal AI chef, transforming your cooking experience with creative recipes tailored to your taste. Explore, cook, and savor new culinary adventures crafted instantly.',
                 style: TextStyle(
                   fontSize: 16,
                   height: 1.5,
