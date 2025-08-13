@@ -1,4 +1,3 @@
-//C:\Users\mukas\StudioProjects\delisio\lib\widgets\home\home_card.dart
 import 'package:flutter/material.dart';
 
 class HomeCard extends StatelessWidget {
@@ -18,51 +17,58 @@ class HomeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16.0),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          //
+          // Title
           const Text(
             'Cook Something Amazing!',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 22.0,
+              fontSize: 20.0,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8.0),
-          //
+          // Subtitle and Image
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                flex: 2,
-                child: Text(
-                  'Let our AI craft delicious recipes for you in seconds!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14.0,
+                flex: 3,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    'Let our AI craft delicious recipes for you in seconds!',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.95),
+                      fontSize: 13.0,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              SizedBox(width: 12),
               Flexible(
-                flex: 1,
+                flex: 2,
                 child: Image.asset(
                   'assets/fryingpan.png',
-                  width: 100,
-                  height: 100,
+                  width: 80,
+                  height: 80,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
-                      width: 100,
-                      height: 100,
-                      color: Colors.white.withOpacity(0.2),
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
                       child: const Center(
                         child: Icon(
                           Icons.image_not_supported,
                           color: Colors.white,
-                          size: 40,
+                          size: 32,
                         ),
                       ),
                     );
@@ -71,31 +77,33 @@ class HomeCard extends StatelessWidget {
               ),
             ],
           ),
-
-          //
-
-          // The "Generate Now" button.
-          ElevatedButton.icon(
-            onPressed: onGenerateNow,
-            icon: const Icon(
-              Icons.auto_awesome, // Sparkle icon.
-              color: Color(0xFFF23B5A),
-            ),
-            label: const Text(
-              'Create Recipe',
-              style: TextStyle(
+          const SizedBox(height: 16.0),
+          // The "Generate Now" button - centered
+          Center(
+            child: ElevatedButton.icon(
+              onPressed: onGenerateNow,
+              icon: const Icon(
+                Icons.auto_awesome, // Sparkle icon.
                 color: Color(0xFFF23B5A),
-                fontWeight: FontWeight.bold,
+                size: 20,
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white, // White button background.
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
+              label: const Text(
+                'Create Recipe',
+                style: TextStyle(
+                  color: Color(0xFFF23B5A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14.0,
+                ),
               ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12.0,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white, // White button background.
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 10.0,
+                ),
               ),
             ),
           ),

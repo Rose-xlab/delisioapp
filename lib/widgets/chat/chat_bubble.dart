@@ -1,3 +1,4 @@
+//chat_bubble.dart
 import 'package:flutter/material.dart';
 import '../../models/chat_message.dart'; // Ensure this has the new fields/types
 
