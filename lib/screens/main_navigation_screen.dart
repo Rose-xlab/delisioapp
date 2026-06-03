@@ -23,7 +23,7 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 0;
+  int _currentIndex = 1; // Default to Chat Tab
   late List<Widget> _screens;
   String? _currentlyDisplayedChatIdInTab;
 
@@ -41,6 +41,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.isAuthenticated) {
         Provider.of<ChatProvider>(context, listen: false).loadConversations();
+        // Immediately show the new chat screen for a "Chat-First" experience
+        _navigateToNewChatScreenFromFab();
       }
     });
   }

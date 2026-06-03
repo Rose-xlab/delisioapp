@@ -563,7 +563,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                   NewSearchBar(
                     hintText: 'What recipe are you looking for ?',
                     onSearch: (query) {
-                      print('User is searching for: $query');
+                      _onSearch(query);
                     },
                   ),
                   const SizedBox(height: 20),
@@ -648,14 +648,19 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       padding: EdgeInsets.all(16.0),
                       child: CircularProgressIndicator(),
                     )),
-                  if (discoverRecipes.isEmpty && !_isLoadingRecipes)
-                    _buildEmptyState(),
-                  if (discoverRecipes.isNotEmpty)
+                  if (discoverRecipes.isNotEmpty || _searchQuery.isNotEmpty)
                     RecipeGrid(
                       recipes: discoverRecipes,
                       onRecipeTap: _viewRecipe,
                       isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
+                      searchQuery: _searchQuery,
+                      onMagicGenerate: (query) {
+                        _searchController.text = query;
+                        _generateRecipeViaRecipeProvider();
+                      },
                     ),
+                  if (discoverRecipes.isEmpty && !_isLoadingRecipes && _searchQuery.isEmpty)
+                    _buildEmptyState(),
                   SizedBox(height: navigationBarHeight + 10),
                   if (isLoadingMore)
                     Padding(

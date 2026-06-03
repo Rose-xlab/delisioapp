@@ -32,6 +32,8 @@ class Recipe {
   final double? progress;
   // NEW: Add isPartial flag for progressive display
   final bool isPartial;
+  // NEW: Add isLocked flag for "Tease & Lock" strategy
+  final bool isLocked;
   // --- FIELD FOR RECIPE THUMBNAIL ---
   final String? thumbnailUrl;
   // --- END THUMBNAIL FIELD ---
@@ -57,6 +59,7 @@ class Recipe {
     this.qualityScore, // NEW: Quality score
     this.progress, // NEW: Progress percentage
     this.isPartial = false, // NEW: Flag for partial recipes
+    this.isLocked = false, // NEW: Flag for locked recipes
     this.thumbnailUrl, // <-- Added to constructor
   });
 
@@ -81,6 +84,7 @@ class Recipe {
     double? qualityScore,
     double? progress,
     bool? isPartial,
+    bool? isLocked,
     String? thumbnailUrl, // <-- ADDED
   }) {
     return Recipe(
@@ -103,6 +107,7 @@ class Recipe {
       qualityScore: qualityScore ?? this.qualityScore,
       progress: progress ?? this.progress,
       isPartial: isPartial ?? this.isPartial,
+      isLocked: isLocked ?? this.isLocked,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl, // <-- ADDED
     );
   }
@@ -213,6 +218,7 @@ class Recipe {
     }
     final status = json['status'];
     bool isPartial = json['isPartial'] == true || (status != null && (status == 'active' || status == 'waiting'));
+    bool isLocked = json['isLocked'] == true;
 
     // --- ADDED: Extract thumbnail_url ---
     String? thumbnailUrl = json['thumbnail_url'] as String?;
@@ -239,6 +245,7 @@ class Recipe {
       qualityScore: qualityScore,
       progress: progress,
       isPartial: isPartial,
+      isLocked: isLocked,
       thumbnailUrl: thumbnailUrl, // <-- Pass the extracted URL
     );
   }
@@ -267,6 +274,7 @@ class Recipe {
       if (qualityScore != null) 'quality_score': qualityScore,
       if (progress != null) 'progress': ((progress ?? 0) * 100).round(),
       'isPartial': isPartial,
+      'isLocked': isLocked,
       if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl, // <-- ADDED
     };
   }

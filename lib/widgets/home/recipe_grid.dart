@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
 // Import CachedNetworkImage package (ensure it's added to pubspec.yaml)
 import 'package:cached_network_image/cached_network_image.dart';
+import 'magic_search_card.dart';
 
 class RecipeGrid extends StatelessWidget {
   final List<Recipe> recipes;
   final ScrollController? scrollController; // Retained as it's part of the original API
   final String emptyMessage;
   final Function(Recipe)? onRecipeTap;
+  final Function(String)? onMagicGenerate; // NEW: Callback for AI generation
   final bool isLoading; // This will now be _isLoadingRecipes from the parent
   final int crossAxisCount;
   final double childAspectRatio;
+  final String? searchQuery; // NEW: To show in magic card
 
   const RecipeGrid({
     Key? key,
@@ -19,9 +22,11 @@ class RecipeGrid extends StatelessWidget {
     this.scrollController,
     this.emptyMessage = 'No recipes found',
     this.onRecipeTap,
+    this.onMagicGenerate,
     this.isLoading = false,
     this.crossAxisCount = 1,
     this.childAspectRatio = 0.75, // Adjust aspect ratio if needed
+    this.searchQuery,
   }) : super(key: key);
 
   @override
@@ -42,20 +47,27 @@ class RecipeGrid extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.restaurant_menu,
-                size: 64,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                emptyMessage,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
+              if (searchQuery != null && searchQuery!.isNotEmpty && onMagicGenerate != null)
+                MagicSearchCard(
+                  query: searchQuery!,
+                  onGenerate: () => onMagicGenerate!(searchQuery!),
+                )
+              else ...[
+                Icon(
+                  Icons.restaurant_menu,
+                  size: 64,
+                  color: Colors.grey[400],
                 ),
-                textAlign: TextAlign.center,
-              ),
+                const SizedBox(height: 16),
+                Text(
+                  emptyMessage,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ),
         ),

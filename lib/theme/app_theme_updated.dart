@@ -86,7 +86,7 @@ class AppTheme {
       ),
     ],
     scaffoldBackgroundColor: lightBackground,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: lightSurface,
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -175,7 +175,7 @@ class AppTheme {
       ),
     ],
     scaffoldBackgroundColor: darkBackground,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: darkSurface,
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -238,7 +238,7 @@ class AppTheme {
         foregroundColor: darkPrimaryColor,
       ),
     ),
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: darkSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),

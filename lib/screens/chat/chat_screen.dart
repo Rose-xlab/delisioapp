@@ -16,6 +16,7 @@ import '../../models/recipe.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 
+import '../../widgets/chat/recipe_intent_card.dart';
 import '../../widgets/chat/chat_bubble.dart';
 import '../../widgets/chat/message_input.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -970,27 +971,47 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildWelcomePrompt({bool isNewChat = false}) {
+    final theme = Theme.of(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 40),
+          const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
               borderRadius: BorderRadius.circular(24),
             ),
-            child: Icon(Icons.assistant, size: 48, color: Theme.of(context).colorScheme.primary),
+            child: Icon(Icons.auto_awesome_rounded, size: 40, color: theme.colorScheme.primary),
           ),
           const SizedBox(height: 24),
-          Text(isNewChat ? 'AI' : 'AI', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-          const SizedBox(height: 12),
-          Text('How can I help \nwith your cooking today?', style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color:Colors.grey[500]), textAlign: TextAlign.center),
+          Text(
+            'Kitchen Assistant',
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your AI Chef for personalized recipes\nand cooking advice.',
+            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+            textAlign: TextAlign.center
+          ),
           const SizedBox(height: 32),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'TRY STARTING WITH:',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           ..._buildExamplePrompts(),
           const SizedBox(height: 20),
         ],
@@ -1000,35 +1021,95 @@ class _ChatScreenState extends State<ChatScreen> {
 
   List<Widget> _buildExamplePrompts() {
     final prompts = [
-      {'text': 'What can I make with chicken and broccoli?', 'icon': Icons.kitchen_outlined},
-      {'text': 'I need a quick dinner idea for tonight', 'icon': Icons.timer_outlined},
-      {'text': 'How do I make pasta from scratch?', 'icon': Icons.restaurant_menu_outlined},
-      {'text': 'Give me a healthy breakfast recipe', 'icon': Icons.breakfast_dining_outlined},
+      {
+        'text': 'What can I make with chicken and broccoli?',
+        'icon': Icons.kitchen_outlined,
+        'color': const Color(0xFFF59E0B), // Amber
+        'label': 'Inventory'
+      },
+      {
+        'text': 'I need a quick 15-minute dinner idea',
+        'icon': Icons.timer_outlined,
+        'color': const Color(0xFF10B981), // Emerald
+        'label': 'Fast'
+      },
+      {
+        'text': 'Suggest some healthy Keto meal ideas',
+        'icon': Icons.favorite_outline_rounded,
+        'color': const Color(0xFF3B82F6), // Blue
+        'label': 'Diet'
+      },
+      {
+        'text': 'How do I make perfect fluffy pancakes?',
+        'icon': Icons.restaurant_menu_outlined,
+        'color': const Color(0xFFEC4899), // Pink
+        'label': 'Tutorial'
+      },
     ];
     return prompts.map((prompt) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 10.0),
-        child: _buildPromptCard(prompt['text'] as String, prompt['icon'] as IconData),
+        padding: const EdgeInsets.only(bottom: 12.0),
+        child: _buildPromptCard(
+          prompt['text'] as String,
+          prompt['icon'] as IconData,
+          prompt['color'] as Color,
+          prompt['label'] as String,
+        ),
       );
     }).toList();
   }
 
-  Widget _buildPromptCard(String text, IconData icon) {
+  Widget _buildPromptCard(String text, IconData icon, Color color, String label) {
+    final theme = Theme.of(context);
     return Card(
-      elevation: 0.5,
+      elevation: 0,
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey[200] ?? Colors.grey)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!)
+      ),
       child: InkWell(
         onTap: () => _sendMessage(text),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-          child: Row(children: [
-            Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14.5))),
-            Icon(Icons.send_rounded, size: 16, color: Colors.grey[600]),
-          ],
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 20, color: color),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      text,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      )
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
+            ],
           ),
         ),
       ),

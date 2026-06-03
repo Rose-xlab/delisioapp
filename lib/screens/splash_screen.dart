@@ -30,17 +30,12 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 2)); // Shorter delay, splash is visible longer
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final bool hasCompletedOnboarding = prefs.getBool('hasCompletedOnboarding') ?? false;
-
     // Remove the splash screen just before navigation
     FlutterNativeSplash.remove();
 
-    if (hasCompletedOnboarding) {
-      Navigator.of(context).pushReplacementNamed('/app'); // Assuming '/app' is your main app route in DelisioApp
-    } else {
-      Navigator.of(context).pushReplacementNamed('/onboarding_welcome');
-    }
+    // MODERN CHAT-FIRST: Go straight to the app.
+    // Onboarding can be done contextually later if needed.
+    Navigator.of(context).pushReplacementNamed('/app');
   }
 
   @override

@@ -48,6 +48,7 @@ dependencies:
 
   # UI enhancements
   shimmer: ^3.0.0
+  font_awesome_flutter: ^11.0.0
 
   # Explicitly add sign_in_with_apple with its latest version
   # Required for Supabase v2 Apple Auth and to fix original build error
@@ -70,7 +71,6 @@ dev_dependencies:
   change_app_package_name: ^1.5.0
   flutter_launcher_icons: ^0.14.3
   flutter_native_splash: ^2.3.6
-  font_awesome_flutter: ^10.7.0
 
 flutter_launcher_icons:
   android: "launcher_icon"

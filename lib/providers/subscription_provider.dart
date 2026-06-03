@@ -26,8 +26,8 @@ class SubscriptionProvider with ChangeNotifier {
       description: 'Basic access to Kitchen Assistant',
       price: 0, currency: 'USD', interval: 'month',
       features: [
-        'Limited recipe generations (e.g., 1/month)',
-        'Limited AI chat replies (e.g., 3/month)',
+        'Limited full recipe unlocks (e.g., 1/month)',
+        'Up to 10 AI chat replies/period',
         'Standard image quality', 'Access to a selection of recipes', 'Basic chat assistance',
       ],
       planIdentifier: 'free',

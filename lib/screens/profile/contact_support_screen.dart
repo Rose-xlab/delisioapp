@@ -240,7 +240,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
   }
 
   // Helper Widget for Social Media Icons
-  Widget _buildSocialButton({required IconData icon, required String url, required Color color}) {
+  Widget _buildSocialButton({required dynamic icon, required String url, required Color color}) {
     return IconButton(
       icon: FaIcon(icon), // Use FaIcon for FontAwesome icons
       iconSize: 30,
@@ -248,15 +248,6 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
       tooltip: 'Visit our ${icon.toString().split('.').last} page', // Basic tooltip
       onPressed: () => _launchSocialUrl(url),
     );
-    // Alternative using InkWell for custom shape/background:
-    // return InkWell(
-    //   onTap: () => _launchSocialUrl(url),
-    //   borderRadius: BorderRadius.circular(50), // Make it circular
-    //   child: Padding(
-    //     padding: const EdgeInsets.all(12.0),
-    //     child: FaIcon(icon, size: 30, color: color),
-    //   ),
-    // );
   }
 
   // Helper Widget for info rows

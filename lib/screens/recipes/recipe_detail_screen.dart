@@ -14,6 +14,7 @@ import '../../widgets/recipes/ingredient_list.dart';
 import '../../widgets/recipes/step_card.dart';
 import '../../widgets/recipes/nutrition_card.dart';
 import '../../widgets/recipes/recipe_generation_progress.dart';
+import '../../widgets/recipes/locked_recipe_overlay.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/common/error_display.dart';
 import '../../widgets/recipes/floating_cook_mode_button.dart';
@@ -890,210 +891,216 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
 
                    // Ingredients Section
-                   Container(
-                     width: double.infinity,
-                     padding: const EdgeInsets.symmetric(
-                         horizontal: 20, vertical: 16),
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         const Text(
-                           'Ingredients',
-                           style: TextStyle(
-                             fontSize: 22,
-                             fontWeight: FontWeight.bold,
-                             color: Colors.black87,
+                   LockedRecipeOverlay(
+                     isLocked: recipe.isLocked,
+                     child: Container(
+                       width: double.infinity,
+                       padding: const EdgeInsets.symmetric(
+                           horizontal: 20, vertical: 16),
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           const Text(
+                             'Ingredients',
+                             style: TextStyle(
+                               fontSize: 22,
+                               fontWeight: FontWeight.bold,
+                               color: Colors.black87,
+                             ),
                            ),
-                         ),
-                         const SizedBox(height: 16),
-                         ...recipe.ingredients
-                             .map((ingredient) => Container(
-                                   margin: const EdgeInsets.only(bottom: 12),
-                                   child: Row(
-                                     crossAxisAlignment:
-                                         CrossAxisAlignment.start,
-                                     children: [
-                                       Container(
-                                         width: 8,
-                                         height: 8,
-                                         margin: const EdgeInsets.only(
-                                             top: 8, right: 12),
-                                         decoration: BoxDecoration(
-                                           color: colorScheme.primary,
-                                           shape: BoxShape.circle,
-                                         ),
-                                       ),
-                                       Expanded(
-                                         child: Text(
-                                           ingredient.toString(),
-                                           style: const TextStyle(
-                                             fontSize: 16,
-                                             color: Colors.black87,
-                                             height: 1.5,
+                           const SizedBox(height: 16),
+                           ...recipe.ingredients
+                               .map((ingredient) => Container(
+                                     margin: const EdgeInsets.only(bottom: 12),
+                                     child: Row(
+                                       crossAxisAlignment:
+                                           CrossAxisAlignment.start,
+                                       children: [
+                                         Container(
+                                           width: 8,
+                                           height: 8,
+                                           margin: const EdgeInsets.only(
+                                               top: 8, right: 12),
+                                           decoration: BoxDecoration(
+                                             color: colorScheme.primary,
+                                             shape: BoxShape.circle,
                                            ),
                                          ),
-                                       ),
-                                     ],
-                                   ),
-                                 ))
-                             .toList(),
-                       ],
+                                         Expanded(
+                                           child: Text(
+                                             ingredient.toString(),
+                                             style: const TextStyle(
+                                               fontSize: 16,
+                                               color: Colors.black87,
+                                               height: 1.5,
+                                             ),
+                                           ),
+                                         ),
+                                       ],
+                                     ),
+                                   ))
+                               .toList(),
+                         ],
+                       ),
                      ),
                    ),
 
 
                    // Instructions Section
-                   Container(
-                     width: double.infinity,
-                     padding: const EdgeInsets.symmetric(
-                         horizontal: 20, vertical: 16),
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         const Text(
-                           'Instructions',
-                           style: TextStyle(
-                             fontSize: 22,
-                             fontWeight: FontWeight.bold,
-                             color: Colors.black87,
+                   LockedRecipeOverlay(
+                     isLocked: recipe.isLocked,
+                     child: Container(
+                       width: double.infinity,
+                       padding: const EdgeInsets.symmetric(
+                           horizontal: 20, vertical: 16),
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           const Text(
+                             'Instructions',
+                             style: TextStyle(
+                               fontSize: 22,
+                               fontWeight: FontWeight.bold,
+                               color: Colors.black87,
+                             ),
                            ),
-                         ),
-                         const SizedBox(height: 16),
-                         if (recipe.steps.isEmpty)
-                           Center(
-                             child: Padding(
-                               padding:
-                                   const EdgeInsets.symmetric(vertical: 32.0),
-                               child: Text(
-                                 'No steps available...',
-                                 style: TextStyle(
-                                   fontSize: 16,
-                                   color: Colors.grey[600],
-                                   fontStyle: FontStyle.italic,
+                           const SizedBox(height: 16),
+                           if (recipe.steps.isEmpty)
+                             Center(
+                               child: Padding(
+                                 padding:
+                                     const EdgeInsets.symmetric(vertical: 32.0),
+                                 child: Text(
+                                   'No steps available...',
+                                   style: TextStyle(
+                                     fontSize: 16,
+                                     color: Colors.grey[600],
+                                     fontStyle: FontStyle.italic,
+                                   ),
                                  ),
                                ),
-                             ),
-                           )
-                         else
-                           ...recipe.steps.asMap().entries.map((entry) {
-                             final index = entry.key;
-                             final step = entry.value;
-                             return Container(
-                               margin: const EdgeInsets.only(bottom: 24),
-                               child: Column(
-                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                 children: [
-                                   // Step Image (placeholder for now)
-                                   if (step.imageUrl != null)
-                                     Container(
-                                       width: double.infinity,
-                                       height: 200,
-                                       margin:
-                                           const EdgeInsets.only(bottom: 12),
-                                       decoration: BoxDecoration(
-                                         color: Colors.grey[200],
-                                         borderRadius:
-                                             BorderRadius.circular(12),
-                                       ),
-                                       child: AspectRatio(
-                                           aspectRatio: 16 / 9,
-                                           child: Image.network(
-                                             step.imageUrl!,
-                                             fit: BoxFit.cover,
-                                           )),
-                                     )
-                                   else
-                                     Container(
-                                       width: double.infinity,
-                                       height: 200,
-                                       margin:
-                                           const EdgeInsets.only(bottom: 12),
-                                       decoration: BoxDecoration(
-                                         color: Colors.grey[200],
-                                         borderRadius:
-                                             BorderRadius.circular(12),
-                                       ),
-                                       child: Icon(
-                                         Icons.image_outlined,
-                                         size: 48,
-                                         color: Colors.grey[400],
-                                       ),
-                                     ),
-
-
-                                   // Step Number and Description
-                                   Row(
-                                     crossAxisAlignment:
-                                         CrossAxisAlignment.start,
-                                     children: [
+                             )
+                           else
+                             ...recipe.steps.asMap().entries.map((entry) {
+                               final index = entry.key;
+                               final step = entry.value;
+                               return Container(
+                                 margin: const EdgeInsets.only(bottom: 24),
+                                 child: Column(
+                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                   children: [
+                                     // Step Image (placeholder for now)
+                                     if (step.imageUrl != null)
                                        Container(
-                                         width: 28,
-                                         height: 28,
-                                         margin: const EdgeInsets.only(
-                                             right: 12, top: 2),
+                                         width: double.infinity,
+                                         height: 200,
+                                         margin:
+                                             const EdgeInsets.only(bottom: 12),
                                          decoration: BoxDecoration(
-                                           color: colorScheme.primary,
-                                           shape: BoxShape.circle,
+                                           color: Colors.grey[200],
+                                           borderRadius:
+                                               BorderRadius.circular(12),
                                          ),
-                                         child: Center(
-                                           child: Text(
-                                             '${index + 1}',
-                                             style: const TextStyle(
-                                               color: Colors.white,
-                                               fontWeight: FontWeight.bold,
-                                               fontSize: 14,
+                                         child: AspectRatio(
+                                             aspectRatio: 16 / 9,
+                                             child: Image.network(
+                                               step.imageUrl!,
+                                               fit: BoxFit.cover,
+                                             )),
+                                       )
+                                     else
+                                       Container(
+                                         width: double.infinity,
+                                         height: 200,
+                                         margin:
+                                             const EdgeInsets.only(bottom: 12),
+                                         decoration: BoxDecoration(
+                                           color: Colors.grey[200],
+                                           borderRadius:
+                                               BorderRadius.circular(12),
+                                         ),
+                                         child: Icon(
+                                           Icons.image_outlined,
+                                           size: 48,
+                                           color: Colors.grey[400],
+                                         ),
+                                       ),
+
+
+                                     // Step Number and Description
+                                     Row(
+                                       crossAxisAlignment:
+                                           CrossAxisAlignment.start,
+                                       children: [
+                                         Container(
+                                           width: 28,
+                                           height: 28,
+                                           margin: const EdgeInsets.only(
+                                               right: 12, top: 2),
+                                           decoration: BoxDecoration(
+                                             color: colorScheme.primary,
+                                             shape: BoxShape.circle,
+                                           ),
+                                           child: Center(
+                                             child: Text(
+                                               '${index + 1}',
+                                               style: const TextStyle(
+                                                 color: Colors.white,
+                                                 fontWeight: FontWeight.bold,
+                                                 fontSize: 14,
+                                               ),
                                              ),
                                            ),
                                          ),
-                                       ),
-                                       Expanded(
-                                         child: Column(
-                                           crossAxisAlignment:
-                                               CrossAxisAlignment.start,
-                                           children: [
-                                             Text(
-                                               'Step ${index + 1}',
-                                               style: const TextStyle(
-                                                 fontSize: 18,
-                                                 fontWeight: FontWeight.bold,
-                                                 color: Colors.black87,
+                                         Expanded(
+                                           child: Column(
+                                             crossAxisAlignment:
+                                                 CrossAxisAlignment.start,
+                                             children: [
+                                               Text(
+                                                 'Step ${index + 1}',
+                                                 style: const TextStyle(
+                                                   fontSize: 18,
+                                                   fontWeight: FontWeight.bold,
+                                                   color: Colors.black87,
+                                                 ),
                                                ),
-                                             ),
-                                             const SizedBox(height: 8),
-                                             IntrinsicHeight(
-                                               child: Row(
-                                                 children: [
-                                                   Container(
-                                                     width: 4,
-                                                     height: double.infinity,
-                                                     color:
-                                                         colorScheme.primary,
-                                                   ),
-                                                   SizedBox(width: 10),
-                                                   Expanded(
-                                                     child: Text(
-                                                       step.text,
-                                                       // "Step instruction",
-                                                       style: const TextStyle(
-                                                         fontSize: 16,
-                                                         color: Colors.black87,
-                                                         height: 1.5,
+                                               const SizedBox(height: 8),
+                                               IntrinsicHeight(
+                                                 child: Row(
+                                                   children: [
+                                                     Container(
+                                                       width: 4,
+                                                       height: double.infinity,
+                                                       color:
+                                                           colorScheme.primary,
+                                                     ),
+                                                     SizedBox(width: 10),
+                                                     Expanded(
+                                                       child: Text(
+                                                         step.text,
+                                                         // "Step instruction",
+                                                         style: const TextStyle(
+                                                           fontSize: 16,
+                                                           color: Colors.black87,
+                                                           height: 1.5,
+                                                         ),
                                                        ),
                                                      ),
-                                                   ),
-                                                 ],
-                                               ),
-                                             )
-                                           ],
+                                                   ],
+                                                 ),
+                                               )
+                                             ],
+                                           ),
                                          ),
-                                       ),
-                                     ],
-                                   ),
-                                 ],
-                               ),
-                             );
-                           }).toList(),
-                       ],
+                                       ],
+                                     ),
+                                   ],
+                                 ),
+                               );
+                             }).toList(),
+                         ],
+                       ),
                      ),
                    ),
 

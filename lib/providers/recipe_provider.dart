@@ -107,7 +107,7 @@ class RecipeProvider with ChangeNotifier {
     _notifySafely();
   }
 
-  void _startPollingForStatus(String requestId, Completer<Recipe?> completer) {
+  void _startPollingForStatus(String requestId, Completer<Recipe?> completer, {bool shouldLock = false}) {
     if (_pollingTimer?.isActive ?? false) {
       _pollingTimer!.cancel();
       if (kDebugMode) print("RecipeProvider: Cancelled existing polling timer.");
@@ -116,9 +116,9 @@ class RecipeProvider with ChangeNotifier {
       if (!completer.isCompleted) completer.complete(null);
       return;
     }
-    if (kDebugMode) print("RecipeProvider: Starting polling for requestId: $requestId");
+    if (kDebugMode) print("RecipeProvider: Starting polling for requestId: $requestId, shouldLock: $shouldLock");
     _pollingErrorCount = 0;
-    addBreadcrumb(message: 'Starting recipe status polling', category: 'recipe', data: {'requestId': requestId});
+    addBreadcrumb(message: 'Starting recipe status polling', category: 'recipe', data: {'requestId': requestId, 'shouldLock': shouldLock});
     const duration = Duration(milliseconds: 5000);
 
     _pollingTimer = Timer.periodic(duration, (timer) async {
@@ -153,8 +153,9 @@ class RecipeProvider with ChangeNotifier {
             isComplete = true;
             try {
               finalRecipe = Recipe.fromJson(statusResult);
+              if (shouldLock) finalRecipe = finalRecipe.copyWith(isLocked: true);
               _currentRecipe = finalRecipe; _partialRecipe = null; _generationProgress = 1.0;
-              addBreadcrumb(message: 'Recipe generation complete', category: 'recipe', data: {'title': finalRecipe.title});
+              addBreadcrumb(message: 'Recipe generation complete', category: 'recipe', data: {'title': finalRecipe.title, 'isLocked': shouldLock});
             } catch (parseError, stackTrace) {
               _error = 'Error parsing completed recipe data';
               captureException(parseError, stackTrace: stackTrace, hintText: 'Error parsing final recipe from polling');
@@ -166,6 +167,7 @@ class RecipeProvider with ChangeNotifier {
             if (statusResult['partialRecipe'] is Map<String, dynamic>) {
               try {
                 _partialRecipe = Recipe.fromJson(statusResult['partialRecipe'] as Map<String, dynamic>);
+                if (shouldLock) _partialRecipe = _partialRecipe!.copyWith(isLocked: true);
               } catch (parseError, stackTrace) {
                 _partialRecipe = null;
                 captureException(parseError, stackTrace: stackTrace, hintText: 'Error parsing partial recipe from polling');
@@ -192,7 +194,7 @@ class RecipeProvider with ChangeNotifier {
           if (e.toString().contains('Too many requests') || e.toString().contains('429')) {
             timer.cancel();
             final newDuration = Duration(milliseconds: math.min(5000 * math.pow(2, _pollingErrorCount).toInt(), 60000));
-            _pollingTimer = Timer(newDuration, () { if(_mounted) _startPollingForStatus(requestId, completer); });
+            _pollingTimer = Timer(newDuration, () { if(_mounted) _startPollingForStatus(requestId, completer, shouldLock: shouldLock); });
             return;
           } else if (e.toString().contains('cancelled') || e.toString().contains('499')) {
             _wasCancelled = true; pollErrorMsg = 'Recipe generation cancelled'; shouldStopPolling = true;
@@ -271,6 +273,7 @@ class RecipeProvider with ChangeNotifier {
       }) async {
     final BuildContext? context = navigatorKey.currentContext;
     final Completer<Recipe?> completer = Completer<Recipe?>();
+    bool shouldLockGeneratedRecipe = false;
 
     if (token != null && context != null && context.mounted) {
       final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
@@ -280,32 +283,12 @@ class RecipeProvider with ChangeNotifier {
         final subscriptionInfo = subscriptionProvider.subscriptionInfo;
         final isProViaRevenueCat = subscriptionProvider.isProSubscriber;
 
-        if (kDebugMode) { /* ... */ }
-
         if (!isProViaRevenueCat && subscriptionInfo != null && subscriptionInfo.recipeGenerationsRemaining <= 0) {
-          if (kDebugMode) { /* ... */ }
-          if (context.mounted) {
-            showDialog(
-              context: context,
-              builder: (ctx) => UpgradePromptDialog(
-                titleText: 'Recipe Limit Reached',
-                messageText: "You've used all your free recipe generations for this period. Upgrade to Pro for unlimited recipes!",
-              ),
-              barrierDismissible: false,
-            );
-          }
-          Future.microtask(() {
-            if (!_mounted) return;
-            _isLoading = false;
-            _error = "Recipe generation limit reached.";
-            _notifySafely();
-          });
-          if(!completer.isCompleted) completer.complete(null);
-          return completer.future;
+          if (kDebugMode) print("RecipeProvider: User reached limit, but proceeding with 'Tease & Lock' generation.");
+          shouldLockGeneratedRecipe = true;
         }
       } catch (e, stackTrace) {
-        if (kDebugMode) print("RecipeProvider: Error checking subscription status during generation: $e");
-        captureException(e, stackTrace: stackTrace, hintText: 'Error checking subscription status before recipe generation');
+        if (kDebugMode) print("RecipeProvider: Error checking subscription status: $e");
       }
     }
 
@@ -328,7 +311,7 @@ class RecipeProvider with ChangeNotifier {
           if(_wasCancelled && !completer.isCompleted) { completer.complete(null); return; }
           _currentRequestId = requestResult['requestId'];
           if (_currentRequestId != null) {
-            if (_mounted) _startPollingForStatus(_currentRequestId!, completer);
+            if (_mounted) _startPollingForStatus(_currentRequestId!, completer, shouldLock: shouldLockGeneratedRecipe);
           } else {
             _error = 'No request ID received for polling.'; _isLoading = false; _notifySafely();
             if (!completer.isCompleted) completer.complete(null);
@@ -339,15 +322,19 @@ class RecipeProvider with ChangeNotifier {
         Future.microtask(() {
           if(!_mounted) { if (!completer.isCompleted) completer.complete(null); return; }
           if (_wasCancelled && !completer.isCompleted) { _error = 'Recipe generation cancelled.'; _isLoading = false; _notifySafely(); completer.complete(null); return; }
-          _currentRecipe = recipe; _generationProgress = 1.0; _partialRecipe = null;
+
+          _currentRecipe = shouldLockGeneratedRecipe ? recipe.copyWith(isLocked: true) : recipe;
+          _generationProgress = 1.0; _partialRecipe = null;
           _currentRequestId = recipe.requestId;
+
           if (save && token != null && recipe.id != null) {
+            final recipeToStore = shouldLockGeneratedRecipe ? recipe.copyWith(isLocked: true) : recipe;
             final existingIndex = _userRecipes.indexWhere((r) => r.id == recipe.id);
-            if (existingIndex >= 0) _userRecipes[existingIndex] = recipe; else _userRecipes.add(recipe);
+            if (existingIndex >= 0) _userRecipes[existingIndex] = recipeToStore; else _userRecipes.add(recipeToStore);
           }
-          addBreadcrumb(message: 'Direct recipe generation complete', category: 'recipe', data: {'title': recipe.title});
+          addBreadcrumb(message: 'Direct recipe generation complete', category: 'recipe', data: {'title': recipe.title, 'isLocked': shouldLockGeneratedRecipe});
           _isLoading = false; _notifySafely();
-          if (!completer.isCompleted) completer.complete(recipe);
+          if (!completer.isCompleted) completer.complete(_currentRecipe);
         });
       }
     } catch (e, stackTrace) {

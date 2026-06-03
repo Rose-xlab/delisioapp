@@ -1,6 +1,7 @@
 //chat_bubble.dart
 import 'package:flutter/material.dart';
 import '../../models/chat_message.dart'; // Ensure this has the new fields/types
+import 'recipe_intent_card.dart';
 
 // Removed: ChatActionType enum - no longer needed
 
@@ -286,6 +287,18 @@ class ChatBubble extends StatelessWidget {
   }
 
 
+  bool _isFoodIntent(String text) {
+    final lowerText = text.toLowerCase();
+    final foodKeywords = [
+      'chicken', 'pasta', 'dinner', 'lunch', 'breakfast', 'eggs', 'flour', 'milk',
+      'vegetable', 'meat', 'cook', 'meal', 'eat', 'food', 'hungry', 'starving',
+      'ingredients', 'sauce', 'soup', 'salad', 'bread', 'cake', 'cookie', 'pizza',
+      'burger', 'rice', 'potato', 'beef', 'fish', 'pork', 'steak', 'taco', 'curry',
+    ];
+    // Check if any keyword matches and the message is long enough to have intent
+    return foodKeywords.any((keyword) => lowerText.contains(keyword)) && text.length > 5;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -294,8 +307,8 @@ class ChatBubble extends StatelessWidget {
     final bool isRecipeResult = message.type == MessageType.recipeResult;
     final bool isRecipePlaceholder = message.type == MessageType.recipePlaceholder;
     final bool isAi = message.type == MessageType.ai;
-    // Check if this AI message looks like a recipe description that could be generated
-    final bool isPotentialRecipeDescription = isAi && _isRecipeDescription(message.content);
+    // Check if this AI message looks like a recipe description OR has general food intent
+    final bool isPotentialRecipeDescription = isAi && (_isRecipeDescription(message.content) || _isFoodIntent(message.content));
 
     // Determine avatar and alignment based on message type
     final bool showAiAvatar = !isUser; // Show avatar for AI, placeholder, and result
@@ -386,26 +399,12 @@ class ChatBubble extends StatelessWidget {
                   // --- Existing Generate Button (for AI descriptions) ---
                   // Show this button only if it's an AI message that looks like a recipe description
                   if (isPotentialRecipeDescription && onSuggestionSelected != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.restaurant_menu, size: 18),
-                        label: const Text('Generate Full Recipe With Images'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          textStyle: const TextStyle(fontSize: 14),
-                          backgroundColor: Theme.of(context).colorScheme.primary, // Use theme secondary color
-                          foregroundColor: Colors.white, // Use theme onSecondary color
-                          elevation: 1,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: () {
-                          // Extract a name from the description to use as the query
-                          String recipeName = _getRecipeNameFromDescription(message.content);
-                          print('Generate Full Recipe pressed for (from description): $recipeName');
-                          onSuggestionSelected!(recipeName, true); // True flag indicates generate
-                        },
-                      ),
+                    RecipeIntentCard(
+                      recipeName: _getRecipeNameFromDescription(message.content),
+                      onGenerate: () {
+                        String recipeName = _getRecipeNameFromDescription(message.content);
+                        onSuggestionSelected!(recipeName, true);
+                      },
                     ),
 
                   // --- Existing Suggestions (for standard AI messages) ---

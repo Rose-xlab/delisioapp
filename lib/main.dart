@@ -37,6 +37,7 @@ Future<void> main() async {
     await dotenv.load(fileName: ".env");
     if (kDebugMode) {
       print('.env file loaded successfully.');
+      print('Available env keys: ${dotenv.env.keys}');
     }
     supabaseUrl = dotenv.env['SUPABASE_URL'];
     supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];

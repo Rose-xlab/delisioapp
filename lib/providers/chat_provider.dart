@@ -336,14 +336,14 @@ class ChatProvider with ChangeNotifier {
     if (userId != null && _subscriptionProvider != null) {
       if (!_subscriptionProvider!.isProSubscriber) {
         final subInfo = _subscriptionProvider!.subscriptionInfo;
-        int freeAiRepliesLimit = 3;
-        int aiRepliesRemaining = 3;
+        int freeAiRepliesLimit = 10;
+        int aiRepliesRemaining = 10;
         if (subInfo != null) {
-          freeAiRepliesLimit = (subInfo.aiChatRepliesLimit != -1) ? subInfo.aiChatRepliesLimit : 3;
+          freeAiRepliesLimit = (subInfo.aiChatRepliesLimit != -1) ? subInfo.aiChatRepliesLimit : 10;
           aiRepliesRemaining = (subInfo.aiChatRepliesRemaining != -1) ? subInfo.aiChatRepliesRemaining : freeAiRepliesLimit;
         }
         if (aiRepliesRemaining <= 0 && freeAiRepliesLimit != -1) {
-          _sendMessageError = "You've used your ${subInfo?.aiChatRepliesLimit ?? freeAiRepliesLimit} free AI replies for this period. Please upgrade.";
+          _sendMessageError = "You've used your $freeAiRepliesLimit free AI replies for this period. Please upgrade to Pro for unlimited chatting!";
           _aiReplyLimitReachedError = true;
           _notifySafely();
           return;
