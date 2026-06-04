@@ -18,6 +18,13 @@ class ChatMessage {
   final String? generationQuery; // Query used for generation (for recipePlaceholder)
   // --- END ADDED ---
 
+  // --- ADDED: Concierge intent_meta (powers RecipeIntentCard) ---
+  final bool isRecipeIntent;     // Backend signalled this reply offers a generatable Hero recipe
+  final String? heroRecipeTitle; // The Hero dish name to show on the card
+  final String? prepTime;        // e.g. "25 min"
+  final List<String>? tags;      // e.g. ["High Protein", "Quick"]
+  // --- END ADDED ---
+
 
   ChatMessage({
     required this.id,
@@ -29,6 +36,12 @@ class ChatMessage {
     this.recipeId,
     this.recipeTitle,
     this.generationQuery,
+    // --- END ADDED ---
+    // --- ADDED: intent_meta ---
+    this.isRecipeIntent = false,
+    this.heroRecipeTitle,
+    this.prepTime,
+    this.tags,
     // --- END ADDED ---
   });
 
@@ -48,6 +61,23 @@ class ChatMessage {
       if (parsedSuggestions.isEmpty) parsedSuggestions = null; // Treat empty list as null
     }
     // --- End Updated Suggestion Parsing ---
+
+    // --- Parse Concierge intent_meta from metadata (for messages loaded from DB) ---
+    bool isRecipeIntent = false;
+    String? heroRecipeTitle;
+    String? prepTime;
+    List<String>? tags;
+    final intentMeta = metadata?['intent_meta'];
+    if (intentMeta is Map) {
+      isRecipeIntent = intentMeta['is_recipe_intent'] == true;
+      heroRecipeTitle = intentMeta['hero_recipe_title'] as String?;
+      prepTime = intentMeta['prep_time'] as String?;
+      if (intentMeta['tags'] is List) {
+        tags = (intentMeta['tags'] as List).map((e) => e.toString()).toList();
+        if (tags.isEmpty) tags = null;
+      }
+    }
+    // --- End intent_meta parsing ---
 
 
     // Determine message type from 'role' and metadata
@@ -82,6 +112,12 @@ class ChatMessage {
       recipeTitle: metadata?['recipeTitle'] as String?,
       generationQuery: metadata?['generationQuery'] as String?,
       // --- END ADDED ---
+      // --- ADDED: intent_meta ---
+      isRecipeIntent: isRecipeIntent,
+      heroRecipeTitle: heroRecipeTitle,
+      prepTime: prepTime,
+      tags: tags,
+      // --- END ADDED ---
     );
   }
   // --- END MODIFIED ---
@@ -114,6 +150,15 @@ class ChatMessage {
     if (type == MessageType.recipeResult) {
       if (recipeId != null) metadata['recipeId'] = recipeId;
       if (recipeTitle != null) metadata['recipeTitle'] = recipeTitle;
+    }
+    // Persist Concierge intent_meta so the RecipeIntentCard survives history reloads.
+    if (isRecipeIntent || heroRecipeTitle != null) {
+      metadata['intent_meta'] = {
+        'is_recipe_intent': isRecipeIntent,
+        'hero_recipe_title': heroRecipeTitle,
+        'prep_time': prepTime,
+        'tags': tags ?? [],
+      };
     }
 
     return {

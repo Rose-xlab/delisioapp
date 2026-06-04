@@ -140,8 +140,8 @@ class UpgradePromptDialog extends StatelessWidget {
               ),
               onPressed: () {
                 Navigator.of(context).pop(); // Close this dialog first
-                // Corrected: Use the offering identifier string
-                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier);
+                // presentPaywallIfNeeded expects the ENTITLEMENT id ('Pro'), not an offering id.
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferingsExtension.proEntitlement);
               },
             ),
             const SizedBox(height: 10),

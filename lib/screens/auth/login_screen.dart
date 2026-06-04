@@ -1,11 +1,9 @@
 // lib/screens/auth/login_screen.dart
 import 'dart:async'; // For StreamSubscription
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:kitchenassistant/widgets/auth/or_divider.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Provides AuthState and OAuthProvider
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Provides AuthState
 import 'package:flutter/services.dart'; // For SystemUiOverlayStyle
 
 import '../../widgets/auth/social_auth_button.dart';
@@ -29,6 +27,13 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   StreamSubscription<AuthState>? _authSubscription; // This line now has StreamSubscription defined
+
+  // True when this screen was opened from the contextual login gate (so on success we
+  // return a result to the gate instead of replacing the navigation stack with /home).
+  bool get _isGate {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    return args is Map && args['gate'] == true;
+  }
 
   @override
   void initState() {
@@ -63,49 +68,18 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoggingIn = true;
       _errorMessage = null;
     });
-    try {
-      const webClientId = '601707002682-2gna6etmp9k6jak25v5m7n3mrar683t4.apps.googleusercontent.com';
-      final GoogleSignIn googleSignIn = GoogleSignIn(clientId: webClientId);
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
-      if (googleUser == null) {
-        // User cancelled the sign-in
-        if (mounted) setState(() => _errorMessage = 'Google Sign-In aborted by user.');
-        return; // Exit if user cancelled
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final ok = await authProvider.signInWithGoogle();
+    if (!mounted) return;
+    setState(() => _isLoggingIn = false);
+    if (ok && authProvider.isAuthenticated) {
+      if (_isGate) {
+        Navigator.of(context).pop(true); // resume the gated action
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
       }
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) {
-        throw Exception('No ID Token found from Google.');
-      }
-
-      // Sign in to Supabase. This will trigger AuthProvider's listener.
-      final AuthResponse response = await supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: googleAuth.accessToken,
-      );
-
-      if (response.user == null) {
-        throw Exception('Supabase sign-in with Google failed. No user returned.');
-      }
-      // At this point, AuthProvider's onAuthStateChange listener should pick up the SIGNED_IN event
-      // and handle the post-login logic, including navigation to '/app'.
-      // We don't navigate directly here to let AuthProvider manage the authenticated state transition.
-
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Google Sign-In failed: ${e.toString().split(':').last.trim()}";
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoggingIn = false;
-        });
-      }
+    } else if (authProvider.error != null) {
+      setState(() => _errorMessage = authProvider.error);
     }
   }
 
@@ -127,10 +101,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // After signIn completes, check AuthProvider's state for navigation
       if (mounted && authProvider.isAuthenticated) {
-        // It's generally safer to let AuthProvider's listener handle navigation to ensure all
-        // post-auth tasks (like _syncOnboardingDataAfterAuth) complete first.
-        // However, if immediate navigation is desired and AuthProvider updates quickly:
-        Navigator.of(context).pushReplacementNamed('/app');
+        if (_isGate) {
+          Navigator.of(context).pop(true); // resume the gated action
+        } else {
+          Navigator.of(context).pushReplacementNamed('/app');
+        }
       } else if (mounted && authProvider.error != null) {
         setState(() { _errorMessage = authProvider.error; });
       } else if (mounted && !authProvider.isAuthenticated) {
@@ -181,6 +156,21 @@ Widget build(BuildContext context) {
                 ),
                 child: Column(
                   children: [
+                    // Close → browse the app without signing in (protected actions still gate).
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        tooltip: 'Explore without an account',
+                        onPressed: () {
+                          if (_isGate) {
+                            Navigator.of(context).pop(false);
+                          } else {
+                            Navigator.of(context).pushReplacementNamed('/home');
+                          }
+                        },
+                      ),
+                    ),
                     Image.asset('assets/logo.png', width: 100, height: 100),
                     SizedBox(height:2),
                     Text('KITCHEN ASSISTANT', style: TextStyle(fontSize:14, fontWeight: FontWeight.w400,color: Colors.white), textAlign: TextAlign.center),
@@ -215,7 +205,16 @@ Widget build(BuildContext context) {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      SizedBox(height:50),
+                      SizedBox(height: 24),
+                      // Lead with one-tap social sign-in (the frictionless path)
+                      SocialAuthButton(
+                        onTap: _handleGoogleSignIn,
+                        image: "assets/google_logo.png",
+                        text: "Continue with Google",
+                      ),
+                      SizedBox(height: 16),
+                      OrDivider(),
+                      SizedBox(height: 8),
                       AuthForm(
                         formKey: _formKey,
                         emailController: _emailController,
@@ -238,21 +237,6 @@ Widget build(BuildContext context) {
                           ),
                         ],
                       ),
-                      // ...SocialAuthButton row if needed...
-                       OrDivider(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(
-                                child: SocialAuthButton(
-                              onTap: _handleGoogleSignIn,
-                              image: "assets/google_logo.png",
-                              text: "Continue with Google",
-                            )),
-                           
-                          ],
-
-                        ),
                     ],
                   ),
                 ),

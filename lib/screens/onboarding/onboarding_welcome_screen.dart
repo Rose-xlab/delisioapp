@@ -106,10 +106,24 @@ class OnboardingWelcomeScreen extends StatelessWidget {
 
                 PrimaryButton(
                   onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/onboarding_preferences');
+                    // Onboarding (preferences/food/paywall) removed.
+                    // Welcome now leads straight to login.
+                    Navigator.of(context).pushReplacementNamed('/login');
                   },
                   padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
                   child: const Text('Get Started'),
+                ),
+                const SizedBox(height: 8),
+                // Let users browse first; protected actions still prompt sign-in.
+                TextButton(
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/home'),
+                  child: Text(
+                    'Explore without an account',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: appColors.gray200,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 // Responsive bottom spacing
                 SizedBox(height: MediaQuery.of(context).size.height * 0.04),

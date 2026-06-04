@@ -181,11 +181,12 @@ class _MessageInputState extends State<MessageInput> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade600,
                 foregroundColor: Colors.white,
+                minimumSize: const Size(0, 44), // Override theme's infinite min width
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.0)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onPressed: () {
-                RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier);
+                RevenueCatUI.presentPaywallIfNeeded(MyOfferingsExtension.proEntitlement);
               },
             ),
         ],

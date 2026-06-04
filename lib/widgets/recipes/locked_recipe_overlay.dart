@@ -89,7 +89,7 @@ class LockedRecipeOverlay extends StatelessWidget {
                           ),
                         ),
                         onPressed: () {
-                          RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier);
+                          RevenueCatUI.presentPaywallIfNeeded(MyOfferingsExtension.proEntitlement);
                         },
                       ),
                     ],

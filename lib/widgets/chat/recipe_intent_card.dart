@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 class RecipeIntentCard extends StatelessWidget {
   final String recipeName;
   final VoidCallback onGenerate;
+  // Concierge intent_meta (optional). When provided, these replace the placeholder tags.
+  final String? prepTime;
+  final List<String>? tags;
 
   const RecipeIntentCard({
     Key? key,
     required this.recipeName,
     required this.onGenerate,
+    this.prepTime,
+    this.tags,
   }) : super(key: key);
 
   @override
@@ -67,11 +72,16 @@ class RecipeIntentCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
                   children: [
-                    _buildTag(Icons.timer_outlined, '15-20 min'),
-                    const SizedBox(width: 12),
-                    _buildTag(Icons.local_fire_department_outlined, 'High Protein'),
+                    _buildTag(Icons.timer_outlined, prepTime ?? '15-20 min'),
+                    // Show up to two tags from intent_meta (falls back to a sensible default).
+                    ...((tags != null && tags!.isNotEmpty)
+                            ? tags!.take(2)
+                            : const ['High Protein'])
+                        .map((t) => _buildTag(Icons.local_fire_department_outlined, t)),
                   ],
                 ),
                 const SizedBox(height: 16),

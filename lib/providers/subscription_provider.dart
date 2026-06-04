@@ -180,7 +180,9 @@ class SubscriptionProvider with ChangeNotifier {
     try {
       Offerings offerings = await Purchases.getOfferings();
       Package? packageToPurchase;
-      Offering? currentOffering = offerings.all[MyOfferings.pro.identifier];
+      // Try the named offering, but fall back to the dashboard's "current" offering
+      // so this keeps working even if the offering identifier differs from 'Offerings'.
+      Offering? currentOffering = offerings.all[MyOfferings.pro.identifier] ?? offerings.current;
 
       if (currentOffering != null) {
         packageToPurchase = currentOffering.availablePackages.firstWhereOrNull(

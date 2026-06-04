@@ -19,7 +19,6 @@ class AppTheme {
   static const Color gray500 = Color(0xFF4D4D4D);
   static const Color gray200 = Color(0xFF7C7C7C);
   static const Color borderLight = Color(0xFFEDE1E1);
-  
 
   // Dark Mode Colors
   static const Color darkPrimaryColor = Color(0xFFBB86FC);
@@ -35,6 +34,14 @@ class AppTheme {
   static const Color darkOnSurface = Colors.white;
   static const Color darkOnError = Colors.black;
 
+  // Dark-mode grays (lighter, so text stays readable on dark surfaces)
+  static const Color darkGray500 = Color(0xFFE0E0E0); // stronger text
+  static const Color darkGray200 = Color(0xFFB0B0B0); // secondary text
+  static const Color darkBorder = Color(0xFF3A3A3A);
+
+  // Shared finite button min size (NOT infinite — safe inside Rows).
+  // For full-width buttons, wrap in SizedBox(width: double.infinity).
+  static const Size _buttonMinSize = Size(64, 50);
 
   // Text Styles
   static const TextStyle headlineLarge = TextStyle(
@@ -128,7 +135,7 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         foregroundColor: lightOnPrimary,
         backgroundColor: primaryColor,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: _buttonMinSize,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -137,7 +144,7 @@ class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: primaryColor,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: _buttonMinSize,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -169,9 +176,9 @@ class AppTheme {
     ),
     extensions: <ThemeExtension<dynamic>>[
       const AppColorsExtension(
-        gray500: gray500,
-        gray200: gray200,
-        borderLight: borderLight,
+        gray500: darkGray500, // lighter for dark mode readability
+        gray200: darkGray200,
+        borderLight: darkBorder,
       ),
     ],
     scaffoldBackgroundColor: darkBackground,
@@ -217,7 +224,7 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         foregroundColor: darkOnPrimary,
         backgroundColor: darkPrimaryColor,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: _buttonMinSize,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -226,7 +233,7 @@ class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: darkPrimaryColor,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: _buttonMinSize,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),

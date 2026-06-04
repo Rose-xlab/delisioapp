@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // <<< ADDED THIS IMPORT
 import 'package:intl/intl.dart';       // <<< ADDED THIS IMPORT
 import '../widgets/common/bottom_navigation.dart';
+import '../widgets/auth/login_gate_sheet.dart';
 import 'home_screen_enhanced.dart';
 import 'chat/chat_screen.dart';
 // Ensure this path is correct for your project structure
@@ -16,20 +17,22 @@ import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({Key? key}) : super(key: key);
+  final int initialIndex;
+  const MainNavigationScreen({Key? key, this.initialIndex = 1}) : super(key: key);
 
   @override
   _MainNavigationScreenState createState() => _MainNavigationScreenState();
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 1; // Default to Chat Tab
+  late int _currentIndex;
   late List<Widget> _screens;
   String? _currentlyDisplayedChatIdInTab;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     _screens = [
       const HomeScreenEnhanced(),
       _buildInitialChatTabContent(),
@@ -119,21 +122,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     if (!mounted) return;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+    // Browse-then-gate: Home (0) is open; Chat (1), Recipes (2) and Profile (3)
+    // require sign-in. Show a contextual one-tap login sheet and only switch tabs
+    // if the user signs in — otherwise stay where they are.
     if (!authProvider.isAuthenticated && (index == 1 || index == 2 || index == 3)) {
-      if (index == 1) {
-        bool isAlreadyPlaceholder = false;
-        if (_screens[1] is Scaffold) {
-          final scaffoldBody = (_screens[1] as Scaffold).body;
-          if (scaffoldBody is Center && scaffoldBody.child is Padding) {
-            isAlreadyPlaceholder = true;
-          }
-        }
-        if(!isAlreadyPlaceholder) {
-          setState(() { _screens[1] = _buildChatAuthPlaceholder(); });
-        }
-      }
-      setState(() { _currentIndex = index; });
-      return;
+      const messages = {
+        1: 'Sign in to chat with your AI chef',
+        2: 'Sign in to see your recipes',
+        3: 'Sign in to view your profile',
+      };
+      final signedIn = await showLoginGate(context, message: messages[index]);
+      if (!mounted || !signedIn) return; // cancelled → stay on current tab
+      Provider.of<ChatProvider>(context, listen: false).loadConversations();
     }
 
     if (mounted) {
@@ -154,15 +154,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  void _navigateToNewChatScreenFromFab() {
+  void _navigateToNewChatScreenFromFab() async {
     if (!mounted) return;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (!authProvider.isAuthenticated) {
-      Navigator.of(context).pushReplacementNamed('/login');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to start a new chat.')),
-      );
-      return;
+      final signedIn = await showLoginGate(context, message: 'Sign in to chat with your AI chef');
+      if (!mounted || !signedIn) return;
+      Provider.of<ChatProvider>(context, listen: false).loadConversations();
     }
     debugPrint("MainNavigationScreen: FAB tapped, setting up for new ChatScreen.");
     setState(() {

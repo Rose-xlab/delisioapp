@@ -23,13 +23,11 @@ import 'screens/profile/subscription_screen.dart';
 
 // --- ONBOARDING SCREEN IMPORTS ---
 import 'screens/onboarding/onboarding_welcome_screen.dart';
-import 'screens/onboarding/onboarding_preferences_screen.dart';
-import 'screens/onboarding/onboarding_food_selection_screen.dart'; // <<< NEW IMPORT
-import 'screens/onboarding/onboarding_paywall_screen.dart';
+// Removed: onboarding_preferences_screen, onboarding_food_selection_screen,
+// onboarding_paywall_screen — these screens were deleted.
 
 // --- Other Imports (using relative paths) ---
 import 'theme/app_theme_updated.dart'; // Assuming this is your theme file
-import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart'; // For onGenerateRoute context if needed
 
 class DelisioApp extends StatelessWidget {
@@ -48,14 +46,15 @@ class DelisioApp extends StatelessWidget {
       FlutterNativeSplash.remove();
     });
 
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
     return MaterialApp(
       title: 'Kitchen Assistant', // Or 'Kitchen Assistant' if that's your app name
-      // theme: AppTheme.lightTheme,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme, // Your dark theme
-      themeMode: themeProvider.themeMode,
+      // The app is designed light-first (many widgets hardcode white surfaces with
+      // theme-coloured text). On a device set to dark mode, that produced white text
+      // on white backgrounds ("words hidden under white"). Until the dark theme is fully
+      // audited, force the light theme so every screen renders with readable contrast.
+      themeMode: ThemeMode.light,
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       initialRoute: '/', // Start with the SplashScreen
@@ -70,12 +69,10 @@ class DelisioApp extends StatelessWidget {
 
         // Main app screen after login/onboarding
         '/app': (context) => const MainNavigationScreen(),
+        '/home': (context) => const MainNavigationScreen(initialIndex: 0),
 
-        // Onboarding flow
+        // Onboarding flow (only the welcome screen remains)
         '/onboarding_welcome': (context) => const OnboardingWelcomeScreen(),
-        '/onboarding_preferences': (context) => const OnboardingPreferencesScreen(),
-        '/onboarding_food_selection': (context) => const OnboardingFoodSelectionScreen(), // <<< NEW ROUTE
-        '/onboarding_paywall': (context) => const OnboardingPaywallScreen(),
 
         // Other app routes from your original file
         '/recipe': (context) => const RecipeDetailScreen(), // Needs argument handling if ID is passed
@@ -129,33 +126,15 @@ class DelisioApp extends StatelessWidget {
               builder = (_) => Scaffold(appBar: AppBar(title: const Text('Error')), body: const Center(child: Text('Conversation ID missing for chat history.')));
             }
             break;
-        // Add other routes that need argument handling here.
-        // For example, if RecipeDetailScreen or NutritionScreen take IDs:
-        // case '/recipe':
-        //   if (settings.arguments is String) { // Assuming recipe ID is a string
-        //     builder = (_) => RecipeDetailScreen(recipeId: settings.arguments as String);
-        //   } else {
-        //     builder = (_) => SomeErrorScreenOrFallback();
-        //   }
-        //   break;
 
           default:
-          // If the route is not in the `routes` map and not handled here,
-          // it will fall through to `onUnknownRoute` if defined, or show an error.
-          // It's good practice to have a default case in onGenerateRoute if you use it extensively.
-          // For this setup, routes map is primary, onGenerateRoute is for specific cases like /chat.
-          // So, if it's not '/chat' or '/chat/history', we expect it to be in the routes map.
-          // If it reaches here and isn't one of those, it means it wasn't in the routes map either.
             debugPrint("onGenerateRoute: Route '${settings.name}' not handled by specific cases.");
-            // Let it fall through to onUnknownRoute or Flutter's default error if not in routes map.
             return null; // Let onUnknownRoute handle it if not found in routes map either
         }
         // If builder was assigned, create the route
         if (builder != null) {
           return MaterialPageRoute(builder: builder, settings: settings);
         }
-        // If builder is null (e.g. default case above didn't return a route),
-        // this allows onUnknownRoute to be triggered if the route is not in the routes map.
         return null;
       },
 

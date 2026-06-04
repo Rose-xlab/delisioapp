@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../auth/login_gate_sheet.dart';
 
 
 class GreetingCard extends StatelessWidget {
@@ -9,8 +10,9 @@ class GreetingCard extends StatelessWidget {
 
   @override
 Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userName = authProvider.user?.name ?? 'Valued User';
+    final authProvider = Provider.of<AuthProvider>(context); // listen so it updates after sign-in
+    final bool isAuth = authProvider.isAuthenticated;
+    final userName = authProvider.user?.name ?? (isAuth ? 'Valued User' : 'there');
   return SizedBox(
     width: double.infinity, // Ensure the card fills available width
     child: Container(
@@ -64,12 +66,22 @@ Widget build(BuildContext context) {
               ),
             ],
           ),
-          const Spacer(), // Pushes the bell icon to the end
-          // Notification Bell
-          const Icon(
-            Icons.notifications,
-            color: Color(0xFFF23B5A), // Pink color for the bell
-          ),
+          const Spacer(), // Pushes the trailing widget to the end
+          // Logged-out users get a clear Sign in affordance; logged-in users see the bell.
+          if (isAuth)
+            const Icon(
+              Icons.notifications,
+              color: Color(0xFFF23B5A), // Pink color for the bell
+            )
+          else
+            TextButton.icon(
+              onPressed: () => showLoginGate(context, message: 'Sign in to Kitchen Assistant'),
+              icon: const Icon(Icons.login_rounded, size: 18, color: Color(0xFFF23B5A)),
+              label: const Text(
+                'Sign in',
+                style: TextStyle(color: Color(0xFFF23B5A), fontWeight: FontWeight.bold),
+              ),
+            ),
         ],
       ),
     ),

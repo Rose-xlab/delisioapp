@@ -1,8 +1,10 @@
 // lib/screens/splash_screen.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart'; // Import for removing splash
 
 class SplashScreen extends StatefulWidget {
@@ -27,15 +29,37 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateBasedOnOnboardingState() async {
-    await Future.delayed(const Duration(seconds: 2)); // Shorter delay, splash is visible longer
+    // Brief hand-off from the native splash — no long artificial wait.
+    await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
-    // Remove the splash screen just before navigation
+    // Remove the native splash just before navigation
     FlutterNativeSplash.remove();
 
-    // MODERN CHAT-FIRST: Go straight to the app.
-    // Onboarding can be done contextually later if needed.
-    Navigator.of(context).pushReplacementNamed('/app');
+    // 1) Logged in (persisted/restored Supabase session) → straight to the app.
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      if (kDebugMode) debugPrint('SplashScreen: Session found for ${session.user.id} → /home.');
+      Navigator.of(context).pushReplacementNamed('/home');
+      return;
+    }
+
+    // 2) Logged out: show the Welcome intro ONLY on the first ever launch.
+    //    Returning logged-out users skip it and land on Home in browse mode
+    //    (the contextual login gate handles sign-in when they act).
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final hasSeenWelcome = prefs.getBool('hasSeenWelcome') ?? false;
+
+    if (!hasSeenWelcome) {
+      await prefs.setBool('hasSeenWelcome', true);
+      if (!mounted) return;
+      if (kDebugMode) debugPrint('SplashScreen: First launch → onboarding welcome.');
+      Navigator.of(context).pushReplacementNamed('/onboarding_welcome');
+    } else {
+      if (kDebugMode) debugPrint('SplashScreen: Returning logged-out user → /home (browse).');
+      Navigator.of(context).pushReplacementNamed('/home');
+    }
   }
 
   @override

@@ -32,7 +32,7 @@ class GenerationLimitDialog extends StatelessWidget {
         primaryAction = () {
           Navigator.of(context).pop(); // Close the dialog
           // Present RevenueCat paywall
-          RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier)
+          RevenueCatUI.presentPaywallIfNeeded(MyOfferingsExtension.proEntitlement)
               .then((value) {
             // Optionally handle PaywallResult here if needed, e.g., refresh subscription status
             // For now, just presenting it.
@@ -52,7 +52,7 @@ class GenerationLimitDialog extends StatelessWidget {
         iconColor = Colors.blueAccent;
         primaryAction = () {
           Navigator.of(context).pop(); // Close the dialog
-          RevenueCatUI.presentPaywallIfNeeded(MyOfferings.pro.identifier)
+          RevenueCatUI.presentPaywallIfNeeded(MyOfferingsExtension.proEntitlement)
               .then((value) {
             // Handle PaywallResult if needed
           }).catchError((error) {

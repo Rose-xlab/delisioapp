@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 // Relative imports
 import '../../providers/auth_provider.dart';
 import '../../providers/recipe_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../models/user.dart'; // User model
 import '../../widgets/profile/settings_item.dart';
@@ -177,13 +176,13 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         shape: RoundedRectangleBorder(
           side: BorderSide(
-                      color: Colors.grey[200] ?? Colors.grey,
-                      width:2.0
+                      color: theme.brightness == Brightness.light ? (Colors.grey[200] ?? Colors.grey) : Colors.transparent,
+                      width: 1.0
                     ),
           borderRadius: BorderRadius.circular(12)
           ),
         elevation: 0.0,
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -191,10 +190,11 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
             children: [
               Text('Cooking Preferences',
                   style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+                      ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 16),
-              const Text(
-                  'No preferences set yet. Personalize your experience!'),
+              Text(
+                  'No preferences set yet. Personalize your experience!',
+                  style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -264,29 +264,29 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(
         side: BorderSide(
-                      color: Colors.grey[200] ?? Colors.grey,
-                      width:2.0
+                      color: theme.brightness == Brightness.light ? (Colors.grey[200] ?? Colors.grey) : Colors.transparent,
+                      width: 1.0
                     ),
         borderRadius: BorderRadius.circular(12)
         ),
         elevation: 0.0,
-        color: Colors.white,
+        color: theme.colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Cooking Preferencesc',
+            Text('Cooking Preferences',
                 style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+                    ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
             const SizedBox(height: 16),
             SkillLevelIndicator(
                 level: preferences
                     .cookingSkill), // Assumes cookingSkill is never null here
             const SizedBox(height: 20),
             if (preferences.dietaryRestrictions.isNotEmpty) ...[
-              const Text('Dietary Restrictions',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              Text('Dietary Restrictions',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
               Wrap(
                   spacing: 8,
@@ -298,8 +298,8 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
               const SizedBox(height: 16),
             ],
             if (preferences.allergies.isNotEmpty) ...[
-              const Text('Allergies',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              Text('Allergies',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
               Wrap(
                   spacing: 8,
@@ -315,8 +315,8 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
               const SizedBox(height: 16),
             ],
             if (preferences.favoriteCuisines.isNotEmpty) ...[
-              const Text('Favorite Cuisines',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              Text('Favorite Cuisines',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
               Wrap(
                   spacing: 8,
@@ -349,7 +349,6 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
     final authProvider = Provider.of<AuthProvider>(context);
     final recipeProvider = Provider.of<RecipeProvider>(
         context); // Keep listen:true if stats update UI
-    final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = Theme.of(context);
     final user = authProvider.user;
 
@@ -418,7 +417,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                           width: double.infinity,
                           height: double.infinity,
                           decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4)),
+                              color: Colors.black.withOpacity(0.6)),
                         )),
                     Positioned(
                       top: 50,
@@ -447,7 +446,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                                     ? user.name
                                     : 'Valued User',
                                 style: theme.textTheme.headlineSmall?.copyWith(
-                                    color: theme.colorScheme.onPrimary,
+                                    color: Colors.white,
                                     fontWeight: FontWeight.bold),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -457,7 +456,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                               if (user.email.isNotEmpty)
                                 Text(user.email,
                                     style: theme.textTheme.bodyLarge?.copyWith(
-                                        color: Colors.white,
+                                        color: Colors.white.withOpacity(0.9),
                                         height: 1.0,
                                             ),
                                     maxLines: 1,
@@ -465,7 +464,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                             
                               Text('Member since $formattedJoinDate',
                                   style: theme.textTheme.bodyMedium?.copyWith(
-                                      color:Colors.white,
+                                      color: Colors.white.withOpacity(0.8),
                                       height: 1.0,
                                       
                                       ))
@@ -483,13 +482,13 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                 margin: const EdgeInsets.all(16),
                 shape: RoundedRectangleBorder(
                     side: BorderSide(
-                      color: Colors.grey[200] ?? Colors.grey,
-                      width:2.0
+                      color: theme.brightness == Brightness.light ? (Colors.grey[200] ?? Colors.grey) : Colors.transparent,
+                      width: 1.0
                     ),
                     borderRadius: BorderRadius.circular(12)
                     ),
                 elevation: 0.0,
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -535,12 +534,12 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   shape: RoundedRectangleBorder(
                       side: BorderSide(
-                      color: Colors.grey[200] ?? Colors.grey,
-                      width:2.0
+                      color: theme.brightness == Brightness.light ? (Colors.grey[200] ?? Colors.grey) : Colors.transparent,
+                      width: 1.0
                     ),
                       borderRadius: BorderRadius.circular(12)),
                    elevation: 0.0,
-                   color: Colors.white,
+                   color: theme.colorScheme.surface,
                    
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
@@ -551,7 +550,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                               child: Text('Account Settings',
                                   style: theme.textTheme.titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.bold))),
+                                      ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface))),
                           SettingsItem(
                               icon: Icons.card_membership,
                               title: 'Subscription Plans',
@@ -593,12 +592,12 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   shape: RoundedRectangleBorder(
                       side: BorderSide(
-                      color: Colors.grey[200] ?? Colors.grey,
-                      width:2.0
+                      color: theme.brightness == Brightness.light ? (Colors.grey[200] ?? Colors.grey) : Colors.transparent,
+                      width: 1.0
                     ),
                       borderRadius: BorderRadius.circular(12)),
                   elevation: 0.0,
-                  color: Colors.white,
+                  color: theme.colorScheme.surface,
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Column(
@@ -608,19 +607,11 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                               child: Text('App Settings',
                                   style: theme.textTheme.titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.bold))),
-                          // SwitchListTile(
-                          //     title: const Text('Dark Mode'),
-                          //     secondary: Icon(themeProvider.isDarkMode
-                          //         ? Icons.dark_mode
-                          //         : Icons.light_mode),
-                          //     value: themeProvider.isDarkMode,
-                          //     onChanged: (value) {
-                          //       Provider.of<ThemeProvider>(context, listen: false)
-                          //           .setDarkMode(value);
-                          //     },
-                          //     activeColor: theme.colorScheme.primary),
-                              SizedBox(height: 4,),
+                                      ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface))),
+                          // Dark Mode toggle intentionally removed: the app is forced to
+                          // the light theme (see app.dart) because the dark theme isn't fully
+                          // audited yet, so a toggle here would do nothing and confuse users.
+                          const SizedBox(height: 4),
                           SettingsItem(
                               icon: Icons.notifications_outlined,
                               title: 'Notification Preferences',
@@ -634,12 +625,12 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   shape: RoundedRectangleBorder(
                       side: BorderSide(
-                      color: Colors.grey[200] ?? Colors.grey,
-                      width:2.0
+                      color: theme.brightness == Brightness.light ? (Colors.grey[200] ?? Colors.grey) : Colors.transparent,
+                      width: 1.0
                     ),
                       borderRadius: BorderRadius.circular(12)),
                   elevation: 0.0,
-                  color: Colors.white,
+                  color: theme.colorScheme.surface,
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Column(
@@ -649,7 +640,7 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                               child: Text('Help & Support',
                                   style: theme.textTheme.titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.bold))),
+                                      ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface))),
                                      
                           SettingsItem(
                               icon: Icons.help_outline,

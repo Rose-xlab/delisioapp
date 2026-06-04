@@ -169,7 +169,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.grey[50],
+      color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
           // Search field
@@ -187,14 +187,14 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                     )
                   : null,
               filled: true,
-              fillColor: Colors.white,
+              fillColor: theme.colorScheme.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
+                borderSide: BorderSide(color: appColors.borderLight ?? Colors.grey[300]!),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
+                borderSide: BorderSide(color: appColors.borderLight ?? Colors.grey[300]!),
               ),
             ),
           ),
@@ -285,7 +285,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             ElevatedButton.icon(
               onPressed: () {
                 if (authProvider.isAuthenticated) {
-                  Navigator.of(context).pushReplacementNamed('/home');
+                  Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
                 } else {
                   Navigator.of(context).pushReplacementNamed('/login');
                 }
@@ -388,6 +388,8 @@ class RecipeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final appColors = theme.extension<AppColorsExtension>();
     String? imageUrl;
     if (recipe.steps.isNotEmpty && recipe.steps[0].imageUrl != null) {
       imageUrl = recipe.steps[0].imageUrl;
@@ -396,29 +398,29 @@ class RecipeCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 0.0,
-      color:Colors.white,
+      color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15), // More rounded corners
+        borderRadius: BorderRadius.circular(15),
+        side: BorderSide(color: appColors?.borderLight ?? Colors.transparent),
       ),
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(8.0), // Padding inside the card
+          padding: const EdgeInsets.all(8.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center, // Center items vertically
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Image section
               Container(
-                width: 100, // Fixed width for the image container
-                height: 100, // Fixed height for the image container to make it square
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10), // Rounded corners for the image container
-                  // Removed the primary color with opacity as background, image will cover it
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Stack(
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(10), // Apply border radius to the image
+                      borderRadius: BorderRadius.circular(10),
                       child: imageUrl != null
                           ? Image.network(
                               imageUrl,
@@ -427,7 +429,7 @@ class RecipeCard extends StatelessWidget {
                               height: 100,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
-                                  color: Colors.grey[300],
+                                  color: theme.brightness == Brightness.light ? Colors.grey[300] : Colors.grey[800],
                                   child: const Center(
                                     child: Icon(
                                       Icons.broken_image,
@@ -439,7 +441,7 @@ class RecipeCard extends StatelessWidget {
                               loadingBuilder: (context, child, loadingProgress) {
                                 if (loadingProgress == null) return child;
                                 return Container(
-                                  color: Colors.grey[200],
+                                  color: theme.brightness == Brightness.light ? Colors.grey[200] : Colors.grey[900],
                                   child: const Center(
                                     child: CircularProgressIndicator(),
                                   ),
@@ -450,23 +452,23 @@ class RecipeCard extends StatelessWidget {
                               child: Icon(
                                 Icons.restaurant,
                                 size: 40,
-                                color: Theme.of(context).primaryColor.withOpacity(0.5),
+                                color: theme.colorScheme.primary.withOpacity(0.5),
                               ),
                             ),
                     ),
                     // Favorite indicator
                     Positioned(
                       top: 8,
-                      left: 8, // Positioned on the left side
+                      left: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.white, // White background for the icon
-                          borderRadius: BorderRadius.circular(8), // Slightly rounded square background
+                          color: theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           Icons.favorite,
-                          color: Colors.red[400], // Red heart color
+                          color: Colors.red[400],
                           size: 18,
                         ),
                       ),
@@ -477,44 +479,44 @@ class RecipeCard extends StatelessWidget {
               // Info section
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 12.0), // Padding from the image
+                  padding: const EdgeInsets.only(left: 12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center, // Center text vertically
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Title
                       Text(
                         recipe.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 18, // Larger font size for title
-                          color: Colors.black87, // Darker color for title
+                          fontSize: 18,
+                          color: theme.colorScheme.onSurface,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 12), // More space between title and details
+                      const SizedBox(height: 12),
                       // Details row
                       Row(
                         children: [
-                          const Icon(Icons.people, size: 20, color: Color(0xFFE57373)), // Reddish icon color
+                          Icon(Icons.people, size: 20, color: theme.colorScheme.primary.withOpacity(0.8)),
                           const SizedBox(width: 5),
                           Text(
                             '${recipe.servings}',
-                            style: const TextStyle(
-                              color: Color(0xFFE57373), // Reddish text color
-                              fontSize: 16, // Larger font size
+                            style: TextStyle(
+                              color: theme.colorScheme.primary.withOpacity(0.8),
+                              fontSize: 16,
                             ),
                           ),
-                          const SizedBox(width: 15), // More space between servings and time
+                          const SizedBox(width: 15),
                           if (recipe.totalTimeMinutes != null) ...[
-                            const Icon(Icons.timer, size: 20, color: Color(0xFFE57373)), // Reddish icon color
+                            Icon(Icons.timer, size: 20, color: theme.colorScheme.primary.withOpacity(0.8)),
                             const SizedBox(width: 5),
                             Text(
-                              '${recipe.totalTimeMinutes} Mins', // "Mins" instead of "m"
-                              style: const TextStyle(
-                                color: Color(0xFFE57373), // Reddish text color
-                                fontSize: 16, // Larger font size
+                              '${recipe.totalTimeMinutes} Mins',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary.withOpacity(0.8),
+                                fontSize: 16,
                               ),
                             ),
                           ],

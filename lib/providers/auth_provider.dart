@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart'; // For listEquals
 
@@ -282,6 +283,53 @@ class AuthProvider with ChangeNotifier {
       _setError(errorMsg);
       captureException(e, stackTrace: stackTrace, hintText: "Error during AuthProvider.signIn");
       rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Reusable Google one-tap sign-in. Returns true on success, false if the user
+  /// cancelled or it failed. Used by the login screen AND the contextual login gate sheet.
+  Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    clearError();
+    notifyListeners();
+    addBreadcrumb(message: 'Google sign-in attempt', category: 'auth_action');
+    try {
+      const webClientId = '601707002682-2gna6etmp9k6jak25v5m7n3mrar683t4.apps.googleusercontent.com';
+      final GoogleSignIn googleSignIn = GoogleSignIn(clientId: webClientId);
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        // User cancelled — not an error.
+        return false;
+      }
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw Exception('No ID Token found from Google.');
+      }
+      final supabase.AuthResponse response = await _supabase.auth.signInWithIdToken(
+        provider: supabase.OAuthProvider.google,
+        idToken: idToken,
+        accessToken: googleAuth.accessToken,
+      );
+      if (response.user == null || response.session == null) {
+        throw Exception('Supabase sign-in with Google failed. No user returned.');
+      }
+      // Set state immediately so callers can rely on isAuthenticated right away
+      // (the onAuthStateChange listener will also fire and is idempotent).
+      _token = response.session!.accessToken;
+      try {
+        _user = User.fromSupabaseUser(response.user!);
+        if (_user != null) setUser(_user!.id, email: _user!.email, name: _user!.name);
+      } catch (_) {/* listener will retry mapping */}
+      _error = null;
+      return true;
+    } catch (e, stackTrace) {
+      _setError("Google Sign-In failed: ${e.toString().split(':').last.trim()}");
+      captureException(e, stackTrace: stackTrace, hintText: "Error during AuthProvider.signInWithGoogle");
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();

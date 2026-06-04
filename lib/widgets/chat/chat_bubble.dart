@@ -396,16 +396,24 @@ class ChatBubble extends StatelessWidget {
                       ),
                     ),
 
-                  // --- Existing Generate Button (for AI descriptions) ---
-                  // Show this button only if it's an AI message that looks like a recipe description
-                  if (isPotentialRecipeDescription && onSuggestionSelected != null)
-                    RecipeIntentCard(
-                      recipeName: _getRecipeNameFromDescription(message.content),
-                      onGenerate: () {
-                        String recipeName = _getRecipeNameFromDescription(message.content);
-                        onSuggestionSelected!(recipeName, true);
-                      },
-                    ),
+                  // --- Recipe Intent Card ---
+                  // Prefer the backend Concierge intent_meta (hero title + prep time + tags).
+                  // Fall back to the text heuristic for older messages without intent_meta.
+                  if (isAi && onSuggestionSelected != null &&
+                      ((message.heroRecipeTitle != null && message.heroRecipeTitle!.isNotEmpty) ||
+                          isPotentialRecipeDescription))
+                    Builder(builder: (context) {
+                      final String heroName =
+                          (message.heroRecipeTitle != null && message.heroRecipeTitle!.isNotEmpty)
+                              ? message.heroRecipeTitle!
+                              : _getRecipeNameFromDescription(message.content);
+                      return RecipeIntentCard(
+                        recipeName: heroName,
+                        prepTime: message.prepTime,
+                        tags: message.tags,
+                        onGenerate: () => onSuggestionSelected!(heroName, true),
+                      );
+                    }),
 
                   // --- Existing Suggestions (for standard AI messages) ---
                   // Show suggestions only for standard AI messages, not placeholders or results

@@ -18,7 +18,10 @@ class BottomNavigation extends StatelessWidget {
     // Get theme data for consistent styling
     final theme = Theme.of(context);
     final bottomNavTheme = theme.bottomNavigationBarTheme;
-    final primaryColor = theme.primaryColor;
+    // Use the theme's configured selectedItemColor (brand color), falling back to
+    // colorScheme.primary. NOTE: do NOT use theme.primaryColor here — under
+    // Material 3 it resolves to the surface color and makes items invisible.
+    final primaryColor = bottomNavTheme.selectedItemColor ?? theme.colorScheme.primary;
     final unselectedColor = bottomNavTheme.unselectedItemColor ?? Colors.grey.shade600;
     final selectedLabelStyle = bottomNavTheme.selectedLabelStyle ?? const TextStyle(fontSize: 12, fontWeight: FontWeight.bold);
     final unselectedLabelStyle = bottomNavTheme.unselectedLabelStyle ?? const TextStyle(fontSize: 12);
@@ -30,7 +33,7 @@ class BottomNavigation extends StatelessWidget {
       _BottomNavItemData(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home', screenIndex: 0),
       _BottomNavItemData(icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble, label: 'Chats', screenIndex: 1),
       // Placeholder for the FAB, will be handled separately in the Row
-      _BottomNavItemData(icon: Icons.list_alt_outlined, activeIcon: Icons.book_outlined, label: 'Recipes', screenIndex: 2), // Changed activeIcon to book_outlined to match original if desired, or keep list_alt
+      _BottomNavItemData(icon: Icons.list_alt_outlined, activeIcon: Icons.book_outlined, label: 'Recipes', screenIndex: 2),
       _BottomNavItemData(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile', screenIndex: 3),
     ];
 
@@ -94,7 +97,7 @@ class BottomNavigation extends StatelessWidget {
           mainAxisSize: MainAxisSize.min, // Use minimum space vertically
           children: <Widget>[
             Icon(icon, color: color, size: 24), // Icon size reduced slightly to accommodate label
-            SizedBox(height: 3), // Space between icon and label
+            const SizedBox(height: 3), // Space between icon and label
             Text( // Label text is now displayed
               itemData.label,
               style: labelStyle,

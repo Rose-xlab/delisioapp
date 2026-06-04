@@ -468,14 +468,34 @@ class ChatProvider with ChangeNotifier {
               await _subscriptionProvider!.loadSubscriptionStatus(_authProvider!.token!);
             }
           }
+          // Parse Concierge intent_meta for the RecipeIntentCard.
+          final dynamic intentMetaRaw = response['intent_meta'];
+          final Map<String, dynamic>? intentMeta =
+              intentMetaRaw is Map ? Map<String, dynamic>.from(intentMetaRaw) : null;
+          final bool isRecipeIntent = intentMeta?['is_recipe_intent'] == true;
+          final String? heroRecipeTitle = intentMeta?['hero_recipe_title'] as String?;
+          final String? prepTime = intentMeta?['prep_time'] as String?;
+          List<String>? intentTags;
+          if (intentMeta?['tags'] is List) {
+            intentTags = (intentMeta!['tags'] as List).map((e) => e.toString()).toList();
+            if (intentTags.isEmpty) intentTags = null;
+          }
+
           final aiMessage = ChatMessage(
             id: _uuid.v4(),
             content: aiReplyContent, type: MessageType.ai,
             timestamp: DateTime.now(), suggestions: suggestionsList,
+            isRecipeIntent: isRecipeIntent,
+            heroRecipeTitle: heroRecipeTitle,
+            prepTime: prepTime,
+            tags: intentTags,
           );
           _activeMessages.add(aiMessage);
           if (userId != null) {
-            final metadataToSave = {'suggestions': suggestionsList ?? []};
+            final Map<String, dynamic> metadataToSave = {'suggestions': suggestionsList ?? []};
+            if (intentMeta != null) {
+              metadataToSave['intent_meta'] = intentMeta;
+            }
             await _supabase.from('messages').insert({
               'conversation_id': _activeConversationId!,
               'user_id': null,

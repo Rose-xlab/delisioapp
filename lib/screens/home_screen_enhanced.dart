@@ -16,6 +16,7 @@ import '../../providers/subscription_provider.dart';
 import '../../models/subscription.dart';
 import '../../widgets/home/trending_recipes.dart';
 import '../../widgets/home/recipe_grid.dart';
+import '../../widgets/auth/login_gate_sheet.dart';
 import '../../widgets/search/search_bar.dart'; // Assuming this is EnhancedSearchBar
 import '../../constants/categories.dart';
 import '../../models/recipe_category.dart';
@@ -289,6 +290,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     if (recipeProvider.isLoading) return; // Prevent multiple generation attempts
 
+    // Generating a recipe (incl. Magic Search) requires sign-in.
+    if (!await showLoginGate(context, message: 'Sign in to generate recipes')) return;
+    if (!mounted) return;
+
     if (kDebugMode) debugPrint("Attempting to generate recipe for query (via RecipeProvider): $query");
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -345,7 +350,9 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     }
   }
 
-  void _navigateToChatScreenWithQuery() {
+  void _navigateToChatScreenWithQuery() async {
+    if (!await showLoginGate(context, message: 'Sign in to chat with your AI chef')) return;
+    if (!mounted) return;
     final query = _searchController.text.trim();
     Navigator.of(context).pushNamed('/chat', arguments: {
       'initialQuery': query.isNotEmpty ? query : null,
@@ -353,7 +360,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     });
   }
 
-  void _viewRecipe(Recipe recipe) {
+  void _viewRecipe(Recipe recipe) async {
+    // Browsing the feed is open, but opening a recipe requires sign-in.
+    if (!await showLoginGate(context, message: 'Sign in to view this recipe')) return;
+    if (!mounted) return;
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     recipeProvider.setCurrentRecipe(recipe);
     Navigator.of(context).pushNamed('/recipe');

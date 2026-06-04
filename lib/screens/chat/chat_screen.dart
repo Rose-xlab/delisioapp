@@ -17,6 +17,7 @@ import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 
 import '../../widgets/chat/recipe_intent_card.dart';
+import '../../widgets/recipes/recipe_generating_view.dart';
 import '../../widgets/chat/chat_bubble.dart';
 import '../../widgets/chat/message_input.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -739,6 +740,24 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           body: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [ Icon(Icons.chat_bubble_outline_rounded, size: 60, color: theme.dividerColor), const SizedBox(height: 20), const Text('Please log in to use the AI Chat Assistant.', textAlign: TextAlign.center, style: TextStyle(fontSize: 17)), const SizedBox(height: 24), ElevatedButton(style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12)), onPressed: () => Navigator.of(context).pushReplacementNamed('/login'), child: const Text('Login / Sign Up', style: TextStyle(fontSize: 16)))]))));
+    }
+
+    // While a recipe is generating from chat, take over the screen with an engaging,
+    // progress-driven "your recipe is cooking" view instead of leaving the user waiting.
+    if (_isGeneratingRecipeFromChat) {
+      return Scaffold(
+        body: Consumer<RecipeProvider>(
+          builder: (context, recipeProvider, _) => RecipeGeneratingView(
+            progress: recipeProvider.generationProgress,
+            recipeTitle: recipeProvider.partialRecipe?.title,
+            isCancelling: recipeProvider.isCancelling,
+            onCancel: () async {
+              await recipeProvider.cancelRecipeGeneration();
+              if (mounted) setState(() => _isGeneratingRecipeFromChat = false);
+            },
+          ),
+        ),
+      );
     }
 
     bool showScreenLoader = !_isChatInitialized || _isCurrentlyInitializingGlobal;

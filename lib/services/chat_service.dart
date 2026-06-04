@@ -128,9 +128,15 @@ class ChatService {
           print('ChatService: Received suggestions: ${suggestionsList?.toString() ?? "None"}');
         }
 
+        // Concierge intent metadata (optional) for the RecipeIntentCard.
+        final dynamic intentMetaData = responseData['intent_meta'];
+        final Map<String, dynamic>? intentMeta =
+            intentMetaData is Map ? Map<String, dynamic>.from(intentMetaData) : null;
+
         return <String, dynamic>{ // Explicitly type the map
           'reply': reply ?? '',
           'suggestions': suggestionsList,
+          'intent_meta': intentMeta,
           'status_code': 200,
         };
       } else if (response.statusCode == 429) {
