@@ -8,7 +8,9 @@ import 'package:flutter/rendering.dart'; // For ScrollDirection
 import '../../providers/recipe_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../models/recipe.dart';
+import '../../utils/recipe_scaling.dart';
 // import '../../models/chat_message.dart'; // Not directly used in this file
 import '../../widgets/recipes/ingredient_list.dart';
 import '../../widgets/recipes/step_card.dart';
@@ -43,6 +45,71 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
  bool _showButtonOverall = true;
  bool _isAtScrollBottom = false;
+
+ // Servings the user scaled to (null = original recipe servings). Mirrors the web stepper.
+ int? _scaledServings;
+
+ double _servingsFactor(Recipe recipe) {
+   final original = recipe.servings > 0 ? recipe.servings : 1;
+   final current = _scaledServings ?? original;
+   return current / original;
+ }
+
+ Widget _buildServingsStepper(BuildContext context, Recipe recipe) {
+   final isPro =
+       Provider.of<SubscriptionProvider>(context, listen: false).isProSubscriber;
+   // No point scaling content that's blurred behind the paywall.
+   if (recipe.isLocked || !isPro) return const SizedBox.shrink();
+
+   final original = recipe.servings > 0 ? recipe.servings : 1;
+   final current = _scaledServings ?? original;
+   return Padding(
+     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+     child: Row(
+       children: [
+         const Icon(Icons.people_outline, size: 18, color: Color(0xFFE53E3E)),
+         const SizedBox(width: 8),
+         Text('Servings',
+             style: TextStyle(
+                 fontSize: 15, fontWeight: FontWeight.w600, color: Colors.grey[800])),
+         if (current != original) ...[
+           const SizedBox(width: 6),
+           Text('· from $original',
+               style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+         ],
+         const Spacer(),
+         _stepButton(Icons.remove,
+             current > 1 ? () => setState(() => _scaledServings = current - 1) : null),
+         Container(
+           width: 40,
+           alignment: Alignment.center,
+           child: Text('$current',
+               style: const TextStyle(
+                   fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+         ),
+         _stepButton(Icons.add,
+             current < 100 ? () => setState(() => _scaledServings = current + 1) : null),
+       ],
+     ),
+   );
+ }
+
+ Widget _stepButton(IconData icon, VoidCallback? onTap) {
+   final enabled = onTap != null;
+   return Material(
+     color: enabled ? const Color(0xFFFDECEC) : Colors.grey.shade200,
+     shape: const CircleBorder(),
+     child: InkWell(
+       customBorder: const CircleBorder(),
+       onTap: onTap,
+       child: Padding(
+         padding: const EdgeInsets.all(6),
+         child: Icon(icon,
+             size: 18, color: enabled ? const Color(0xFFE53E3E) : Colors.grey),
+       ),
+     ),
+   );
+ }
 
 
  static const double _fabHeightHorizontal = 56.0;
@@ -890,9 +957,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                      ),
 
 
+                   // Servings stepper — scales ingredient amounts live (unlocked/Pro only)
+                   _buildServingsStepper(context, recipe),
+
                    // Ingredients Section
                    LockedRecipeOverlay(
-                     isLocked: recipe.isLocked,
+                     isLocked: recipe.isLocked ||
+                         !Provider.of<SubscriptionProvider>(context, listen: false)
+                             .isProSubscriber,
                      child: Container(
                        width: double.infinity,
                        padding: const EdgeInsets.symmetric(
@@ -928,7 +1000,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                          ),
                                          Expanded(
                                            child: Text(
-                                             ingredient.toString(),
+                                             scaleIngredient(ingredient.toString(),
+                                                 _servingsFactor(recipe)),
                                              style: const TextStyle(
                                                fontSize: 16,
                                                color: Colors.black87,
@@ -948,7 +1021,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                    // Instructions Section
                    LockedRecipeOverlay(
-                     isLocked: recipe.isLocked,
+                     isLocked: recipe.isLocked ||
+                         !Provider.of<SubscriptionProvider>(context, listen: false)
+                             .isProSubscriber,
                      child: Container(
                        width: double.infinity,
                        padding: const EdgeInsets.symmetric(
