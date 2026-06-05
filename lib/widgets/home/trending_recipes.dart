@@ -191,26 +191,25 @@ class TrendingRecipeItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
 
-                      // Info Row (Time and Category)
+                      // Info Row (Time and Servings — number of people only, no labels)
                       Row(
                         children: [
                           // Time Info
-                          if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0)
+                          if (recipe.totalTimeMinutes != null && recipe.totalTimeMinutes! > 0) ...[
                             _buildInfoWidget(
                               icon: Icons.timer_outlined,
                               text: '${recipe.totalTimeMinutes} mins',
                               iconColor: accentColor,
                             ),
+                            const SizedBox(width: 16), // Spacer between the two info items
+                          ],
 
-                          const SizedBox(width: 16), // Spacer between the two info items
-
-                          // Category Info
-                          if (recipe.category != null)
-                            _buildInfoWidget(
-                              icon: Icons.restaurant_menu_outlined,
-                              text: _formatCategory(recipe.category!),
-                              iconColor: accentColor,
-                            ),
+                          // Servings (people count only)
+                          _buildInfoWidget(
+                            icon: Icons.people_outline,
+                            text: '${recipe.servings}',
+                            iconColor: accentColor,
+                          ),
                         ],
                       ),
                     ],
@@ -242,9 +241,4 @@ class TrendingRecipeItem extends StatelessWidget {
     );
   }
 
-  /// Helper to format category name (e.g., "lunch" -> "Lunch").
-  String _formatCategory(String category) {
-    if (category.isEmpty) return '';
-    return '${category[0].toUpperCase()}${category.substring(1).toLowerCase()}';
-  }
 }

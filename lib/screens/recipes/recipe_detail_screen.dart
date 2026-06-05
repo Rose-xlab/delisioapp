@@ -1186,68 +1186,19 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                      padding: const EdgeInsets.all(20),
                      child: Column(
                        children: [
-                         // Cook Mode Button positioned with AnimatedPositioned
+                         // Inline cook-mode button. (Previously an AnimatedPositioned, which is
+                         // invalid inside a Column and threw "Incorrect use of ParentDataWidget"
+                         // on every frame. It always rendered inline here, so we drop the
+                         // Stack-only positioning and keep the fade.)
                          if (recipe.steps.isNotEmpty)
-                           AnimatedPositioned(
+                           AnimatedOpacity(
+                             opacity: _showButtonOverall ? 1.0 : 0.0,
                              duration: const Duration(milliseconds: 300),
-                             curve: Curves.easeInOut,
-
-
-                             // Logic for positioning
-                             top: (_isAtScrollBottom && _showButtonOverall)
-                                 ? 0 // Allows Align to vertically center in the full height of the Stack
-                                 : null, // Not constrained by top when horizontal or hidden
-
-
-                             bottom: (_isAtScrollBottom && _showButtonOverall)
-                                 ? 0 // Allows Align to vertically center in the full height of the Stack
-                                 : (_showButtonOverall
-                                     ? _fabBottomMarginDefault // Default bottom margin for horizontal FAB
-                                     : -(_fabHeightHorizontal +
-                                         40.0)), // Position off-screen when hidden
-
-
-                             right: (_isAtScrollBottom && _showButtonOverall)
-                                 ? _fabSideMargin // Pinned to the right edge
-                                 : (!_isAtScrollBottom && _showButtonOverall
-                                     ? _fabSideMargin // For horizontal centering with left
-                                     : _fabSideMargin), // Maintain right constraint for slide-out from bottom
-                             // Or if sliding out from right: -100.0 (some off-screen value)
-
-
-                             left: (_isAtScrollBottom && _showButtonOverall)
-                                 ? null // Not constrained from left when vertical on right
-                                 : (!_isAtScrollBottom && _showButtonOverall
-                                     ? _fabSideMargin // For horizontal centering with right
-                                     : _fabSideMargin), // Maintain left constraint for slide-out from bottom
-
-
-                             // Width is null for the vertical button (intrinsic size)
-                             // and for the horizontal button (AnimatedPositioned with left/right handles centering)
-                             width: null,
-
-
-                             child: AnimatedOpacity(
-                               opacity: _showButtonOverall ? 1.0 : 0.0,
-                               duration: const Duration(milliseconds: 300),
-                               child: (_isAtScrollBottom && _showButtonOverall)
-                                   ? Align(
-                                       alignment: Alignment
-                                           .center, // Vertically centers the button in the right-edge strip
-                                       child: FloatingCookModeButton(
-                                         steps: recipe.steps,
-                                         isAtScrollBottom:
-                                             true, // Renders vertically
-                                       ),
-                                     )
-                                   : Center(
-                                       // Ensures the horizontal FAB is centered in its allocated space
-                                       child: FloatingCookModeButton(
-                                         steps: recipe.steps,
-                                         isAtScrollBottom:
-                                             false, // Renders horizontally
-                                       ),
-                                     ),
+                             child: Center(
+                               child: FloatingCookModeButton(
+                                 steps: recipe.steps,
+                                 isAtScrollBottom: false,
+                               ),
                              ),
                            ),
 

@@ -403,10 +403,26 @@ class ChatBubble extends StatelessWidget {
                       ((message.heroRecipeTitle != null && message.heroRecipeTitle!.isNotEmpty) ||
                           isPotentialRecipeDescription))
                     Builder(builder: (context) {
-                      final String heroName =
-                          (message.heroRecipeTitle != null && message.heroRecipeTitle!.isNotEmpty)
-                              ? message.heroRecipeTitle!
-                              : _getRecipeNameFromDescription(message.content);
+                      // Resolve the hero recipe name in priority order so we NEVER generate a
+                      // recipe literally titled "This Recipe":
+                      //   1) the backend Concierge hero_recipe_title (intent_meta)
+                      //   2) the first real suggestion (the Concierge always puts the hero first)
+                      //   3) a heuristic from the message text
+                      String heroName;
+                      if (message.heroRecipeTitle != null &&
+                          message.heroRecipeTitle!.trim().isNotEmpty) {
+                        heroName = message.heroRecipeTitle!.trim();
+                      } else if (message.suggestions != null &&
+                          message.suggestions!.isNotEmpty) {
+                        heroName = message.suggestions!.firstWhere(
+                          (s) =>
+                              s.trim().isNotEmpty &&
+                              s.trim().toLowerCase() != 'something else?',
+                          orElse: () => message.suggestions!.first,
+                        ).trim();
+                      } else {
+                        heroName = _getRecipeNameFromDescription(message.content);
+                      }
                       return RecipeIntentCard(
                         recipeName: heroName,
                         prepTime: message.prepTime,

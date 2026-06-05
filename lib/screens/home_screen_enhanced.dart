@@ -1,8 +1,6 @@
 // lib/screens/home/home_screen_enhanced.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:kitchenassistant/constants/myofferings.dart';
-import 'package:kitchenassistant/widgets/home/greetings_card.dart';
 import 'package:kitchenassistant/widgets/home/home_card.dart';
 import 'package:kitchenassistant/widgets/home/new_search_bar.dart';
 import 'package:provider/provider.dart';
@@ -13,9 +11,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/subscription_provider.dart';
-import '../../models/subscription.dart';
 import '../../widgets/home/trending_recipes.dart';
 import '../../widgets/home/recipe_grid.dart';
+import '../../widgets/home/category_rail.dart';
 import '../../widgets/auth/login_gate_sheet.dart';
 import '../../widgets/search/search_bar.dart'; // Assuming this is EnhancedSearchBar
 import '../../constants/categories.dart';
@@ -360,9 +358,10 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
     });
   }
 
-  void _viewRecipe(Recipe recipe) async {
-    // Browsing the feed is open, but opening a recipe requires sign-in.
-    if (!await showLoginGate(context, message: 'Sign in to view this recipe')) return;
+  void _viewRecipe(Recipe recipe) {
+    // Public recipes are open to everyone — guests included. The recipe detail paywalls
+    // the ingredients and steps for non-Pro users, so opening one needs no sign-in
+    // (this matches the website).
     if (!mounted) return;
     final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
     recipeProvider.setCurrentRecipe(recipe);
@@ -567,9 +566,7 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
-                  if (authProvider.isAuthenticated) GreetingCard(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   NewSearchBar(
                     hintText: 'What recipe are you looking for ?',
                     onSearch: (query) {
@@ -584,8 +581,6 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       _navigateToChatScreenWithQuery();
                     },
                   ),
-                  if (authProvider.isAuthenticated && !subscriptionProvider.isProSubscriber)
-                    _buildSubscriptionBanner(context),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -629,48 +624,65 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
                       isLoading: _isLoadingTrending,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _searchQuery.isNotEmpty
-                              ? 'Search Results for "$_searchQuery"'
-                              : (_activeCategory == null ? 'Discover Recipes' : _getCategoryTitle(_activeCategory!)),
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        if (_activeCategory != null && _searchQuery.isEmpty)
-                          TextButton(
-                            onPressed: () => _onCategorySelected(null),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(50, 30),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  // Default browse view = a horizontal rail per category (like the web).
+                  // When searching or a specific category is selected, show the results grid.
+                  if (_searchQuery.isEmpty && _activeCategory == null)
+                    ...categories
+                        .where((c) => c.id != 'all' && c.count > 0)
+                        .map((c) => CategoryRail(
+                              key: ValueKey('rail_${c.id}'),
+                              categoryId: c.id,
+                              categoryTitle: _getCategoryTitle(c.id),
+                              onRecipeTap: _viewRecipe,
+                              onSeeAll: () => _onCategorySelected(c.id),
+                            ))
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _searchQuery.isNotEmpty
+                                  ? 'Search Results for "$_searchQuery"'
+                                  : _getCategoryTitle(_activeCategory!),
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            child: const Text('See All'),
                           ),
-                      ],
+                          if (_activeCategory != null && _searchQuery.isEmpty)
+                            TextButton(
+                              onPressed: () => _onCategorySelected(null),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(50, 30),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('See All'),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (_isLoadingRecipes && discoverRecipes.isEmpty)
-                    const Center(child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
-                    )),
-                  if (discoverRecipes.isNotEmpty || _searchQuery.isNotEmpty)
-                    RecipeGrid(
-                      recipes: discoverRecipes,
-                      onRecipeTap: _viewRecipe,
-                      isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
-                      searchQuery: _searchQuery,
-                      onMagicGenerate: (query) {
-                        _searchController.text = query;
-                        _generateRecipeViaRecipeProvider();
-                      },
-                    ),
-                  if (discoverRecipes.isEmpty && !_isLoadingRecipes && _searchQuery.isEmpty)
-                    _buildEmptyState(),
+                    if (_isLoadingRecipes && discoverRecipes.isEmpty)
+                      const Center(child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
+                      )),
+                    if (discoverRecipes.isNotEmpty || _searchQuery.isNotEmpty)
+                      RecipeGrid(
+                        recipes: discoverRecipes,
+                        onRecipeTap: _viewRecipe,
+                        isLoading: _isLoadingRecipes && discoverRecipes.isNotEmpty,
+                        searchQuery: _searchQuery,
+                        onMagicGenerate: (query) {
+                          _searchController.text = query;
+                          _generateRecipeViaRecipeProvider();
+                        },
+                      ),
+                    if (discoverRecipes.isEmpty && !_isLoadingRecipes && _searchQuery.isEmpty)
+                      _buildEmptyState(),
+                  ],
                   SizedBox(height: navigationBarHeight + 10),
                   if (isLoadingMore)
                     Padding(
