@@ -13,7 +13,7 @@
     </queries>
 
     <application
-        android:label="Kitchen Assistant"
+        android:label="Kitchen Assistant AI"
         android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"

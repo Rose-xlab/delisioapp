@@ -109,35 +109,19 @@ class _SignupScreenState extends State<SignupScreen> {
       );
 
       // After successful signUp call, AuthProvider's onAuthStateChange listener will update isAuthenticated.
-      // We should wait for that confirmation or navigate based on that.
-      // For new users, it's good to go to onboarding preferences.
       if (mounted && authProvider.isAuthenticated) {
-        // Check if signUp made user authenticated
-        Navigator.of(context).pushReplacementNamed('/onboarding_preferences');
+        // Redirect to main home screen (same as existing users)
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else if (mounted && !authProvider.isAuthenticated && authProvider.error == null) {
+        // If not authenticated and no error, it likely means email confirmation is required.
+        setState(() {
+          _errorMessage = "Sign up successful! Please check your email for a confirmation link before logging in.";
+        });
       } else if (mounted && authProvider.error != null) {
-        // If signUp internally sets an error in AuthProvider (e.g. email already exists and it handles it)
+        // If signUp internally sets an error in AuthProvider
         setState(() {
           _errorMessage = authProvider.error;
         });
-      } else if (mounted &&
-          !authProvider.isAuthenticated &&
-          authProvider.error == null) {
-        // This case might happen if email confirmation is required. AuthProvider might set an error/message.
-        // For now, we assume direct authentication or an error is set by AuthProvider.
-        // If AuthProvider.signUp doesn't throw but requires email verification, it should set an appropriate
-        // message in _error or have a different state for it.
-        // The default here is to go to onboarding_preferences IF authenticated.
-        if (authProvider.error != null) {
-          // Check again if an error was set during the process
-          setState(() {
-            _errorMessage = authProvider.error;
-          });
-        } else {
-          // If no error but not authenticated (e.g. email verification pending),
-          // show a message or handle as per your app's flow.
-          // For now, assume /onboarding_preferences is for fully auth'd new users.
-          // If email verification is pending, AuthProvider's listener should handle that state.
-        }
       }
     } catch (e) {
       // Catch errors rethrown by authProvider.signUp

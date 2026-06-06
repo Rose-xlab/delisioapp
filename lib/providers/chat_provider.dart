@@ -606,6 +606,46 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  /// Adds a recipe result message to the chat history and persists it.
+  Future<void> addRecipeResultMessage({
+    required String recipeId,
+    required String recipeTitle,
+    String? content,
+  }) async {
+    if (_activeConversationId == null || !_mounted) return;
+
+    final userId = _authProvider?.user?.id;
+    final messageContent = content ?? "I've created the recipe for $recipeTitle!";
+
+    final recipeMessage = ChatMessage(
+      id: _uuid.v4(),
+      content: messageContent,
+      type: MessageType.recipeResult,
+      timestamp: DateTime.now(),
+      recipeId: recipeId,
+      recipeTitle: recipeTitle,
+    );
+
+    // Update local UI
+    _activeMessages.add(recipeMessage);
+    _notifySafely();
+
+    // Persist to database
+    try {
+      if (userId != null) {
+        final dbMessage = recipeMessage.toJsonForDb();
+        dbMessage['conversation_id'] = _activeConversationId!;
+        dbMessage['user_id'] = null; // Ensuring user_id is null for AI/System results
+
+        await _supabase.from('messages').insert(dbMessage);
+        if (kDebugMode) print("ChatProvider: Recipe result message persisted for recipe $recipeId.");
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) print("ChatProvider: Error persisting recipe result message: $e");
+      captureException(e, stackTrace: stackTrace, hintText: 'Error persisting recipe result message');
+    }
+  }
+
   Future<void> _startPollingForResponse(String messageId) async {
     if (!_isQueueActive || !_mounted) return;
     _isPolling = true;

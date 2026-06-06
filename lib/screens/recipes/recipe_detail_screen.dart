@@ -962,8 +962,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                    // Ingredients Section
                    LockedRecipeOverlay(
-                     isLocked: recipe.isLocked ||
-                         !Provider.of<SubscriptionProvider>(context, listen: false)
+                     isLocked: !Provider.of<SubscriptionProvider>(context, listen: false)
                              .isProSubscriber,
                      child: Container(
                        width: double.infinity,
@@ -1021,8 +1020,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                    // Instructions Section
                    LockedRecipeOverlay(
-                     isLocked: recipe.isLocked ||
-                         !Provider.of<SubscriptionProvider>(context, listen: false)
+                     isLocked: !Provider.of<SubscriptionProvider>(context, listen: false)
                              .isProSubscriber,
                      child: Container(
                        width: double.infinity,

@@ -683,6 +683,16 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       if (recipe != null && mounted && !recipeProvider.wasCancelled) {
+        // --- ADDED: Sync with chat history ---
+        if (_activeLocalConversationId != null && recipe.id != null) {
+          final chatProvider = _chatProviderInstance ?? Provider.of<ChatProvider>(context, listen: false);
+          chatProvider.addRecipeResultMessage(
+            recipeId: recipe.id!,
+            recipeTitle: recipe.title,
+          );
+        }
+        // --------------------------------------
+
         Navigator.of(context).pushNamed('/recipe');
       } else if (recipeProvider.wasCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -715,6 +725,22 @@ class _ChatScreenState extends State<ChatScreen> {
     // If successful, the ChatProvider listener should update _activeLocalConversationId
     // via _initializeChatScreen(forceIdFromProvider: newId) and ChatScreen will rebuild.
   }
+
+  // --- ADDED: Handle viewing recipe from a chat bubble ---
+  Future<void> _viewRecipeFromChat(String recipeId) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+
+    if (authProvider.token == null) return;
+
+    // Show loading state if needed, or rely on RecipeProvider's internal loading
+    await recipeProvider.fetchAndSetCurrentRecipe(recipeId, authProvider.token);
+
+    if (mounted) {
+      Navigator.of(context).pushNamed('/recipe');
+    }
+  }
+  // -------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -1158,7 +1184,11 @@ class _ChatScreenState extends State<ChatScreen> {
             if (showHeader) _buildDateHeader(message.timestamp),
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
-              child: ChatBubble(message: message, onSuggestionSelected: _onSuggestionSelected),
+              child: ChatBubble(
+                message: message,
+                onSuggestionSelected: _onSuggestionSelected,
+                onViewRecipePressed: _viewRecipeFromChat, // --- ADDED ---
+              ),
             ),
           ],
         );

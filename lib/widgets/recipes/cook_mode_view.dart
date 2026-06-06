@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/recipe_step.dart';
@@ -303,17 +305,20 @@ class _CookModeViewState extends State<CookModeView> {
 
   Widget _buildStepPage(RecipeStep step, int stepNumber, bool useLightTheme) {
     final hasImage = step.imageUrl != null && step.imageUrl!.isNotEmpty;
+
+    // Debugging
+    if (kDebugMode) {
+      print("CookMode: Rendering step $stepNumber. HasImage: $hasImage. Text length: ${step.text.length}");
+      if (step.text.isEmpty) print("WARNING: Step $stepNumber has EMPTY text!");
+    }
+
     // Use AppTheme constants directly for clarity
     final Color pageBackgroundColor = useLightTheme ? AppTheme.lightBackground : AppTheme.darkBackground;
-    final Color cardBackgroundColor = useLightTheme ? AppTheme.lightSurface : AppTheme.darkSurface; // Or Colors.grey[850] for dark
+    final Color cardBackgroundColor = useLightTheme ? AppTheme.lightSurface : AppTheme.darkSurface;
     final Color cardTextColor = useLightTheme ? AppTheme.lightOnSurface : AppTheme.darkOnSurface;
-    final Color stepNumberColor = useLightTheme ? Theme.of(context).colorScheme.primary : AppTheme.darkPrimaryColor; // Or AppTheme.darkSecondaryColor
+    final Color stepNumberColor = useLightTheme ? Theme.of(context).colorScheme.primary : AppTheme.darkPrimaryColor;
     final Color imagePlaceholderColor = useLightTheme ? Colors.grey[200]! : Colors.grey[900]!;
     final Color imageErrorIconColor = Colors.grey[500]!;
-
-
-    final int imageFlex = hasImage ? 2 : 0;
-    final int textFlex = hasImage ? 3 : 5;
 
     return Container(
       color: pageBackgroundColor,
@@ -341,66 +346,77 @@ class _CookModeViewState extends State<CookModeView> {
               ),
             ),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (hasImage)
-                    Expanded(
-                      flex: imageFlex,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 12.0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12.0),
-                          child: Image.network(
-                            step.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: imagePlaceholderColor,
-                                  borderRadius: BorderRadius.circular(12.0),
-                                ),
-                                child: Center(
-                                  child: Icon(Icons.broken_image, size: 50, color: imageErrorIconColor),
-                                ),
-                              );
-                            },
+              child: hasImage
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 12.0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12.0),
+                            child: Image.network(
+                              step.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: imagePlaceholderColor,
+                                    borderRadius: BorderRadius.circular(12.0),
+                                  ),
+                                  child: Center(
+                                    child: Icon(Icons.broken_image, size: 50, color: imageErrorIconColor),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                  Expanded(
-                    flex: textFlex,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: cardBackgroundColor,
-                        borderRadius: BorderRadius.circular(12.0),
-                        boxShadow: useLightTheme ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0,2),
-                          )
-                        ] : null,
+                      Expanded(
+                        flex: 3,
+                        child: _buildTextContainer(step.text, cardBackgroundColor, cardTextColor, useLightTheme),
                       ),
-                      child: SingleChildScrollView(
-                        child: Text(
-                          step.text,
-                          style: TextStyle(
-                            color: cardTextColor,
-                            fontSize: 20,
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
+                    ],
+                  )
+                : Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 800),
+                      child: _buildTextContainer(step.text, cardBackgroundColor, cardTextColor, useLightTheme),
                     ),
                   ),
-                ],
-              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextContainer(String text, Color bgColor, Color textColor, bool useLightTheme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16.0),
+        boxShadow: useLightTheme ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          )
+        ] : null,
+      ),
+      child: SingleChildScrollView(
+        child: Text(
+          text.isEmpty ? "No instructions provided for this step." : text,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 22,
+            height: 1.6,
+          ),
+          textAlign: text.isEmpty ? TextAlign.center : TextAlign.start,
         ),
       ),
     );

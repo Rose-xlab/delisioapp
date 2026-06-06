@@ -1,0 +1,3 @@
+-dontwarn org.commonmark.**
+-keep class org.commonmark.** { *; }
+-dontwarn io.noties.markwon.**

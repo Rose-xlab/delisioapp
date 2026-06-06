@@ -3,7 +3,7 @@ class ApiConfig {
   //static const String baseUrl = 'http://10.0.2.2:3002';
   //  static const String baseUrl = 'http://192.168.0.14:3002';
 
-  static const String baseUrl = "http://192.168.1.173:3002";
+  static const String baseUrl = "https://kitchenassistant-production.up.railway.app";
   static const String apiVersion = '/api';
 
   // Auth endpoints
