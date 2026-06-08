@@ -654,6 +654,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                      height: 1.2,
                    ),
                  ),
+                 // Appetizing intro/headnote under the title (when available).
+                 if (recipe.description != null && recipe.description!.trim().isNotEmpty) ...[
+                   const SizedBox(height: 10),
+                   Text(
+                     recipe.description!.trim(),
+                     style: TextStyle(
+                       fontSize: 15,
+                       height: 1.45,
+                       color: Colors.white.withOpacity(0.92),
+                     ),
+                   ),
+                 ],
                  const SizedBox(height: 12),
                  Row(
                    children: [

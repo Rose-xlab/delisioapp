@@ -270,6 +270,7 @@ class RecipeProvider with ChangeNotifier {
         bool save = false,
         String? token,
         String? conversationId,
+        String? interpretedAs,
       }) async {
     final BuildContext? context = navigatorKey.currentContext;
     final Completer<Recipe?> completer = Completer<Recipe?>();
@@ -305,7 +306,7 @@ class RecipeProvider with ChangeNotifier {
       if (!_mounted) { if(!completer.isCompleted) completer.complete(null); return completer.future; }
 
       if (_isQueueActive) {
-        final requestResult = await _recipeService.startRecipeGeneration(query, save: save, token: token);
+        final requestResult = await _recipeService.startRecipeGeneration(query, save: save, token: token, interpretedAs: interpretedAs);
         Future.microtask(() {
           if(!_mounted) { if (!completer.isCompleted) completer.complete(null); return; }
           if(_wasCancelled && !completer.isCompleted) { completer.complete(null); return; }
@@ -318,7 +319,7 @@ class RecipeProvider with ChangeNotifier {
           }
         });
       } else {
-        final recipe = await _recipeService.generateRecipe(query, save: save, token: token);
+        final recipe = await _recipeService.generateRecipe(query, save: save, token: token, interpretedAs: interpretedAs);
         Future.microtask(() {
           if(!_mounted) { if (!completer.isCompleted) completer.complete(null); return; }
           if (_wasCancelled && !completer.isCompleted) { _error = 'Recipe generation cancelled.'; _isLoading = false; _notifySafely(); completer.complete(null); return; }

@@ -122,8 +122,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     return text.substring(0, text.length > 100 ? 100 : text.length).trim();
   }
 
-  void _onSuggestionSelected(String suggestion, bool generateRecipe) {
-    debugPrint("Suggestion selected in ChatScreen: $suggestion, generate: $generateRecipe");
+  void _onSuggestionSelected(String suggestion, bool generateRecipe, {String? interpretedAs}) {
+    debugPrint("Suggestion selected in ChatScreen: $suggestion, generate: $generateRecipe, interpretedAs: $interpretedAs");
 
     // Special handling for "Something else?" option
     if (suggestion.toLowerCase() == "something else?") {
@@ -161,7 +161,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
         }
       }
 
-      _generateRecipeFromChat(recipeQuery);
+      _generateRecipeFromChat(recipeQuery, interpretedAs: interpretedAs);
     } else {
       _sendMessage("Tell me more about $suggestion - what it is, how it tastes, and what ingredients I need for it.");
     }
@@ -172,7 +172,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     Navigator.of(context).pushNamed('/recipe');
   }
 
-  Future<void> _generateRecipeFromChat(String? suggestedQuery) async {
+  Future<void> _generateRecipeFromChat(String? suggestedQuery, {String? interpretedAs}) async {
     if (_isGenerating) return;
 
     final String recipeQuery = suggestedQuery ?? "";
@@ -210,6 +210,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
         recipeQuery,
         save: authProvider.isAuthenticated,
         token: authProvider.token,
+        interpretedAs: interpretedAs,
       );
 
       debugPrint("Recipe generation initiated via RecipeProvider...");

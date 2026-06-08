@@ -1,6 +1,7 @@
 // lib/providers/auth_provider.dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -297,8 +298,31 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     addBreadcrumb(message: 'Google sign-in attempt', category: 'auth_action');
     try {
+      // OAuth 2.0 *Web* client ID (from Google Cloud Console). On Android/iOS this is
+      // passed as `serverClientId` so the returned idToken's audience matches the client
+      // Supabase verifies against. It is NOT the Android/iOS client id.
       const webClientId = '601707002682-2gna6etmp9k6jak25v5m7n3mrar683t4.apps.googleusercontent.com';
-      final GoogleSignIn googleSignIn = GoogleSignIn(clientId: webClientId);
+      // iOS OAuth client ID (create an "iOS" OAuth client in Google Cloud Console and
+      // paste it here). Required for native iOS sign-in. Leave empty until configured.
+      const iosClientId = '';
+
+      // Platform-aware configuration. Passing the web client id as `clientId` on Android
+      // is what caused ApiException: 10 (DEVELOPER_ERROR) — Android must use `serverClientId`.
+      final GoogleSignIn googleSignIn;
+      if (kIsWeb) {
+        // Web reads the client id from the <meta name="google-signin-client_id"> tag in
+        // web/index.html, but passing it here too is harmless and explicit.
+        googleSignIn = GoogleSignIn(clientId: webClientId);
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        googleSignIn = GoogleSignIn(
+          clientId: iosClientId.isEmpty ? null : iosClientId,
+          serverClientId: webClientId,
+        );
+      } else {
+        // Android: the app is authenticated via its package name + SHA-1 registered in an
+        // Android OAuth client in Google Cloud Console. Only serverClientId is supplied here.
+        googleSignIn = GoogleSignIn(serverClientId: webClientId);
+      }
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         // User cancelled — not an error.
@@ -327,7 +351,18 @@ class AuthProvider with ChangeNotifier {
       _error = null;
       return true;
     } catch (e, stackTrace) {
-      _setError("Google Sign-In failed: ${e.toString().split(':').last.trim()}");
+      // Surface the real error instead of `.split(':').last`, which truncated
+      // PlatformException(sign_in_failed, ApiException: 10: , null, null) down to
+      // the meaningless tail ", null, null)".
+      String message;
+      if (e is PlatformException) {
+        message = '${e.code}: ${e.message ?? e.details ?? ''}'.trim();
+      } else if (e is supabase.AuthException) {
+        message = e.message;
+      } else {
+        message = e.toString().replaceFirst('Exception: ', '');
+      }
+      _setError('Google Sign-In failed: $message');
       captureException(e, stackTrace: stackTrace, hintText: "Error during AuthProvider.signInWithGoogle");
       return false;
     } finally {

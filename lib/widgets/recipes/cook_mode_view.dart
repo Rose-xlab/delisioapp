@@ -148,13 +148,13 @@ class _CookModeViewState extends State<CookModeView> {
             ),
 
             // Top control bar
-            AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: IgnorePointer(
-                ignoring: !_showControls,
-                child: Positioned(
-                  top: 0, left: 0, right: 0,
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: AnimatedOpacity(
+                opacity: _showControls ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: IgnorePointer(
+                  ignoring: !_showControls,
                   child: Container(
                     color: currentOverlayBackgroundColor,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -207,13 +207,13 @@ class _CookModeViewState extends State<CookModeView> {
             ),
 
             // Bottom navigation indicators (Dots)
-            AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: IgnorePointer(
-                ignoring: !_showControls,
-                child: Positioned(
-                  bottom: 0, left: 0, right: 0,
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: AnimatedOpacity(
+                opacity: _showControls ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: IgnorePointer(
+                  ignoring: !_showControls,
                   child: Container(
                     color: currentOverlayBackgroundColor,
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -254,12 +254,12 @@ class _CookModeViewState extends State<CookModeView> {
 
             // Left/Right navigation arrows
             if (widget.steps.length > 1)
-              AnimatedOpacity(
-                opacity: _showControls ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: IgnorePointer(
-                  ignoring: !_showControls,
-                  child: Positioned.fill(
+              Positioned.fill(
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: IgnorePointer(
+                    ignoring: !_showControls,
                     child: SafeArea(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

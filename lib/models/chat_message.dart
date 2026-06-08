@@ -25,6 +25,12 @@ class ChatMessage {
   final List<String>? tags;      // e.g. ["High Protein", "Quick"]
   // --- END ADDED ---
 
+  // --- ADDED: canonical English normalization of the user's request from the chat AI
+  // (misspellings corrected, regional/non-English dish names translated). Powers the
+  // "Did you mean…?" hint and is forwarded to the recipe generator for a clean query. ---
+  final String? interpretedAs;
+  // --- END ADDED ---
+
 
   ChatMessage({
     required this.id,
@@ -43,6 +49,7 @@ class ChatMessage {
     this.prepTime,
     this.tags,
     // --- END ADDED ---
+    this.interpretedAs,
   });
 
   // --- MODIFIED: Updated factory to handle new types and metadata ---
@@ -79,6 +86,8 @@ class ChatMessage {
     }
     // --- End intent_meta parsing ---
 
+    // Canonical normalized term persisted alongside intent_meta in message metadata.
+    final String? interpretedAs = metadata?['interpreted_as'] as String?;
 
     // Determine message type from 'role' and metadata
     MessageType determinedType;
@@ -118,6 +127,7 @@ class ChatMessage {
       prepTime: prepTime,
       tags: tags,
       // --- END ADDED ---
+      interpretedAs: interpretedAs,
     );
   }
   // --- END MODIFIED ---
@@ -159,6 +169,10 @@ class ChatMessage {
         'prep_time': prepTime,
         'tags': tags ?? [],
       };
+    }
+    // Persist the normalized term so "Did you mean…?" + clean generation survive reloads.
+    if (interpretedAs != null && interpretedAs!.trim().isNotEmpty) {
+      metadata['interpreted_as'] = interpretedAs!.trim();
     }
 
     return {

@@ -137,6 +137,7 @@ class ChatService {
           'reply': reply ?? '',
           'suggestions': suggestionsList,
           'intent_meta': intentMeta,
+          'interpreted_as': responseData['interpreted_as'] as String?,
           'status_code': 200,
         };
       } else if (response.statusCode == 429) {

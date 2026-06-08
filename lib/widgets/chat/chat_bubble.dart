@@ -7,7 +7,7 @@ import 'recipe_intent_card.dart';
 
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
-  final Function(String suggestion, bool generateRecipe)? onSuggestionSelected;
+  final Function(String suggestion, bool generateRecipe, {String? interpretedAs})? onSuggestionSelected;
   final Function(String recipeId)? onViewRecipePressed; // NEW: Callback for viewing recipe
 
   // Removed: actionType, onSeeRecipe, recipeName - Replaced by message.type checks
@@ -396,6 +396,57 @@ class ChatBubble extends StatelessWidget {
                       ),
                     ),
 
+                  // --- "Did you mean…?" hint ---
+                  // Shows the chat AI's canonical normalization when it meaningfully differs
+                  // from the hero dish (i.e. the user misspelled, used slang, or another
+                  // language). Tapping it generates the corrected dish directly.
+                  if (isAi && onSuggestionSelected != null &&
+                      message.interpretedAs != null &&
+                      message.interpretedAs!.trim().isNotEmpty &&
+                      message.interpretedAs!.trim().toLowerCase() !=
+                          (message.heroRecipeTitle ?? '').trim().toLowerCase())
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10.0),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8.0),
+                        onTap: () => onSuggestionSelected!(
+                          message.interpretedAs!.trim(),
+                          true,
+                          interpretedAs: message.interpretedAs!.trim(),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F0),
+                            borderRadius: BorderRadius.circular(8.0),
+                            border: Border.all(color: Colors.pink.shade100, width: 1.0),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.search_rounded, size: 16, color: Colors.pink.shade300),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: const TextStyle(color: Colors.black87, fontSize: 13.5),
+                                    children: [
+                                      const TextSpan(text: 'Did you mean '),
+                                      TextSpan(
+                                        text: message.interpretedAs!.trim(),
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      const TextSpan(text: '?'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
                   // --- Recipe Intent Card ---
                   // Prefer the backend Concierge intent_meta (hero title + prep time + tags).
                   // Fall back to the text heuristic for older messages without intent_meta.
@@ -427,7 +478,7 @@ class ChatBubble extends StatelessWidget {
                         recipeName: heroName,
                         prepTime: message.prepTime,
                         tags: message.tags,
-                        onGenerate: () => onSuggestionSelected!(heroName, true),
+                        onGenerate: () => onSuggestionSelected!(heroName, true, interpretedAs: message.interpretedAs),
                       );
                     }),
 

@@ -481,6 +481,12 @@ class ChatProvider with ChangeNotifier {
             if (intentTags.isEmpty) intentTags = null;
           }
 
+          // Canonical normalized term from the chat AI (misspellings corrected, regional/
+          // non-English dish names translated). Powers "Did you mean…?" + clean generation.
+          final String? interpretedAs = (response['interpreted_as'] as String?)?.trim();
+          final String? interpretedAsClean =
+              (interpretedAs != null && interpretedAs.isNotEmpty) ? interpretedAs : null;
+
           final aiMessage = ChatMessage(
             id: _uuid.v4(),
             content: aiReplyContent, type: MessageType.ai,
@@ -489,12 +495,16 @@ class ChatProvider with ChangeNotifier {
             heroRecipeTitle: heroRecipeTitle,
             prepTime: prepTime,
             tags: intentTags,
+            interpretedAs: interpretedAsClean,
           );
           _activeMessages.add(aiMessage);
           if (userId != null) {
             final Map<String, dynamic> metadataToSave = {'suggestions': suggestionsList ?? []};
             if (intentMeta != null) {
               metadataToSave['intent_meta'] = intentMeta;
+            }
+            if (interpretedAsClean != null) {
+              metadataToSave['interpreted_as'] = interpretedAsClean;
             }
             await _supabase.from('messages').insert({
               'conversation_id': _activeConversationId!,

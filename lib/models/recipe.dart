@@ -9,6 +9,8 @@ import 'nutrition_info.dart'; // Assumes this is the updated NutritionInfo model
 class Recipe {
   final String? id;
   final String title;
+  // Appetizing 2-4 sentence intro/headnote (English). Shown under the title.
+  final String? description;
   final int servings;
   final List<String> ingredients;
   final List<RecipeStep> steps;
@@ -42,6 +44,7 @@ class Recipe {
   Recipe({
     this.id,
     required this.title,
+    this.description,
     required this.servings,
     required this.ingredients,
     required this.steps,
@@ -67,6 +70,7 @@ class Recipe {
   Recipe copyWith({
     String? id,
     String? title,
+    String? description,
     int? servings,
     List<String>? ingredients,
     List<RecipeStep>? steps,
@@ -90,6 +94,7 @@ class Recipe {
     return Recipe(
       id: id ?? this.id,
       title: title ?? this.title,
+      description: description ?? this.description,
       servings: servings ?? this.servings,
       ingredients: ingredients ?? this.ingredients,
       steps: steps ?? this.steps,
@@ -228,6 +233,9 @@ class Recipe {
     return Recipe(
       id: json['id'] as String?,
       title: json['title'] as String? ?? 'Untitled Recipe',
+      description: (json['description'] as String?)?.trim().isNotEmpty == true
+          ? (json['description'] as String).trim()
+          : null,
       servings: parseIntSafe(json['servings']) ?? 1,
       ingredients: extractIngredients(json['ingredients']),
       steps: parseSteps(json['steps']),
@@ -255,6 +263,7 @@ class Recipe {
     return {
       if (id != null) 'id': id,
       'title': title,
+      if (description != null) 'description': description,
       'servings': servings,
       'ingredients': ingredients,
       // Assume RecipeStep.toJson exists

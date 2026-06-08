@@ -646,16 +646,16 @@ class _ChatScreenState extends State<ChatScreen> {
     return text.substring(0, endIndex == -1 ? maxLength : endIndex + 1);
   }
 
-  void _onSuggestionSelected(String suggestion, bool generateRecipe) {
-    if (kDebugMode) print("Suggestion selected: '$suggestion', Generate Recipe: $generateRecipe");
+  void _onSuggestionSelected(String suggestion, bool generateRecipe, {String? interpretedAs}) {
+    if (kDebugMode) print("Suggestion selected: '$suggestion', Generate Recipe: $generateRecipe, interpretedAs: $interpretedAs");
     if (generateRecipe) {
-      _generateRecipeFromChat(suggestion);
+      _generateRecipeFromChat(suggestion, interpretedAs: interpretedAs);
     } else {
       _sendMessage(suggestion);
     }
   }
 
-  Future<void> _generateRecipeFromChat(String? suggestedQuery) async {
+  Future<void> _generateRecipeFromChat(String? suggestedQuery, {String? interpretedAs}) async {
     if (_isGeneratingRecipeFromChat) return;
     if (!mounted) return;
 
@@ -680,6 +680,7 @@ class _ChatScreenState extends State<ChatScreen> {
         save: authProvider.isAuthenticated,
         token: authProvider.token,
         conversationId: _activeLocalConversationId,
+        interpretedAs: interpretedAs,
       );
 
       if (recipe != null && mounted && !recipeProvider.wasCancelled) {

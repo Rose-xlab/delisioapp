@@ -43,7 +43,7 @@ class RecipeService {
   }
 
   // Start recipe generation (for queue-based generation)
-  Future<Map<String, dynamic>> startRecipeGeneration(String query, {bool save = false, String? token}) async {
+  Future<Map<String, dynamic>> startRecipeGeneration(String query, {bool save = false, String? token, String? interpretedAs}) async {
     final headers = {
       'Content-Type': 'application/json',
     };
@@ -59,6 +59,10 @@ class RecipeService {
       final requestBody = {
         'query': query,
         'save': save,
+        // Canonical English normalization from the chat AI, so misspelled/regional/
+        // non-English requests still generate the right dish on the backend.
+        if (interpretedAs != null && interpretedAs.trim().isNotEmpty)
+          'interpreted_as': interpretedAs.trim(),
       };
 
       // Start the recipe generation process
@@ -285,7 +289,7 @@ class RecipeService {
   }
 
   // Generate a new recipe (non-queue method)
-  Future<Recipe> generateRecipe(String query, {bool save = false, String? token}) async {
+  Future<Recipe> generateRecipe(String query, {bool save = false, String? token, String? interpretedAs}) async {
     final headers = {
       'Content-Type': 'application/json',
     };
@@ -301,6 +305,8 @@ class RecipeService {
       final requestBody = {
         'query': query,
         'save': save,
+        if (interpretedAs != null && interpretedAs.trim().isNotEmpty)
+          'interpreted_as': interpretedAs.trim(),
       };
 
       // Start the recipe generation process
