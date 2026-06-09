@@ -104,7 +104,9 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_isGate) {
           Navigator.of(context).pop(true); // resume the gated action
         } else {
-          Navigator.of(context).pushReplacementNamed('/app');
+          // Land on the Home tab (index 0), consistent with Google sign-in. '/app'
+          // defaults to index 1 (Chats), which is a confusing place to land after login.
+          Navigator.of(context).pushReplacementNamed('/home');
         }
       } else if (mounted && authProvider.error != null) {
         setState(() { _errorMessage = authProvider.error; });

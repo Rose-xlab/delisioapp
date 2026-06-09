@@ -381,12 +381,18 @@ class AuthProvider with ChangeNotifier {
       // The listener will clear _user, _token, Sentry user and notify.
       if (kDebugMode) print("AuthProvider: Supabase signOut successful. Listener will handle state.");
 
-      // RevenueCat logout
-      await Purchases.logOut().catchError((e,st) {
-        if (kDebugMode) print("AuthProvider: Error during RevenueCat logOut on sign out: $e");
+      // RevenueCat logout. Purchases.logOut() returns Future<CustomerInfo>, so a
+      // .catchError that returns void is invalid ("The error handler of
+      // Future.catchError must return a value of the future's type") — use try/catch.
+      // It also throws when the current RevenueCat user is anonymous; treat any failure
+      // here as non-fatal so it never breaks sign-out.
+      try {
+        await Purchases.logOut();
+        if (kDebugMode) print("AuthProvider: RevenueCat logOut successful.");
+      } catch (e, st) {
+        if (kDebugMode) print("AuthProvider: RevenueCat logOut on sign out failed (non-fatal): $e");
         captureException(e, stackTrace: st, hintText: "Error during RevenueCat logOut on sign out");
-      });
-      if (kDebugMode) print("AuthProvider: RevenueCat logOut successful.");
+      }
 
       // Clear UserProvider data
       if(_navigatorContext != null && _navigatorContext!.mounted) {

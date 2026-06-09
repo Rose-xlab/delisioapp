@@ -45,8 +45,8 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
       await Provider.of<AuthProvider>(context, listen: false).updatePreferences(preferences);
 
       if (mounted) {
-        // Corrected navigation target
-        Navigator.of(context).pushReplacementNamed('/app');
+        // Land on the Home tab after onboarding (not '/app' which defaults to Chats).
+        Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
       if (mounted) {
@@ -103,8 +103,8 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
             const SizedBox(height: 16),
             OutlinedButton(
               onPressed: () {
-                // Corrected navigation target
-                Navigator.of(context).pushReplacementNamed('/app');
+                // Land on the Home tab (not '/app' which defaults to Chats).
+                Navigator.of(context).pushReplacementNamed('/home');
               },
               child: const Text('Skip for Now'),
             ),
