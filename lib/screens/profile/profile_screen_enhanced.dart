@@ -144,26 +144,47 @@ class _ProfileScreenEnhancedState extends State<ProfileScreenEnhanced> {
 
     if (confirmed && mounted) {
       print('Account deletion requested by user.');
-      // TODO: Implement actual account deletion logic via AuthProvider/AuthService
-      // Example:
-      // setState(() { _isLoading = true; });
-      // try {
-      //   bool success = await Provider.of<AuthProvider>(context, listen: false).deleteUserAccount();
-      //   if (success && mounted) {
-      //     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account successfully deleted.')));
-      //     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-      //   } else if(mounted) {
-      //     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deletion failed. Please try again.')));
-      //   }
-      // } catch (e) {
-      //   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting account: $e')));
-      // } finally {
-      //   if (mounted) setState(() { _isLoading = false; });
-      // }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Account deletion feature not yet implemented.')),
-      );
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Use listen: false because we are in a method, not reacting to changes in build.
+        final success = await Provider.of<AuthProvider>(context, listen: false)
+            .deleteUserAccount();
+
+        if (!mounted) return;
+
+        if (success) {
+          // deleteUserAccount() also signs the user out; route back to login.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Your account has been deleted.')),
+          );
+          Navigator.of(context)
+              .pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
+        } else {
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authProvider.error ??
+                  'Account deletion failed. Please try again.'),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting account: ${e.toString()}')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 

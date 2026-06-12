@@ -71,7 +71,7 @@ class SubscriptionProvider with ChangeNotifier {
   bool get isProSubscriber {
     // --- BETA TESTING OVERRIDE ---
     // TODO: Set this to 'false' to re-enable the paywall and RevenueCat checks after testing.
-    const bool isGlobalBetaTesting = true;
+    const bool isGlobalBetaTesting = false;
     if (isGlobalBetaTesting) {
       if (kDebugMode) print("SubscriptionProvider: Global Beta Testing is ON. Granting Pro access.");
       return true;
