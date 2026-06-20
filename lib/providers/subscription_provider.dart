@@ -19,50 +19,31 @@ class SubscriptionProvider with ChangeNotifier {
   String? _error;
   CustomerInfo? _customerInfo;
 
-  final List<SubscriptionPlan> _plans = [
-    SubscriptionPlan(
-      tier: SubscriptionTier.free,
-      name: 'Free',
-      description: 'Basic access to Kitchen Assistant',
-      price: 0, currency: 'USD', interval: 'month',
-      features: [
-        'Limited full recipe unlocks (e.g., 1/month)',
-        'Up to 10 AI chat replies/period',
-        'Standard image quality', 'Access to a selection of recipes', 'Basic chat assistance',
-      ],
-      planIdentifier: 'free',
-    ),
-    SubscriptionPlan(
-      tier: SubscriptionTier.pro, name: 'Pro Weekly', description: 'Unlock all features with Pro weekly',
-      price: 10.00, currency: 'USD', interval: 'week',
-      features: [
-        'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
-        'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
-        'Exclusive premium recipes', 'Custom recipe modifications',
-      ],
-      planIdentifier: 'week:r-weekly',
-    ),
-    SubscriptionPlan(
-      tier: SubscriptionTier.pro, name: 'Pro Monthly', description: 'Unlock all features with Pro monthly',
-      price: 20.00, currency: 'USD', interval: 'month',
-      features: [
-        'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
-        'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
-        'Exclusive premium recipes', 'Custom recipe modifications',
-      ],
-      planIdentifier: 'rc_pro:rc',
-    ),
-    SubscriptionPlan(
-      tier: SubscriptionTier.pro, name: 'Pro Annual', description: 'Get the best value with Pro annually',
-      price: 179.99, currency: 'USD', interval: 'year',
-      features: [
-        'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
-        'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
-        'Exclusive premium recipes', 'Custom recipe modifications', 'Discounted annual rate (Best Value!)',
-      ],
-      planIdentifier: 'rc_annualy:annually',
-    ),
+  // The Free plan is not backed by a store product, so it stays defined locally.
+  static final SubscriptionPlan _freePlan = SubscriptionPlan(
+    tier: SubscriptionTier.free,
+    name: 'Free',
+    description: 'Basic access to Kitchen Assistant',
+    price: 0, currency: 'USD', interval: 'month',
+    features: [
+      'Limited full recipe unlocks (e.g., 1/month)',
+      'Up to 10 AI chat replies/period',
+      'Standard image quality', 'Access to a selection of recipes', 'Basic chat assistance',
+    ],
+    planIdentifier: 'free',
+  );
+
+  // Marketing copy for the Pro tier. Store products don't carry a feature list,
+  // so the bullet points live here while price/name/identifier come from RevenueCat.
+  static const List<String> _proFeatures = [
+    'Unlimited recipe generations', 'Unlimited AI chat replies', 'HD image quality',
+    'Full access to recipe library', 'Priority chat assistance', 'Save unlimited favorite recipes',
+    'Exclusive premium recipes', 'Custom recipe modifications',
   ];
+
+  // Built dynamically from RevenueCat offerings; starts with just Free until
+  // loadOfferings() populates the Pro packages with live store pricing.
+  List<SubscriptionPlan> _plans = [_freePlan];
 
   SubscriptionInfo? get subscriptionInfo => _subscriptionInfo;
   bool get isLoading => _isLoading;
@@ -89,6 +70,72 @@ class SubscriptionProvider with ChangeNotifier {
     return null;
   }
 
+  // Pull the Pro plans straight from RevenueCat so names, identifiers and
+  // (localized) prices always match what's configured in the dashboard/stores,
+  // instead of being hardcoded. Leaves the existing plans in place on failure.
+  Future<void> loadOfferings() async {
+    try {
+      final offerings = await Purchases.getOfferings();
+      // Prefer the named offering, fall back to the dashboard's "current" one.
+      final offering = offerings.all[MyOfferings.pro.identifier] ?? offerings.current;
+      if (offering == null || offering.availablePackages.isEmpty) {
+        debugPrint('SubscriptionProvider: No RevenueCat offering/packages found; keeping existing plans.');
+        return;
+      }
+
+      final proPlans = offering.availablePackages.map((pkg) {
+        final product = pkg.storeProduct;
+        return SubscriptionPlan(
+          tier: SubscriptionTier.pro,
+          name: _planNameForPackageType(pkg.packageType, product.title),
+          description: 'Unlock all Pro features',
+          price: product.price,
+          priceString: product.priceString,
+          currency: product.currencyCode,
+          interval: _intervalForPackageType(pkg.packageType),
+          features: _proFeatures,
+          // Use the store product id so it matches the active entitlement's
+          // productIdentifier (see [package] getter) for current-plan detection.
+          planIdentifier: product.identifier,
+        );
+      }).toList();
+
+      _plans = [_freePlan, ...proPlans];
+      addBreadcrumb(message: 'RevenueCat offerings loaded', category: 'subscription_rc_offerings', data: {'count': proPlans.length}, level: SentryLevel.info);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      if (kDebugMode) print('SubscriptionProvider: Error loading RevenueCat offerings: $e');
+      captureException(e, stackTrace: stackTrace, hintText: 'Error loading RevenueCat offerings');
+      // Keep whatever plans we already have so the screen still renders.
+    }
+  }
+
+  String _planNameForPackageType(PackageType type, String fallbackTitle) {
+    switch (type) {
+      case PackageType.weekly:
+        return 'Pro Weekly';
+      case PackageType.monthly:
+        return 'Pro Monthly';
+      case PackageType.annual:
+        return 'Pro Annual';
+      default:
+        return fallbackTitle.isNotEmpty ? fallbackTitle : 'Pro';
+    }
+  }
+
+  String _intervalForPackageType(PackageType type) {
+    switch (type) {
+      case PackageType.weekly:
+        return 'week';
+      case PackageType.monthly:
+        return 'month';
+      case PackageType.annual:
+        return 'year';
+      default:
+        return '';
+    }
+  }
+
   void updateLocalRevenueCatStatus(CustomerInfo customerInfo) {
     _customerInfo = customerInfo;
     debugPrint("SubscriptionProvider: Local RevenueCat CustomerInfo updated. isPro: $isProSubscriber, activeEntitlements: ${customerInfo.entitlements.active.keys.join(',')}, productID: ${customerInfo.entitlements.all[MyOfferingsExtension.proEntitlement]?.productIdentifier}");
@@ -106,6 +153,9 @@ class SubscriptionProvider with ChangeNotifier {
     addBreadcrumb(message: 'Fetching RevenueCat subscription status and syncing', category: 'subscription_rc_sync', level: SentryLevel.info);
 
     try {
+      // Refresh the plan list (names/prices/identifiers) from RevenueCat first.
+      await loadOfferings();
+
       _customerInfo = await Purchases.getCustomerInfo();
       // Update _isProSubscriber based on the fetched info *before* using it in breadcrumb or sync
       // (The getter already does this, so this is fine)

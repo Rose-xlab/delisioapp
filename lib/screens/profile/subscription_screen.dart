@@ -2,12 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart'; // RevenueCat native paywall
 
 // Assuming relative paths from lib/screens/profile/
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../models/subscription.dart';
-import '../../widgets/profile/subscription_plan_card.dart';
+import '../../constants/myofferings.dart';
 import '../../widgets/profile/usage_progress_bar.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -19,15 +20,40 @@ class SubscriptionScreen extends StatefulWidget {
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   bool _isScreenLoading = false;
+  // Ensures we only auto-present the paywall once per screen open, not on every refresh.
+  bool _paywallAutoPresented = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _loadSubscriptionData(showLoadingIndicator: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _loadSubscriptionData(showLoadingIndicator: true);
+      // Auto-present the live RevenueCat paywall for Free users, mirroring the
+      // recipe-generation flow. Pro users keep the manage/cancel card instead.
+      if (mounted && !_paywallAutoPresented) {
+        final subProvider = Provider.of<SubscriptionProvider>(context, listen: false);
+        if (!subProvider.isProSubscriber) {
+          _paywallAutoPresented = true;
+          await _presentPaywall();
+        }
       }
     });
+  }
+
+  // Presents RevenueCat's native paywall (same UI used after a free user hits a
+  // generation limit). presentPaywallIfNeeded only shows it when the user lacks
+  // the Pro entitlement; afterwards we refresh status to reflect any purchase.
+  Future<void> _presentPaywall() async {
+    try {
+      await RevenueCatUI.presentPaywallIfNeeded(MyOfferingsExtension.proEntitlement);
+    } catch (e) {
+      debugPrint('Error presenting paywall from SubscriptionScreen: $e');
+    } finally {
+      if (mounted) {
+        await _loadSubscriptionData(showLoadingIndicator: true);
+      }
+    }
   }
 
   Future<void> _loadSubscriptionData({bool showLoadingIndicator = false}) async {
@@ -204,36 +230,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  Widget _buildSubscriptionPlansList() {
+  // Upgrade entry point for Free users. Plan selection and purchase happen inside
+  // RevenueCat's native paywall (auto-presented on open); this button lets the user
+  // re-open it if they dismissed it. Pro users manage via the card above instead.
+  Widget _buildUpgradeSection() {
+    final theme = Theme.of(context);
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
 
-    List<SubscriptionPlan> plansToShow;
-
-    if (!subscriptionProvider.isProSubscriber) {
-      // If user is Free, only show Pro plans as upgrade options
-      plansToShow = subscriptionProvider.plans
-          .where((plan) => plan.tier == SubscriptionTier.pro)
-          .toList();
-    } else {
-      // If user is Pro, show other Pro plans (e.g., switch monthly to annual).
-      // We are still excluding the Free plan card from this "upgrade/switch" list for Pro users.
-      plansToShow = subscriptionProvider.plans
-          .where((plan) => plan.tier == SubscriptionTier.pro)
-          .toList();
-    }
-
-    String listTitle = "Upgrade to Pro";
     if (subscriptionProvider.isProSubscriber) {
-      // If there are other pro plans to switch to (i.e., plansToShow is not empty and contains plans different from current)
-      if (plansToShow.isNotEmpty && plansToShow.any((plan) => plan.planIdentifier != subscriptionProvider.package)) {
-        listTitle = "Switch Plan";
-      } else if (plansToShow.isNotEmpty) { // Only their current Pro plan is shown
-        listTitle = "Your Pro Plan";
-      } else { // No pro plans defined at all (shouldn't happen if app has pro plans)
-        listTitle = "Pro Plans";
-      }
+      return const SizedBox.shrink();
     }
-
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,79 +247,37 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
           child: Text(
-            listTitle,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            'Upgrade to Pro',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
-        if (plansToShow.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text(
-              subscriptionProvider.isProSubscriber
-                  ? "Details of your current Pro plan are shown above."
-                  : "No upgrade plans available at the moment.",
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: plansToShow.length,
-            itemBuilder: (context, index) {
-              final plan = plansToShow[index];
-              final isProFromRC = subscriptionProvider.isProSubscriber;
-              final currentRcPackageId = subscriptionProvider.package;
-
-              // This card is only for a Pro plan (because plansToShow is filtered for Pro)
-              // So, isThisPlanCurrentlyActive means: is this specific Pro plan the user's current Pro plan?
-              bool isThisPlanCurrentlyActive = isProFromRC && plan.planIdentifier == currentRcPackageId;
-
-              String buttonText;
-              ValueChanged<SubscriptionPlan>? onSubscribeAction;
-
-              if (isThisPlanCurrentlyActive) {
-                buttonText = "Current Pro Plan";
-                onSubscribeAction = null;
-              } else { // It's a Pro plan, but not their current one
-                buttonText = isProFromRC ? "Switch to ${plan.name}" : "Upgrade to ${plan.name}";
-                onSubscribeAction = (selectedPlan) => _subscribeToPlan(selectedPlan);
-              }
-
-              return SubscriptionPlanCard(
-                plan: plan,
-                isCurrentPlan: isThisPlanCurrentlyActive,
-                onSubscribe: onSubscribeAction,
-                buttonText: buttonText,
-              );
-            },
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(
+            'Unlock unlimited recipes, unlimited AI chat and more.',
+            style: theme.textTheme.bodyMedium,
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.workspace_premium_outlined),
+              label: const Text('View Pro Plans'),
+              onPressed: _isScreenLoading ? null : _presentPaywall,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ),
+          ),
+        ),
       ],
     );
-  }
-
-  Future<void> _subscribeToPlan(SubscriptionPlan plan) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.token == null) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You must be logged in to subscribe')));
-      return;
-    }
-    if (plan.planIdentifier == null || plan.planIdentifier == 'free') {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This plan cannot be purchased directly.')));
-      return;
-    }
-    setState(() { _isScreenLoading = true; });
-    try {
-      final success = await Provider.of<SubscriptionProvider>(context, listen: false).subscribeToPlan(authProvider.token!, plan);
-      if (!success && mounted) {
-        final error = Provider.of<SubscriptionProvider>(context, listen: false).error;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Could not start subscription process.')));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting subscription: $e')));
-    } finally {
-      if (mounted) setState(() { _isScreenLoading = false; });
-    }
   }
 
   Future<void> _manageSubscription() async {
@@ -380,7 +344,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
               _buildCurrentPlanDisplay(context),
               const SizedBox(height: 16),
-              _buildSubscriptionPlansList(),
+              _buildUpgradeSection(),
             ],
           ),
         ),

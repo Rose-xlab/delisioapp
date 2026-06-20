@@ -117,6 +117,10 @@ class SubscriptionPlan {
   final String interval;
   final List<String> features;
   final String? planIdentifier;
+  // Localized, store-formatted price (e.g. "$9.99", "£8.99") from RevenueCat.
+  // Null for plans not backed by a store product (e.g. Free). When present,
+  // prefer this over [price] for display.
+  final String? priceString;
 
   SubscriptionPlan({
     required this.tier,
@@ -127,5 +131,6 @@ class SubscriptionPlan {
     required this.interval,
     required this.features,
     this.planIdentifier,
+    this.priceString,
   });
 }

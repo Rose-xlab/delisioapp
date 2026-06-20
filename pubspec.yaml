@@ -4,7 +4,7 @@ description: AI-powered cooking app with step-by-step illustrated recipes
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
 # followed by an optional build number separated by a +.
-version: 1.0.10+10
+version: 1.0.12+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0' # Ensure your Dart SDK meets Supabase v2 requirements

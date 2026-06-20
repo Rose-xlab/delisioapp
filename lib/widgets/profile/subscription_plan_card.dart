@@ -63,7 +63,9 @@ class SubscriptionPlanCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Unlock All Pro Features for a ${plan.name == 'Pro Weekly' ? 'week' : plan.name == 'Pro Monthly' ? 'month' : plan.name == 'Pro Annual' ? 'year' : plan.name.toLowerCase()}',
+                        plan.interval.isNotEmpty
+                            ? 'Unlock All Pro Features for a ${plan.interval}'
+                            : 'Unlock All Pro Features',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.white,
                         ),
@@ -78,12 +80,14 @@ class SubscriptionPlanCard extends StatelessWidget {
                     radius: 30,
                     backgroundColor: Colors.white,
                     child: Text(
-                      plan.price.toString(),
+                      // Prefer RevenueCat's localized, store-formatted price.
+                      plan.priceString ?? '\$${plan.price.toStringAsFixed(2)}',
                       style: theme.textTheme.headlineMedium?.copyWith(
                         color: priceTextColor,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
